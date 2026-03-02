@@ -44,7 +44,6 @@ struct MenuBarView: View {
     private var accountInfo: some View {
         VStack(alignment: .leading, spacing: 4) {
             LabeledRow(label: "Email", value: usageService.usageData.email ?? "--")
-            LabeledRow(label: "Organization", value: usageService.usageData.organizationName ?? "--")
             LabeledRow(label: "Plan", value: usageService.usageData.planName ?? "--")
         }
         .padding(.horizontal, 16)
@@ -95,6 +94,10 @@ struct MenuBarView: View {
 
             ActionButton(label: "Show Debug Info") {
                 DebugWindow.show(text: usageService.debugInfo)
+            }
+
+            ActionButton(label: "Clear Cache") {
+                usageService.clearCache()
             }
 
             ActionButton(label: "Log Out") {

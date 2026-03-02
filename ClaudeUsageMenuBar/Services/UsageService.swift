@@ -85,6 +85,19 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         }
     }
 
+    func clearCache() {
+        let dataStore = WKWebsiteDataStore.default()
+        let dataTypes = WKWebsiteDataStore.allWebsiteDataTypes()
+        let sinceDate = Date.distantPast
+
+        dataStore.removeData(ofTypes: dataTypes, modifiedSince: sinceDate) { [weak self] in
+            Task { @MainActor in
+                self?.resetToLoggedOut()
+                self?.setupBackgroundWebView()
+            }
+        }
+    }
+
     // MARK: - State Updates
 
     func setError(_ message: String) {
