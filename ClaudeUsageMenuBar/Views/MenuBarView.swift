@@ -44,7 +44,6 @@ struct MenuBarView: View {
     private var accountInfo: some View {
         VStack(alignment: .leading, spacing: 4) {
             LabeledRow(label: "Email", value: usageService.usageData.email ?? "--")
-            LabeledRow(label: "Plan", value: usageService.usageData.planName ?? "--")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
