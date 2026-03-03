@@ -10,6 +10,7 @@ struct ClaudeWebView: NSViewRepresentable {
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
 
         if let url = URL(string: "https://claude.ai/settings/usage") {

@@ -1,7 +1,7 @@
 import Foundation
 import WebKit
 
-class WebViewCoordinator: NSObject, WKNavigationDelegate {
+class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
 
     private enum Constants {
         static let redirectDelay: TimeInterval = 0.5
@@ -31,23 +31,27 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        guard let url = navigationAction.request.url,
-              let host = url.host?.lowercased() else {
+        guard navigationAction.request.url != nil else {
             decisionHandler(.cancel)
             return
         }
 
-        if isAllowedHost(host) {
-            decisionHandler(.allow)
-        } else {
-            NSWorkspace.shared.open(url)
+        if navigationAction.targetFrame == nil {
+            webView.load(navigationAction.request)
             decisionHandler(.cancel)
+            return
         }
+
+        decisionHandler(.allow)
+    }
+
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        webView.load(navigationAction.request)
+        return nil
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        guard let url = webView.url,
-              let host = url.host?.lowercased() else { return }
+        guard let url = webView.url else { return }
 
         let urlString = url.absoluteString.lowercased()
 
@@ -55,18 +59,6 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate {
             Task { @MainActor in
                 usageService.triggerRefresh()
             }
-            return
-        }
-
-        if isAuthPage(urlString) {
-            Task { @MainActor in
-                usageService.setLoggedOut()
-            }
-            return
-        }
-
-        if isClaudeMainPage(host: host, urlString: urlString) {
-            redirectToUsagePage(webView)
         }
     }
 
