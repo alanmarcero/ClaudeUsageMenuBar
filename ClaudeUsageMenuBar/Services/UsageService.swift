@@ -23,6 +23,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     @Published var countdown: Int = Int(Constants.refreshInterval)
     @Published var dailyResetCountdown: String?
     @Published var weeklyResetCountdown: String?
+    @Published var sonnetWeeklyResetCountdown: String?
     @Published var debugInfo: String = ""
 
     // MARK: - Private Properties
@@ -31,6 +32,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private var backgroundWebView: WKWebView?
     private var rawDailyResetTime: String?
     private var rawWeeklyResetTime: String?
+    private var rawSonnetWeeklyResetTime: String?
     var refreshStartTime: Date?  // internal for @testable import
 
     var displayText: String {
@@ -119,21 +121,21 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData = UsageData()
         dailyResetCountdown = nil
         weeklyResetCountdown = nil
+        sonnetWeeklyResetCountdown = nil
         rawDailyResetTime = nil
         rawWeeklyResetTime = nil
+        rawSonnetWeeklyResetTime = nil
         setLoggedOut()
         usageData.errorMessage = "Logged out. Click 'Open Usage Page / Login' to sign in."
     }
 
     private func applyScrapedData(_ data: ScrapedUsageData) {
         usageData.percentage = data.percentage
-        usageData.messagesUsed = data.messagesUsed
-        usageData.messagesLimit = data.messagesLimit
         usageData.resetTime = data.resetTime
         usageData.weeklyPercentage = data.weeklyPercentage
-        usageData.weeklyMessagesUsed = data.weeklyMessagesUsed
-        usageData.weeklyMessagesLimit = data.weeklyMessagesLimit
         usageData.weeklyResetTime = data.weeklyResetTime
+        usageData.sonnetWeeklyPercentage = data.sonnetWeeklyPercentage
+        usageData.sonnetWeeklyResetTime = data.sonnetWeeklyResetTime
         usageData.email = data.email
         usageData.organizationName = data.organizationName
         usageData.planName = data.planName
@@ -143,6 +145,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
         rawDailyResetTime = data.resetTime
         rawWeeklyResetTime = data.weeklyResetTime
+        rawSonnetWeeklyResetTime = data.sonnetWeeklyResetTime
         updateResetCountdowns()
 
         isRefreshing = false
@@ -199,6 +202,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private func updateResetCountdowns() {
         dailyResetCountdown = rawDailyResetTime
         weeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawWeeklyResetTime)
+        sonnetWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawSonnetWeeklyResetTime)
     }
 
     // MARK: - WKNavigationDelegate
@@ -248,9 +252,19 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     // MARK: - Scraping
 
     private func scrapeUsage(from webView: WKWebView) {
-        webView.evaluateJavaScript(UsageScrapingScript.script) { [weak self] result, error in
+        webView.callAsyncJavaScript(
+            UsageScrapingScript.script,
+            arguments: [:],
+            in: nil,
+            in: .page
+        ) { [weak self] result in
             Task { @MainActor [weak self] in
-                self?.handleScrapingResult(result, error: error)
+                switch result {
+                case .success(let value):
+                    self?.handleScrapingResult(value, error: nil)
+                case .failure(let error):
+                    self?.handleScrapingResult(nil, error: error)
+                }
             }
         }
     }
@@ -275,13 +289,11 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
         let data = ScrapedUsageData(
             percentage: dict["percentage"] as? Int ?? 0,
-            messagesUsed: dict["messagesUsed"] as? Int,
-            messagesLimit: dict["messagesLimit"] as? Int,
             resetTime: dict["resetTime"] as? String,
             weeklyPercentage: dict["weeklyPercentage"] as? Int,
-            weeklyMessagesUsed: dict["weeklyMessagesUsed"] as? Int,
-            weeklyMessagesLimit: dict["weeklyMessagesLimit"] as? Int,
             weeklyResetTime: dict["weeklyResetTime"] as? String,
+            sonnetWeeklyPercentage: dict["sonnetWeeklyPercentage"] as? Int,
+            sonnetWeeklyResetTime: dict["sonnetWeeklyResetTime"] as? String,
             email: dict["email"] as? String,
             organizationName: dict["orgName"] as? String,
             planName: dict["planName"] as? String
@@ -294,13 +306,11 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
 private struct ScrapedUsageData {
     let percentage: Int
-    let messagesUsed: Int?
-    let messagesLimit: Int?
     let resetTime: String?
     let weeklyPercentage: Int?
-    let weeklyMessagesUsed: Int?
-    let weeklyMessagesLimit: Int?
     let weeklyResetTime: String?
+    let sonnetWeeklyPercentage: Int?
+    let sonnetWeeklyResetTime: String?
     let email: String?
     let organizationName: String?
     let planName: String?
@@ -385,135 +395,125 @@ enum WeeklyCountdownCalculator {
 // MARK: - JavaScript Scraping Script
 
 enum UsageScrapingScript {
+    // Executed via WKWebView.callAsyncJavaScript: the script body IS the async function body,
+    // so top-level `await` works and the returned value is the resolved value.
     static let script = """
-    (function() {
-        const result = {
-            success: false,
-            percentage: null,
-            messagesUsed: null,
-            messagesLimit: null,
-            resetTime: null,
-            weeklyPercentage: null,
-            weeklyMessagesUsed: null,
-            weeklyMessagesLimit: null,
-            weeklyResetTime: null,
-            email: null,
-            orgName: null,
-            planName: null,
-            error: null,
-            debug: ''
-        };
+    const result = {
+        success: false,
+        percentage: null,
+        resetTime: null,
+        weeklyPercentage: null,
+        weeklyResetTime: null,
+        sonnetWeeklyPercentage: null,
+        sonnetWeeklyResetTime: null,
+        email: null,
+        orgName: null,
+        planName: null,
+        error: null,
+        debug: ''
+    };
 
+    const readAccountFromIDB = () => new Promise((resolve) => {
         try {
-            // Extract from __next_f (Next.js streaming data)
-            if (window.__next_f && Array.isArray(window.__next_f)) {
-                for (const entry of window.__next_f) {
-                    if (!Array.isArray(entry) || entry.length < 2) continue;
-                    const content = String(entry[1] || '');
-
-                    // Organization from memberships
-                    if (!result.orgName) {
-                        const orgMatch = content.match(/"memberships":\\s*\\[\\s*\\{[^\\]]*"organization"\\s*:\\s*\\{[^}]*"name"\\s*:\\s*"([^"]+)"/);
-                        if (orgMatch) result.orgName = orgMatch[1];
-                    }
-
-                    // Email
-                    if (!result.email) {
-                        const emailMatch = content.match(/"email_address"\\s*:\\s*"([^"]+@[^"]+)"/);
-                        if (emailMatch) result.email = emailMatch[1];
-                    }
+            const req = indexedDB.open('keyval-store');
+            req.onerror = () => resolve(null);
+            req.onsuccess = () => {
+                try {
+                    const db = req.result;
+                    const tx = db.transaction('keyval', 'readonly');
+                    const store = tx.objectStore('keyval');
+                    const get = store.get('react-query-cache');
+                    get.onerror = () => resolve(null);
+                    get.onsuccess = () => resolve(get.result || null);
+                } catch (e) {
+                    resolve(null);
                 }
-            }
-
-            // Extract from page text
-            const bodyText = document.body.innerText;
-
-            // Primary: Look for "X% used" pattern (more reliable)
-            const percentUsedPattern = /(\\d+)\\s*%\\s*used/gi;
-            const percentMatches = [...bodyText.matchAll(percentUsedPattern)];
-
-            if (percentMatches.length >= 1) {
-                result.percentage = parseInt(percentMatches[0][1]);
-            }
-            if (percentMatches.length >= 2) {
-                result.weeklyPercentage = parseInt(percentMatches[1][1]);
-            }
-
-            // Secondary: Look for "X / Y" or "X of Y" patterns for message counts
-            const usagePatterns = bodyText.match(/(\\d+)\\s*(?:\\/|of)\\s*(\\d+)/gi) || [];
-
-            if (usagePatterns.length >= 1) {
-                const numbers = usagePatterns[0].match(/(\\d+)/g);
-                if (numbers && numbers.length >= 2) {
-                    result.messagesUsed = parseInt(numbers[0]);
-                    result.messagesLimit = parseInt(numbers[1]);
-                    // Only use this for percentage if we didn't find "X% used"
-                    if (result.percentage === null && result.messagesLimit > 0) {
-                        result.percentage = Math.round((result.messagesUsed / result.messagesLimit) * 100);
-                    }
-                }
-            }
-
-            if (usagePatterns.length >= 2) {
-                const numbers = usagePatterns[1].match(/(\\d+)/g);
-                if (numbers && numbers.length >= 2) {
-                    result.weeklyMessagesUsed = parseInt(numbers[0]);
-                    result.weeklyMessagesLimit = parseInt(numbers[1]);
-                    // Only use this for percentage if we didn't find "X% used"
-                    if (result.weeklyPercentage === null && result.weeklyMessagesLimit > 0) {
-                        result.weeklyPercentage = Math.round((result.weeklyMessagesUsed / result.weeklyMessagesLimit) * 100);
-                    }
-                }
-            }
-
-            // Fallback: Look for standalone percentages
-            if (result.percentage === null || result.weeklyPercentage === null) {
-                const standalonePercents = bodyText.match(/(\\d+)\\s*%/g) || [];
-                if (standalonePercents.length >= 1 && result.percentage === null) {
-                    result.percentage = parseInt(standalonePercents[0]);
-                }
-                if (standalonePercents.length >= 2 && result.weeklyPercentage === null) {
-                    result.weeklyPercentage = parseInt(standalonePercents[1]);
-                }
-            }
-
-            // Reset times
-            const timePattern = /(\\d+\\s*(?:hours?|hrs?|h)(?:\\s*\\d+\\s*(?:minutes?|mins?|m))?|\\d+\\s*(?:minutes?|mins?|m))/gi;
-            const timeMatches = bodyText.match(timePattern) || [];
-            if (timeMatches.length >= 1) result.resetTime = timeMatches[0].trim();
-
-            const dayTimePattern = /((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\\s+\\d{1,2}:\\d{2}\\s*(?:AM|PM))/gi;
-            const dayTimeMatches = bodyText.match(dayTimePattern) || [];
-            if (dayTimeMatches.length >= 1) result.weeklyResetTime = dayTimeMatches[0].trim();
-
-            // Plan name
-            if (!result.planName) {
-                const planMatch = bodyText.match(/\\b(Team|Pro|Free|Enterprise|Max|Business)\\b/i);
-                if (planMatch) result.planName = planMatch[1];
-            }
-
-            // Email fallback from page text
-            if (!result.email) {
-                const emailMatch = bodyText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/);
-                if (emailMatch) result.email = emailMatch[0];
-            }
-
-            result.success = result.percentage !== null || result.messagesUsed !== null || result.email !== null;
-            if (!result.success) result.error = 'No usage data found';
-
-            // Debug info
-            result.debug = 'Scraped: ' + JSON.stringify({
-                percentage: result.percentage,
-                email: result.email,
-                orgName: result.orgName,
-                planName: result.planName
-            });
-
+            };
+            setTimeout(() => resolve(null), 2000);
         } catch (e) {
-            result.error = 'Script error: ' + e.message;
+            resolve(null);
+        }
+    });
+
+    try {
+        // 1) Email + org name from react-query cache (Claude now client-renders these).
+        const cache = await readAccountFromIDB();
+        const queries = cache && cache.clientState && cache.clientState.queries;
+        if (Array.isArray(queries)) {
+            for (const q of queries) {
+                const key = q && q.queryKey;
+                if (!Array.isArray(key) || key[0] !== 'current_account') continue;
+                const acc = q.state && q.state.data && q.state.data.account;
+                if (!acc) continue;
+                if (!result.email && acc.email_address) result.email = acc.email_address;
+                if (!result.orgName && Array.isArray(acc.memberships) && acc.memberships[0] && acc.memberships[0].organization) {
+                    result.orgName = acc.memberships[0].organization.name || null;
+                }
+                if (result.email && result.orgName) break;
+            }
         }
 
-        return result;
-    })();
+        // 2) Locate the usage section anchored on the "Your usage limits" heading.
+        const heading = Array.from(document.querySelectorAll('h1, h2, h3'))
+            .find(h => (h.textContent || '').trim() === 'Your usage limits');
+
+        if (heading) {
+            // Plan badge is a sibling element of the heading inside its parent row.
+            const row = heading.parentElement;
+            if (row) {
+                const badge = Array.from(row.children).find(el => el !== heading && el.textContent.trim());
+                if (badge) {
+                    const text = badge.textContent.trim();
+                    if (/^(Team|Pro|Free|Enterprise|Max|Business)$/i.test(text)) {
+                        result.planName = text;
+                    }
+                }
+            }
+
+            // Walk up until we find the smallest ancestor containing at least two "% used" rows
+            // (daily + at least one weekly). This scopes regex matches away from the sidebar.
+            let scope = null;
+            let el = heading.parentElement;
+            while (el && el !== document.body) {
+                const text = el.innerText || '';
+                const count = (text.match(/%\\s*used/gi) || []).length;
+                if (count >= 2) { scope = text; break; }
+                el = el.parentElement;
+            }
+            if (!scope) scope = (document.querySelector('main') || document.body).innerText || '';
+
+            // Percentages, in document order: [daily, weekly-all, weekly-sonnet].
+            const percentMatches = [...scope.matchAll(/(\\d+)\\s*%\\s*used/gi)];
+            if (percentMatches[0]) result.percentage = parseInt(percentMatches[0][1], 10);
+            if (percentMatches[1]) result.weeklyPercentage = parseInt(percentMatches[1][1], 10);
+            if (percentMatches[2]) result.sonnetWeeklyPercentage = parseInt(percentMatches[2][1], 10);
+
+            // Reset lines: "Resets in 4 hr 6 min", "Resets Fri 5:00 PM", "Resets Mon 11:00 AM".
+            const resetMatches = [...scope.matchAll(/Resets?\\s+(?:in\\s+)?([^\\n\\r]+)/gi)]
+                .map(m => m[1].trim());
+            if (resetMatches[0]) result.resetTime = resetMatches[0];
+            if (resetMatches[1]) result.weeklyResetTime = resetMatches[1];
+            if (resetMatches[2]) result.sonnetWeeklyResetTime = resetMatches[2];
+
+            result.debug = JSON.stringify({
+                percentMatches: percentMatches.map(m => m[0]),
+                resetMatches,
+                planName: result.planName,
+                scopeLen: scope.length,
+                cacheFound: !!cache
+            }, null, 2);
+        } else {
+            result.error = 'Usage heading not found';
+            result.debug = JSON.stringify({ cacheFound: !!cache, url: location.href }, null, 2);
+        }
+
+        result.success = result.percentage !== null || result.email !== null;
+        if (!result.success && !result.error) result.error = 'No usage data found';
+
+    } catch (e) {
+        result.error = 'Script error: ' + e.message;
+    }
+
+    return result;
     """
 }

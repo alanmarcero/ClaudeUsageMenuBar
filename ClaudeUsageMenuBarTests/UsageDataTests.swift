@@ -26,49 +26,14 @@ final class UsageDataTests: XCTestCase {
         XCTAssertEqual(data.displayPercentage, "100%")
     }
 
-    func testUsageDescriptionWithValues() {
-        var data = UsageData()
-        data.messagesUsed = 25
-        data.messagesLimit = 100
-        XCTAssertEqual(data.usageDescription, "25 / 100")
-    }
-
-    func testUsageDescriptionWithNilUsed() {
-        var data = UsageData()
-        data.messagesLimit = 100
-        XCTAssertEqual(data.usageDescription, "")
-    }
-
-    func testUsageDescriptionWithNilLimit() {
-        var data = UsageData()
-        data.messagesUsed = 25
-        XCTAssertEqual(data.usageDescription, "")
-    }
-
-    func testUsageDescriptionWithBothNil() {
-        let data = UsageData()
-        XCTAssertEqual(data.usageDescription, "")
-    }
-
-    func testWeeklyUsageDescriptionWithValues() {
-        var data = UsageData()
-        data.weeklyMessagesUsed = 50
-        data.weeklyMessagesLimit = 200
-        XCTAssertEqual(data.weeklyUsageDescription, "50 / 200")
-    }
-
-    func testWeeklyUsageDescriptionWithNil() {
-        let data = UsageData()
-        XCTAssertEqual(data.weeklyUsageDescription, "")
-    }
-
     func testDefaultValues() {
         let data = UsageData()
         XCTAssertNil(data.percentage)
-        XCTAssertNil(data.messagesUsed)
-        XCTAssertNil(data.messagesLimit)
+        XCTAssertNil(data.weeklyPercentage)
+        XCTAssertNil(data.sonnetWeeklyPercentage)
         XCTAssertNil(data.email)
         XCTAssertNil(data.organizationName)
+        XCTAssertNil(data.planName)
         XCTAssertFalse(data.isLoggedIn)
     }
 }

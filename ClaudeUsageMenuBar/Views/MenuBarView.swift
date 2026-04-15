@@ -10,9 +10,13 @@ struct MenuBarView: View {
             header
             accountInfo
             Divider().padding(.horizontal, 16)
-            usageSection(title: "Daily", percentage: usageService.usageData.percentage, usage: usageService.usageData.usageDescription, resetTime: usageService.dailyResetCountdown, color: dailyUsageColor)
+            usageSection(title: "Daily", percentage: usageService.usageData.percentage, resetTime: usageService.dailyResetCountdown, color: dailyUsageColor)
             Divider().padding(.horizontal, 16)
-            usageSection(title: "Weekly", percentage: usageService.usageData.weeklyPercentage, usage: usageService.usageData.weeklyUsageDescription, resetTime: usageService.weeklyResetCountdown, color: weeklyUsageColor)
+            usageSection(title: "Weekly", percentage: usageService.usageData.weeklyPercentage, resetTime: usageService.weeklyResetCountdown, color: weeklyUsageColor)
+            if usageService.usageData.sonnetWeeklyPercentage != nil {
+                Divider().padding(.horizontal, 16)
+                usageSection(title: "Weekly (Sonnet)", percentage: usageService.usageData.sonnetWeeklyPercentage, resetTime: usageService.sonnetWeeklyResetCountdown, color: sonnetWeeklyUsageColor)
+            }
             statusSection
             Divider().padding(.horizontal, 12)
             actionButtons
@@ -116,7 +120,7 @@ struct MenuBarView: View {
 
     // MARK: - Usage Section
 
-    private func usageSection(title: String, percentage: Int?, usage: String, resetTime: String?, color: Color) -> some View {
+    private func usageSection(title: String, percentage: Int?, resetTime: String?, color: Color) -> some View {
         VStack(spacing: 8) {
             HStack {
                 Text(title)
@@ -132,11 +136,8 @@ struct MenuBarView: View {
                 UsageProgressBar(percentage: pct, colors: AppConfig.shared.gradientColors(for: pct))
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                if !usage.isEmpty {
-                    LabeledRow(label: "Messages", value: usage)
-                }
-                if let reset = resetTime {
+            if let reset = resetTime {
+                VStack(alignment: .leading, spacing: 4) {
                     LabeledRow(label: "Resets in", value: reset)
                 }
             }
@@ -153,6 +154,10 @@ struct MenuBarView: View {
 
     private var weeklyUsageColor: Color {
         AppConfig.shared.colorForPercentage(usageService.usageData.weeklyPercentage)
+    }
+
+    private var sonnetWeeklyUsageColor: Color {
+        AppConfig.shared.colorForPercentage(usageService.usageData.sonnetWeeklyPercentage)
     }
 }
 
