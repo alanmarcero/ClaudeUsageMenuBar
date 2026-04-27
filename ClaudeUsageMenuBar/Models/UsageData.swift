@@ -10,6 +10,9 @@ struct UsageData {
     var sonnetWeeklyPercentage: Int?
     var sonnetWeeklyResetTime: String?
 
+    var designWeeklyPercentage: Int?
+    var designWeeklyResetTime: String?
+
     var email: String?
     var organizationName: String?
     var planName: String?

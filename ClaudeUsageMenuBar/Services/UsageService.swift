@@ -24,6 +24,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     @Published var dailyResetCountdown: String?
     @Published var weeklyResetCountdown: String?
     @Published var sonnetWeeklyResetCountdown: String?
+    @Published var designWeeklyResetCountdown: String?
     @Published var debugInfo: String = ""
 
     // MARK: - Private Properties
@@ -33,6 +34,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private var rawDailyResetTime: String?
     private var rawWeeklyResetTime: String?
     private var rawSonnetWeeklyResetTime: String?
+    private var rawDesignWeeklyResetTime: String?
     var refreshStartTime: Date?  // internal for @testable import
 
     var displayText: String {
@@ -136,6 +138,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.weeklyResetTime = data.weeklyResetTime
         usageData.sonnetWeeklyPercentage = data.sonnetWeeklyPercentage
         usageData.sonnetWeeklyResetTime = data.sonnetWeeklyResetTime
+        usageData.designWeeklyPercentage = data.designWeeklyPercentage
+        usageData.designWeeklyResetTime = data.designWeeklyResetTime
         usageData.email = data.email
         usageData.organizationName = data.organizationName
         usageData.planName = data.planName
@@ -146,6 +150,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         rawDailyResetTime = data.resetTime
         rawWeeklyResetTime = data.weeklyResetTime
         rawSonnetWeeklyResetTime = data.sonnetWeeklyResetTime
+        rawDesignWeeklyResetTime = data.designWeeklyResetTime
         updateResetCountdowns()
 
         isRefreshing = false
@@ -203,6 +208,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         dailyResetCountdown = rawDailyResetTime
         weeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawWeeklyResetTime)
         sonnetWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawSonnetWeeklyResetTime)
+        designWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawDesignWeeklyResetTime)
     }
 
     // MARK: - WKNavigationDelegate
@@ -294,6 +300,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             weeklyResetTime: dict["weeklyResetTime"] as? String,
             sonnetWeeklyPercentage: dict["sonnetWeeklyPercentage"] as? Int,
             sonnetWeeklyResetTime: dict["sonnetWeeklyResetTime"] as? String,
+            designWeeklyPercentage: dict["designWeeklyPercentage"] as? Int,
+            designWeeklyResetTime: dict["designWeeklyResetTime"] as? String,
             email: dict["email"] as? String,
             organizationName: dict["orgName"] as? String,
             planName: dict["planName"] as? String
@@ -311,6 +319,8 @@ private struct ScrapedUsageData {
     let weeklyResetTime: String?
     let sonnetWeeklyPercentage: Int?
     let sonnetWeeklyResetTime: String?
+    let designWeeklyPercentage: Int?
+    let designWeeklyResetTime: String?
     let email: String?
     let organizationName: String?
     let planName: String?
@@ -397,6 +407,10 @@ enum WeeklyCountdownCalculator {
 enum UsageScrapingScript {
     // Executed via WKWebView.callAsyncJavaScript: the script body IS the async function body,
     // so top-level `await` works and the returned value is the resolved value.
+    //
+    // The page is fully client-side rendered — on a fresh load, the usage heading and "% used"
+    // text appear only after React + react-query fetch and hydrate. We poll for both the DOM
+    // to populate and for the react-query cache in IndexedDB to hold account data.
     static let script = """
     const result = {
         success: false,
@@ -406,12 +420,16 @@ enum UsageScrapingScript {
         weeklyResetTime: null,
         sonnetWeeklyPercentage: null,
         sonnetWeeklyResetTime: null,
+        designWeeklyPercentage: null,
+        designWeeklyResetTime: null,
         email: null,
         orgName: null,
         planName: null,
         error: null,
         debug: ''
     };
+
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
     const readAccountFromIDB = () => new Promise((resolve) => {
         try {
@@ -435,80 +453,117 @@ enum UsageScrapingScript {
         }
     });
 
-    try {
-        // 1) Email + org name from react-query cache (Claude now client-renders these).
-        const cache = await readAccountFromIDB();
+    const findHeading = () => Array.from(document.querySelectorAll('h1, h2, h3'))
+        .find(h => (h.textContent || '').trim().toLowerCase().includes('usage limits'));
+
+    const pageHasUsage = () => {
+        return /%\\s*used/i.test(document.body.innerText || '');
+    };
+
+    const cacheHasAccount = (cache) => {
         const queries = cache && cache.clientState && cache.clientState.queries;
-        if (Array.isArray(queries)) {
-            for (const q of queries) {
-                const key = q && q.queryKey;
-                if (!Array.isArray(key) || key[0] !== 'current_account') continue;
-                const acc = q.state && q.state.data && q.state.data.account;
-                if (!acc) continue;
-                if (!result.email && acc.email_address) result.email = acc.email_address;
-                if (!result.orgName && Array.isArray(acc.memberships) && acc.memberships[0] && acc.memberships[0].organization) {
-                    result.orgName = acc.memberships[0].organization.name || null;
-                }
-                if (result.email && result.orgName) break;
+        if (!Array.isArray(queries)) return false;
+        return queries.some(q => {
+            const key = q && q.queryKey;
+            if (!Array.isArray(key) || key[0] !== 'current_account') return false;
+            return !!(q.state && q.state.data && q.state.data.account);
+        });
+    };
+
+    const findRowData = (labelText) => {
+        const p = Array.from(document.querySelectorAll('p'))
+            .find(el => el.textContent.trim().toLowerCase() === labelText.toLowerCase());
+        if (!p) return null;
+        
+        let row = p.parentElement;
+        while (row && row !== document.body && (!row.classList || !row.classList.contains('flex-row'))) {
+            row = row.parentElement;
+        }
+        if (!row || row === document.body) return null;
+        
+        const text = row.textContent || '';
+        const percentMatch = text.match(/(\\d+)\\s*%\\s*used/i);
+        
+        const resetP = Array.from(row.querySelectorAll('p'))
+            .find(el => {
+                const t = el.textContent.trim();
+                return t.toLowerCase() !== labelText.toLowerCase() && !t.includes('% used') && t.length > 0;
+            });
+            
+        return {
+            percentage: percentMatch ? parseInt(percentMatch[1], 10) : null,
+            resetTime: resetP ? resetP.textContent.trim() : null
+        };
+    };
+
+    const pollAttempts = 40;      // 10s max wait
+    const pollIntervalMs = 250;
+
+    try {
+        let cache = null;
+        for (let i = 0; i < pollAttempts; i++) {
+            if (!cache || !cacheHasAccount(cache)) cache = await readAccountFromIDB();
+            if (pageHasUsage() && cacheHasAccount(cache)) break;
+            await sleep(pollIntervalMs);
+        }
+
+        const queries = (cache && cache.clientState && cache.clientState.queries) || [];
+        for (const q of queries) {
+            const key = q && q.queryKey;
+            if (!Array.isArray(key) || key[0] !== 'current_account') continue;
+            const acc = q.state && q.state.data && q.state.data.account;
+            if (!acc) continue;
+            if (!result.email && acc.email_address) result.email = acc.email_address;
+            if (!result.orgName && Array.isArray(acc.memberships) && acc.memberships[0] && acc.memberships[0].organization) {
+                result.orgName = acc.memberships[0].organization.name || null;
             }
         }
 
-        // 2) Locate the usage section anchored on the "Your usage limits" heading.
-        const heading = Array.from(document.querySelectorAll('h1, h2, h3'))
-            .find(h => (h.textContent || '').trim() === 'Your usage limits');
-
+        const heading = findHeading();
         if (heading) {
-            // Plan badge is a sibling element of the heading inside its parent row.
             const row = heading.parentElement;
             if (row) {
                 const badge = Array.from(row.children).find(el => el !== heading && el.textContent.trim());
                 if (badge) {
                     const text = badge.textContent.trim();
-                    if (/^(Team|Pro|Free|Enterprise|Max|Business)$/i.test(text)) {
-                        result.planName = text;
-                    }
+                    if (/^(Team|Pro|Free|Enterprise|Max|Business)$/i.test(text)) result.planName = text;
                 }
             }
-
-            // Walk up until we find the smallest ancestor containing at least two "% used" rows
-            // (daily + at least one weekly). This scopes regex matches away from the sidebar.
-            let scope = null;
-            let el = heading.parentElement;
-            while (el && el !== document.body) {
-                const text = el.innerText || '';
-                const count = (text.match(/%\\s*used/gi) || []).length;
-                if (count >= 2) { scope = text; break; }
-                el = el.parentElement;
-            }
-            if (!scope) scope = (document.querySelector('main') || document.body).innerText || '';
-
-            // Percentages, in document order: [daily, weekly-all, weekly-sonnet].
-            const percentMatches = [...scope.matchAll(/(\\d+)\\s*%\\s*used/gi)];
-            if (percentMatches[0]) result.percentage = parseInt(percentMatches[0][1], 10);
-            if (percentMatches[1]) result.weeklyPercentage = parseInt(percentMatches[1][1], 10);
-            if (percentMatches[2]) result.sonnetWeeklyPercentage = parseInt(percentMatches[2][1], 10);
-
-            // Reset lines: "Resets in 4 hr 6 min", "Resets Fri 5:00 PM", "Resets Mon 11:00 AM".
-            const resetMatches = [...scope.matchAll(/Resets?\\s+(?:in\\s+)?([^\\n\\r]+)/gi)]
-                .map(m => m[1].trim());
-            if (resetMatches[0]) result.resetTime = resetMatches[0];
-            if (resetMatches[1]) result.weeklyResetTime = resetMatches[1];
-            if (resetMatches[2]) result.sonnetWeeklyResetTime = resetMatches[2];
-
-            result.debug = JSON.stringify({
-                percentMatches: percentMatches.map(m => m[0]),
-                resetMatches,
-                planName: result.planName,
-                scopeLen: scope.length,
-                cacheFound: !!cache
-            }, null, 2);
-        } else {
-            result.error = 'Usage heading not found';
-            result.debug = JSON.stringify({ cacheFound: !!cache, url: location.href }, null, 2);
         }
 
+        const daily = findRowData('Current session');
+        if (daily) {
+            result.percentage = daily.percentage;
+            result.resetTime = daily.resetTime;
+        }
+
+        const weekly = findRowData('All models');
+        if (weekly) {
+            result.weeklyPercentage = weekly.percentage;
+            result.weeklyResetTime = weekly.weeklyResetTime || weekly.resetTime;
+        }
+
+        const sonnet = findRowData('Sonnet only');
+        if (sonnet) {
+            result.sonnetWeeklyPercentage = sonnet.percentage;
+            result.sonnetWeeklyResetTime = sonnet.weeklyResetTime || sonnet.resetTime;
+        }
+
+        const design = findRowData('Claude Design');
+        if (design) {
+            result.designWeeklyPercentage = design.percentage;
+            result.designWeeklyResetTime = design.weeklyResetTime || design.resetTime;
+        }
+
+        result.debug = JSON.stringify({
+            daily, weekly, sonnet, design,
+            planName: result.planName,
+            cacheHasAccount: cacheHasAccount(cache),
+            url: location.href
+        }, null, 2);
+
         result.success = result.percentage !== null || result.email !== null;
-        if (!result.success && !result.error) result.error = 'No usage data found';
+        if (!result.success) result.error = 'No usage data found';
 
     } catch (e) {
         result.error = 'Script error: ' + e.message;

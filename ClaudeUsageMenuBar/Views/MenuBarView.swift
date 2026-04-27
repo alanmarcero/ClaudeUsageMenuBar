@@ -17,6 +17,10 @@ struct MenuBarView: View {
                 Divider().padding(.horizontal, 16)
                 usageSection(title: "Weekly (Sonnet)", percentage: usageService.usageData.sonnetWeeklyPercentage, resetTime: usageService.sonnetWeeklyResetCountdown, color: sonnetWeeklyUsageColor)
             }
+            if usageService.usageData.designWeeklyPercentage != nil {
+                Divider().padding(.horizontal, 16)
+                usageSection(title: "Weekly (Design)", percentage: usageService.usageData.designWeeklyPercentage, resetTime: usageService.designWeeklyResetCountdown, color: designWeeklyUsageColor)
+            }
             statusSection
             Divider().padding(.horizontal, 12)
             actionButtons
@@ -158,6 +162,10 @@ struct MenuBarView: View {
 
     private var sonnetWeeklyUsageColor: Color {
         AppConfig.shared.colorForPercentage(usageService.usageData.sonnetWeeklyPercentage)
+    }
+
+    private var designWeeklyUsageColor: Color {
+        AppConfig.shared.colorForPercentage(usageService.usageData.designWeeklyPercentage)
     }
 }
 

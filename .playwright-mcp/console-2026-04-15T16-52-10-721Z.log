@@ -1,0 +1,36 @@
+[      81ms] [ERROR] TypeError: Failed to fetch
+    at i (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:2:27507)
+    at Ew (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:2:241260)
+    at u (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:3:54022)
+    at Array.map (<anonymous>)
+    at r (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:3:54456)
+    at https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:3:54564 @ https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:1
+[     299ms] [INFO] [O11Y] [DatadogRUM] Initialized {service: claude-ai, env: production, version: e40ee6bae5} @ https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:1
+[     917ms] [ERROR] Access to fetch at 'https://a-cdn.claude.ai/params/sri/EEA5F558-D6AC-4C03-B678-AABF639EE69A' from origin 'https://claude.ai' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://claude.ai/login:0
+[     917ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://a-cdn.claude.ai/params/sri/EEA5F558-D6AC-4C03-B678-AABF639EE69A:0
+[    1012ms] [ERROR] Not signed in with the identity provider. @ https://claude.ai/login:0
+[    1321ms] [WARNING] [Intercom] The App ID in your code snippet has not been set. Set it to your App ID found in settings to complete installation: https://app.intercom.com/a/apps/_/settings/web @ https://js.intercomcdn.com/frame-modern.6f8248ff.js:0
+[    7182ms] [INFO] BSSO Telemetry: {"result":"Error","error":"NoExtension","type":"ChromeSsoTelemetry","data":{},"traces":["BrowserSSO Initialized","Creating ChromeBrowserCore provider","Sending message for method CreateProviderAsync","Received message for method CreateProviderAsync","Error: ChromeBrowserCore error NoExtension: Extension is not installed."]} @ https://aadcdn.msftauth.net/shared/1.0/content/js/BssoInterrupt_Core_eE2DYJlsHKgq7xFfjkmMww2.js:17
+[    7282ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://login.microsoftonline.com/favicon.ico:0
+[   10335ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://login.microsoftonline.com/758039ef-9b6c-4592-8220-44ae0b166cee/saml2?SamlRequest=fZJfb5swFMW%2FCvI7YFygiRVSsaKJqE2CEpaue5kcuClejZ36mrb79lPJonUP7ev9c35X59zZ1WuvvGewKI3OSBRQcjWfoejVkeeD6%2FQGngZA5732SiMfGxkZrOZGoESuRQ%2FIXcO3%2BfKWs4DyozXONEYRb1Fk5CeNbqop%2FX7DisviYlXuVjRhu3q5uiuItztjWUCJt0AcYKHRCe0ywihLfRr7UVJHKU8Yj9IgmUx%2FEK%2F6C%2FgidSv1w%2BfX7E9DyMu6rvxqva2JVwA6qYUb0Z1zR%2BRhqMyD1EEvG2vQHJzRSmoIGtOHl8mEXkzh4E%2F3aePHyZT5E8aoH8cC6D5K0wYgfDOGES9HBPsmfG00Dj3YLdhn2cC3ze0%2FlBhcF7wY%2B2hwBCCacT8UDYZPa112ti3TtV028Z27%2F1Xerx%2B744acYuGjTfZdHp8bIM4XkfmH0rPwnfI5%2FZXoYVFURsnmt%2FfV2F64j0lREI0V2fqHcZRDL6TK29YCIvFypczLtQXhICPODkDC%2BYn6%2F5vN%2FwA%3D&RelayState=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGkiOiJzc28iLCJyZWRpcmVjdF91cmkiOiJodHRwczovL2NsYXVkZS5haS9zc28tY2FsbGJhY2siLCJzdGF0ZSI6IlA0eWV6Zmx6aWlQcEdiYzJ5TFhnOHM3aTg3WkhFYUpaaXZ1eVNwcll4WVdOclNZSmtCdEFiR3Mwd3VyV29vOXF1Qll5aE1rMjVSb1J4NDQxcXpGTUZBIiwic2FtbF9zZXNzaW9uX2lkIjoic2FtbF9zZXNzaW9uXzAxS1A5MFhLMkhNRFhXMDRNNDMzUEFRUVBYIiwiZnJvbV9wb3J0YWwiOmZhbHNlLCJmcm9tIjoiYXBpIiwiaWF0IjoxNzc2MjcxOTM2fQ.ZzqjtbrPssUozE39rqtj0NB4gneJ8mtSOEHGTKggk-g&sso_reload=true:0
+[   15881ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "username"): (More info: https://goo.gl/9p2vKq) %o @ https://login.microsoftonline.com/758039ef-9b6c-4592-8220-44ae0b166cee/saml2?SamlRequest=fZJfb5swFMW%2FCvI7YFygiRVSsaKJqE2CEpaue5kcuClejZ36mrb79lPJonUP7ev9c35X59zZ1WuvvGewKI3OSBRQcjWfoejVkeeD6%2FQGngZA5732SiMfGxkZrOZGoESuRQ%2FIXcO3%2BfKWs4DyozXONEYRb1Fk5CeNbqop%2FX7DisviYlXuVjRhu3q5uiuItztjWUCJt0AcYKHRCe0ywihLfRr7UVJHKU8Yj9IgmUx%2FEK%2F6C%2FgidSv1w%2BfX7E9DyMu6rvxqva2JVwA6qYUb0Z1zR%2BRhqMyD1EEvG2vQHJzRSmoIGtOHl8mEXkzh4E%2F3aePHyZT5E8aoH8cC6D5K0wYgfDOGES9HBPsmfG00Dj3YLdhn2cC3ze0%2FlBhcF7wY%2B2hwBCCacT8UDYZPa112ti3TtV028Z27%2F1Xerx%2B744acYuGjTfZdHp8bIM4XkfmH0rPwnfI5%2FZXoYVFURsnmt%2FfV2F64j0lREI0V2fqHcZRDL6TK29YCIvFypczLtQXhICPODkDC%2BYn6%2F5vN%2FwA%3D&RelayState=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGkiOiJzc28iLCJyZWRpcmVjdF91cmkiOiJodHRwczovL2NsYXVkZS5haS9zc28tY2FsbGJhY2siLCJzdGF0ZSI6IlA0eWV6Zmx6aWlQcEdiYzJ5TFhnOHM3aTg3WkhFYUpaaXZ1eVNwcll4WVdOclNZSmtCdEFiR3Mwd3VyV29vOXF1Qll5aE1rMjVSb1J4NDQxcXpGTUZBIiwic2FtbF9zZXNzaW9uX2lkIjoic2FtbF9zZXNzaW9uXzAxS1A5MFhLMkhNRFhXMDRNNDMzUEFRUVBYIiwiZnJvbV9wb3J0YWwiOmZhbHNlLCJmcm9tIjoiYXBpIiwiaWF0IjoxNzc2MjcxOTM2fQ.ZzqjtbrPssUozE39rqtj0NB4gneJ8mtSOEHGTKggk-g&sso_reload=true:0
+[   39522ms] [INFO] [O11Y] [DatadogRUM] Initialized {service: claude-ai, env: production, version: e40ee6bae5} @ https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:1
+[   40612ms] [WARNING] [Intercom] The App ID in your code snippet has not been set. Set it to your App ID found in settings to complete installation: https://app.intercom.com/a/apps/_/settings/web @ https://js.intercomcdn.com/frame-modern.6f8248ff.js:0
+[   41380ms] [ERROR] TypeError: Failed to fetch
+    at i (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:2:27507)
+    at Ew (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:2:241260)
+    at u (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:3:54022)
+    at Array.map (<anonymous>)
+    at r (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:3:54456)
+    at https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:3:54564 @ https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:1
+[   41592ms] [INFO] [O11Y] [DatadogRUM] Initialized {service: claude-ai, env: production, version: e40ee6bae5} @ https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:1
+[   41918ms] [ERROR] Failed to load resource: the server responded with a status of 503 () @ https://claude.ai/api/account_profile:0
+[   41924ms] [ERROR] [REACT_QUERY_CLIENT] QueryClient error: ny: fault filter abort
+    at sy (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:2:175712)
+    at https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:3:72652
+    at async https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:3:73962 @ https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:1
+[   42059ms] [ERROR] Failed to load resource: the server responded with a status of 503 () @ https://claude.ai/api/account_profile:0
+[   42178ms] [ERROR] [REACT_QUERY_CLIENT] QueryClient error: ny: fault filter abort
+    at sy (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:2:175712)
+    at https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:3:72652
+    at async https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:3:73962 @ https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-BL8bstaL.js:1
