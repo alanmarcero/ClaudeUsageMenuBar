@@ -471,7 +471,8 @@ enum UsageScrapingScript {
     };
 
     const findRowData = (labelText) => {
-        // Search more elements since they might not be 'p' tags
+        // STRATEGY: Claude often changes tag types (p vs div vs span). 
+        // We search all common text containers for the label.
         const allElements = Array.from(document.querySelectorAll('p, div, span'));
         const labelEl = allElements.find(el => {
             const t = el.textContent.trim().toLowerCase();
@@ -483,7 +484,8 @@ enum UsageScrapingScript {
             return null;
         }
         
-        // Find the container: look for flex rows or just a div with enough info
+        // STRATEGY: Navigate up to the row container. Claude usage rows are typically 
+        // flex containers. We look for flex classes or the presence of usage text.
         let row = labelEl.parentElement;
         while (row && row !== document.body && 
                (!row.classList || !(row.classList.contains('flex-row') || row.innerText.includes('% used')))) {
@@ -498,7 +500,8 @@ enum UsageScrapingScript {
         const text = row.textContent || '';
         const percentMatch = text.match(/(\\d+)\\s*%\\s*used/i);
         
-        // Find reset time: look for "Reset" or time patterns in child elements
+        // STRATEGY: Find reset time by looking for "Reset" or time patterns in children.
+        // We exclude the label itself and the percentage text.
         const resetEl = Array.from(row.querySelectorAll('p, div, span'))
             .find(el => {
                 const t = el.textContent.trim();
