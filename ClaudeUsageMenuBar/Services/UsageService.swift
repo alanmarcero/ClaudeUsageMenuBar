@@ -471,15 +471,21 @@ enum UsageScrapingScript {
     };
 
     const findRowData = (labelText) => {
-        const p = Array.from(document.querySelectorAll('p'))
-            .find(el => el.textContent.trim().toLowerCase() === labelText.toLowerCase());
-        if (!p) return null;
+        const allPs = Array.from(document.querySelectorAll('p'));
+        const p = allPs.find(el => el.textContent.trim().toLowerCase() === labelText.toLowerCase());
+        if (!p) {
+            logs.push(`Label "${labelText}" not found in ${allPs.length} p tags`);
+            return null;
+        }
         
         let row = p.parentElement;
         while (row && row !== document.body && (!row.classList || !row.classList.contains('flex-row'))) {
             row = row.parentElement;
         }
-        if (!row || row === document.body) return null;
+        if (!row || row === document.body) {
+            logs.push(`Container for "${labelText}" not found`);
+            return null;
+        }
         
         const text = row.textContent || '';
         const percentMatch = text.match(/(\\d+)\\s*%\\s*used/i);
@@ -490,6 +496,7 @@ enum UsageScrapingScript {
                 return t.toLowerCase() !== labelText.toLowerCase() && !t.includes('% used') && t.length > 0;
             });
             
+        logs.push(`Found data for "${labelText}": %=${percentMatch?.[1]}, reset=${resetP?.textContent.trim()}`);
         return {
             percentage: percentMatch ? parseInt(percentMatch[1], 10) : null,
             resetTime: resetP ? resetP.textContent.trim() : null
@@ -498,6 +505,7 @@ enum UsageScrapingScript {
 
     const pollAttempts = 40;      // 10s max wait
     const pollIntervalMs = 250;
+    const logs = [];
 
     try {
         let cache = null;
@@ -521,6 +529,7 @@ enum UsageScrapingScript {
 
         const heading = findHeading();
         if (heading) {
+            logs.push(`Found heading: ${heading.textContent.trim()}`);
             const row = heading.parentElement;
             if (row) {
                 const badge = Array.from(row.children).find(el => el !== heading && el.textContent.trim());
@@ -529,6 +538,8 @@ enum UsageScrapingScript {
                     if (/^(Team|Pro|Free|Enterprise|Max|Business)$/i.test(text)) result.planName = text;
                 }
             }
+        } else {
+            logs.push('Heading "Your usage limits" not found');
         }
 
         const daily = findRowData('Current session');
@@ -540,33 +551,36 @@ enum UsageScrapingScript {
         const weekly = findRowData('All models');
         if (weekly) {
             result.weeklyPercentage = weekly.percentage;
-            result.weeklyResetTime = weekly.weeklyResetTime || weekly.resetTime;
+            result.weeklyResetTime = weekly.resetTime;
         }
 
         const sonnet = findRowData('Sonnet only');
         if (sonnet) {
             result.sonnetWeeklyPercentage = sonnet.percentage;
-            result.sonnetWeeklyResetTime = sonnet.weeklyResetTime || sonnet.resetTime;
+            result.sonnetWeeklyResetTime = sonnet.resetTime;
         }
 
         const design = findRowData('Claude Design');
         if (design) {
             result.designWeeklyPercentage = design.percentage;
-            result.designWeeklyResetTime = design.weeklyResetTime || design.resetTime;
+            result.designWeeklyResetTime = design.resetTime;
         }
 
         result.debug = JSON.stringify({
             daily, weekly, sonnet, design,
             planName: result.planName,
             cacheHasAccount: cacheHasAccount(cache),
-            url: location.href
+            logs,
+            url: location.href,
+            bodyText: document.body.innerText.substring(0, 1000)
         }, null, 2);
 
         result.success = result.percentage !== null || result.email !== null;
-        if (!result.success) result.error = 'No usage data found';
+        if (!result.success) result.error = 'No usage data found. Logs: ' + logs.join(' | ');
 
     } catch (e) {
         result.error = 'Script error: ' + e.message;
+        result.debug += '\\nException: ' + e.stack;
     }
 
     return result;
