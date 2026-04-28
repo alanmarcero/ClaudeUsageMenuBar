@@ -471,17 +471,25 @@ enum UsageScrapingScript {
     };
 
     const findRowData = (labelText) => {
-        const allPs = Array.from(document.querySelectorAll('p'));
-        const p = allPs.find(el => el.textContent.trim().toLowerCase() === labelText.toLowerCase());
-        if (!p) {
-            logs.push(`Label "${labelText}" not found in ${allPs.length} p tags`);
+        // Search more elements since they might not be 'p' tags
+        const allElements = Array.from(document.querySelectorAll('p, div, span'));
+        const labelEl = allElements.find(el => {
+            const t = el.textContent.trim().toLowerCase();
+            return t === labelText.toLowerCase();
+        });
+        
+        if (!labelEl) {
+            logs.push(`Label "${labelText}" not found`);
             return null;
         }
         
-        let row = p.parentElement;
-        while (row && row !== document.body && (!row.classList || !row.classList.contains('flex-row'))) {
+        // Find the container: look for flex rows or just a div with enough info
+        let row = labelEl.parentElement;
+        while (row && row !== document.body && 
+               (!row.classList || !(row.classList.contains('flex-row') || row.innerText.includes('% used')))) {
             row = row.parentElement;
         }
+        
         if (!row || row === document.body) {
             logs.push(`Container for "${labelText}" not found`);
             return null;
@@ -490,20 +498,25 @@ enum UsageScrapingScript {
         const text = row.textContent || '';
         const percentMatch = text.match(/(\\d+)\\s*%\\s*used/i);
         
-        const resetP = Array.from(row.querySelectorAll('p'))
+        // Find reset time: look for "Reset" or time patterns in child elements
+        const resetEl = Array.from(row.querySelectorAll('p, div, span'))
             .find(el => {
                 const t = el.textContent.trim();
-                return t.toLowerCase() !== labelText.toLowerCase() && !t.includes('% used') && t.length > 0;
+                if (t.toLowerCase() === labelText.toLowerCase()) return false;
+                if (t.includes('% used')) return false;
+                return t.toLowerCase().includes('reset') || t.match(/\\d+\\s*(min|hr|day|d)/i);
             });
             
-        logs.push(`Found data for "${labelText}": %=${percentMatch?.[1]}, reset=${resetP?.textContent.trim()}`);
+        const finalReset = resetEl?.textContent.trim();
+        logs.push(`Found data for "${labelText}": %=${percentMatch?.[1]}, reset=${finalReset}`);
+        
         return {
             percentage: percentMatch ? parseInt(percentMatch[1], 10) : null,
-            resetTime: resetP ? resetP.textContent.trim() : null
+            resetTime: finalReset || null
         };
     };
 
-    const pollAttempts = 40;      // 10s max wait
+    const pollAttempts = 60;      // 15s max wait
     const pollIntervalMs = 250;
     const logs = [];
 
@@ -511,7 +524,8 @@ enum UsageScrapingScript {
         let cache = null;
         for (let i = 0; i < pollAttempts; i++) {
             if (!cache || !cacheHasAccount(cache)) cache = await readAccountFromIDB();
-            if (pageHasUsage() && cacheHasAccount(cache)) break;
+            // Wait until the heading "Your usage limits" actually appears in the DOM
+            if (findHeading() && cacheHasAccount(cache)) break;
             await sleep(pollIntervalMs);
         }
 
@@ -564,6 +578,18 @@ enum UsageScrapingScript {
         if (design) {
             result.designWeeklyPercentage = design.percentage;
             result.designWeeklyResetTime = design.resetTime;
+        }
+
+        // Global fallback if labels failed but % used exists
+        if (result.percentage === null) {
+            const allText = document.body.innerText;
+            const percentMatches = [...allText.matchAll(/(\\d+)\\s*%\\s*used/gi)];
+            if (percentMatches.length > 0) {
+                logs.push(`Fallback: Found ${percentMatches.length} percentages via global search`);
+                result.percentage = parseInt(percentMatches[0][1], 10);
+                if (percentMatches[1]) result.weeklyPercentage = parseInt(percentMatches[1][1], 10);
+                if (percentMatches[2]) result.sonnetWeeklyPercentage = parseInt(percentMatches[2][1], 10);
+            }
         }
 
         result.debug = JSON.stringify({
