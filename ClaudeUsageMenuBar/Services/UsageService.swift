@@ -294,7 +294,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         }
 
         let data = ScrapedUsageData(
-            percentage: dict["percentage"] as? Int ?? 0,
+            percentage: dict["percentage"] as? Int,
             resetTime: dict["resetTime"] as? String,
             weeklyPercentage: dict["weeklyPercentage"] as? Int,
             weeklyResetTime: dict["weeklyResetTime"] as? String,
@@ -313,7 +313,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 // MARK: - Supporting Types
 
 private struct ScrapedUsageData {
-    let percentage: Int
+    let percentage: Int?
     let resetTime: String?
     let weeklyPercentage: Int?
     let weeklyResetTime: String?
@@ -430,6 +430,8 @@ enum UsageScrapingScript {
     };
 
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const limitLabels = ['Current session', 'All models', 'Sonnet only', 'Claude Design'];
+    const textSelector = 'span,p,div,h1,h2,h3,h4,a,button';
 
     const readAccountFromIDB = () => new Promise((resolve) => {
         try {
@@ -457,7 +459,9 @@ enum UsageScrapingScript {
         .find(h => (h.textContent || '').trim().toLowerCase().includes('usage limits'));
 
     const pageHasUsage = () => {
-        return /%\\s*used/i.test(document.body.innerText || '');
+        const bodyText = document.body.innerText || document.body.textContent || '';
+        return /%\\s*used/i.test(bodyText) ||
+            (document.querySelector('[role="progressbar"]') !== null && limitLabels.some(label => bodyText.includes(label)));
     };
 
     const cacheHasAccount = (cache) => {
@@ -470,65 +474,145 @@ enum UsageScrapingScript {
         });
     };
 
-    const findRowData = (labelText) => {
-        // STRATEGY: Claude often changes tag types (p vs div vs span). 
-        // We search all common text containers for the label.
-        const allElements = Array.from(document.querySelectorAll('p, div, span'));
-        const labelEl = allElements.find(el => {
-            const t = el.textContent.trim().toLowerCase();
-            return t === labelText.toLowerCase();
-        });
-        
+    const pollAttempts = 60;      // 15s max wait
+    const pollIntervalMs = 250;
+    const logs = [];
+
+    const normalizeText = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+
+    const getTexts = (container, selector = textSelector) => Array.from(container.querySelectorAll(selector))
+        .map(el => normalizeText(el.textContent))
+        .filter(text => text && text.length <= 180);
+
+    const labelMatches = (text, label) => {
+        const normalized = normalizeText(text).toLowerCase();
+        const expected = label.toLowerCase();
+        return normalized === expected || normalized.startsWith(expected + ' ');
+    };
+
+    const choosePlanLabel = (texts, progressCount) => {
+        if (progressCount !== 1) return null;
+        const matches = limitLabels.filter(label => texts.some(text => labelMatches(text, label)));
+        return matches.length === 1 ? matches[0] : null;
+    };
+
+    const parsePercentage = (value) => {
+        if (value === null || value === undefined) return null;
+        const match = String(value).match(/(\\d+(?:\\.\\d+)?)/);
+        return match ? Math.round(Number(match[1])) : null;
+    };
+
+    const getProgressPercentage = (progressBar) => {
+        const ariaNow = parsePercentage(progressBar.getAttribute('aria-valuenow'));
+        if (ariaNow !== null) return ariaNow;
+
+        const ariaText = parsePercentage(progressBar.getAttribute('aria-valuetext'));
+        if (ariaText !== null) return ariaText;
+
+        const fill = Array.from(progressBar.children).find(child => child.style && child.style.width);
+        return fill ? parsePercentage(fill.style.width) : null;
+    };
+
+    const findPlanRowForProgressBar = (progressBar) => {
+        let node = progressBar.parentElement;
+        while (node && node !== document.body) {
+            const progressCount = node.querySelectorAll('[role="progressbar"]').length;
+            const label = choosePlanLabel(getTexts(node), progressCount);
+            if (label) return { row: node, label };
+            node = node.parentElement;
+        }
+        return null;
+    };
+
+    const findGroupByHeading = (row, heading) => {
+        let node = row.parentElement;
+        while (node && node !== document.body) {
+            if (getTexts(node, 'h1,h2,h3,h4').some(text => text === heading)) return node;
+            node = node.parentElement;
+        }
+        return null;
+    };
+
+    const findResetTextInTexts = (texts) => texts.find(text =>
+        /^resets?\\b/i.test(text) ||
+        /\\b\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min)\\b/i.test(text)
+    ) || null;
+
+    const findResetText = (label, row) => {
+        const directReset = findResetTextInTexts(getTexts(row));
+        if (directReset) return directReset;
+
+        if (label === 'All models' || label === 'Sonnet only' || label === 'Claude Design') {
+            const weeklyGroup = findGroupByHeading(row, 'Weekly limits');
+            if (weeklyGroup) return findResetTextInTexts(getTexts(weeklyGroup));
+        }
+
+        return null;
+    };
+
+    const getProgressRowData = (labelText) => {
+        const progressBars = Array.from(document.querySelectorAll('[role="progressbar"]'));
+        for (const progressBar of progressBars) {
+            const planRow = findPlanRowForProgressBar(progressBar);
+            if (!planRow || planRow.label !== labelText) continue;
+
+            const percentage = getProgressPercentage(progressBar);
+            const resetTime = findResetText(labelText, planRow.row);
+            logs.push(`Progressbar data for "${labelText}": %=${percentage}, reset=${resetTime}`);
+            return { percentage, resetTime };
+        }
+
+        logs.push(`Progressbar row for "${labelText}" not found`);
+        return null;
+    };
+
+    const getTextRowData = (labelText) => {
+        const allElements = Array.from(document.querySelectorAll(textSelector));
+        const labelEl = allElements.find(el => labelMatches(el.textContent, labelText));
+
         if (!labelEl) {
             logs.push(`Label "${labelText}" not found`);
             return null;
         }
-        
-        // STRATEGY: Navigate up to the row container. Claude usage rows are typically 
-        // flex containers. We look for flex classes or the presence of usage text.
+
         let row = labelEl.parentElement;
-        while (row && row !== document.body && 
-               (!row.classList || !(row.classList.contains('flex-row') || row.innerText.includes('% used')))) {
+        while (row && row !== document.body) {
+            const text = row.textContent || '';
+            const hasUsage = /\\d+(?:\\.\\d+)?\\s*%\\s*used/i.test(text);
+            const hasSingleLabel = limitLabels.filter(label => getTexts(row).some(t => labelMatches(t, label))).length === 1;
+            if (hasUsage && hasSingleLabel) break;
             row = row.parentElement;
         }
-        
+
         if (!row || row === document.body) {
-            logs.push(`Container for "${labelText}" not found`);
+            logs.push(`Text container for "${labelText}" not found`);
             return null;
         }
-        
+
         const text = row.textContent || '';
-        const percentMatch = text.match(/(\\d+)\\s*%\\s*used/i);
-        
-        // STRATEGY: Find reset time by looking for "Reset" or time patterns in children.
-        // We exclude the label itself and the percentage text.
-        const resetEl = Array.from(row.querySelectorAll('p, div, span'))
-            .find(el => {
-                const t = el.textContent.trim();
-                if (t.toLowerCase() === labelText.toLowerCase()) return false;
-                if (t.includes('% used')) return false;
-                return t.toLowerCase().includes('reset') || t.match(/\\d+\\s*(min|hr|day|d)/i);
-            });
-            
-        const finalReset = resetEl?.textContent.trim();
-        logs.push(`Found data for "${labelText}": %=${percentMatch?.[1]}, reset=${finalReset}`);
-        
+        const percentMatch = text.match(/(\\d+(?:\\.\\d+)?)\\s*%\\s*used/i);
+        const resetTime = findResetText(labelText, row);
+        logs.push(`Text data for "${labelText}": %=${percentMatch?.[1]}, reset=${resetTime}`);
+
         return {
-            percentage: percentMatch ? parseInt(percentMatch[1], 10) : null,
-            resetTime: finalReset || null
+            percentage: percentMatch ? Math.round(Number(percentMatch[1])) : null,
+            resetTime: resetTime || null
         };
     };
 
-    const pollAttempts = 60;      // 15s max wait
-    const pollIntervalMs = 250;
-    const logs = [];
+    const findRowData = (labelText) => {
+        const progressData = getProgressRowData(labelText);
+        if (progressData && progressData.percentage !== null) return progressData;
+        return getTextRowData(labelText);
+    };
 
     try {
         let cache = null;
         for (let i = 0; i < pollAttempts; i++) {
             if (!cache || !cacheHasAccount(cache)) cache = await readAccountFromIDB();
-            // Wait until the heading "Your usage limits" actually appears in the DOM
-            if (findHeading() && cacheHasAccount(cache)) break;
+            // Wait until the usage UI is present. Claude now exposes some rows only through
+            // progressbar aria attributes, so "% used" text is not always available.
+            if ((findHeading() || pageHasUsage()) && (cacheHasAccount(cache) || pageHasUsage())) break;
             await sleep(pollIntervalMs);
         }
 
