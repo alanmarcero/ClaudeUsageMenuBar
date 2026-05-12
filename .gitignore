@@ -1,0 +1,33 @@
+# Xcode
+build/
+dist/
+DerivedData/
+*.xcuserdata
+*.xcworkspace/xcuserdata/
+xcuserdata/
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+!ClaudeUsageMenuBar.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Node / Playwright dev tooling (do NOT commit — npm install may pull from private registries)
+node_modules/
+package.json
+package-lock.json
+.playwright-mcp/
+playwright-report/
+test-results/
+
+# Screenshots / scratch
+login-page.png
+*.local.png
