@@ -531,10 +531,14 @@ enum UsageScrapingScript {
         return null;
     };
 
-    const findResetTextInTexts = (texts) => texts.find(text =>
-        /^resets?\\b/i.test(text) ||
-        /\\b\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min)\\b/i.test(text)
-    ) || null;
+    const findResetTextInTexts = (texts) => {
+        // Prefer texts that start with "Reset(s)" over generic time matches — this avoids
+        // picking up the whole-row text "Current sessionResets in 4 hr 54 min" when a tighter
+        // child element "Resets in 4 hr 54 min" is also present.
+        const startsWithReset = texts.find(text => /^resets?\\b/i.test(text));
+        if (startsWithReset) return startsWithReset;
+        return texts.find(text => /\\b\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min)\\b/i.test(text)) || null;
+    };
 
     const findResetText = (label, row) => {
         const directReset = findResetTextInTexts(getTexts(row));
@@ -665,6 +669,8 @@ enum UsageScrapingScript {
             result.designWeeklyResetTime = design.resetTime;
         }
 
+        const allProgressbars = Array.from(document.querySelectorAll('[role="progressbar"]'));
+
         // Global fallback if labels failed but % used exists
         if (result.percentage === null) {
             const allText = document.body.innerText;
@@ -677,13 +683,49 @@ enum UsageScrapingScript {
             }
         }
 
+        // Ordered-progressbar fallback: when label matching finds nothing but progressbars exist,
+        // assume historic order (daily, weekly, sonnet weekly, design weekly). Better than "--".
+        if (result.percentage === null && allProgressbars.length > 0) {
+            const ordered = allProgressbars
+                .map(pb => getProgressPercentage(pb))
+                .filter(p => p !== null);
+            if (ordered.length > 0) {
+                logs.push(`Fallback: Using ${ordered.length} progressbars in document order`);
+                result.percentage = ordered[0] ?? null;
+                if (ordered[1] !== undefined) result.weeklyPercentage = ordered[1];
+                if (ordered[2] !== undefined) result.sonnetWeeklyPercentage = ordered[2];
+                if (ordered[3] !== undefined) result.designWeeklyPercentage = ordered[3];
+            }
+        }
+
+        const progressbarDiagnostics = allProgressbars.slice(0, 10).map((pb, i) => ({
+            index: i,
+            ariaValueNow: pb.getAttribute('aria-valuenow'),
+            ariaValueText: pb.getAttribute('aria-valuetext'),
+            ariaLabel: pb.getAttribute('aria-label'),
+            nearbyText: normalizeText(pb.parentElement?.parentElement?.textContent || pb.parentElement?.textContent || '').substring(0, 200)
+        }));
+
+        const headingDiagnostics = Array.from(document.querySelectorAll('h1, h2, h3, h4'))
+            .map(h => normalizeText(h.textContent))
+            .filter(Boolean)
+            .slice(0, 30);
+
+        const percentUsedMatches = [...((document.body.innerText || '').matchAll(/[^\\n]{0,40}\\d+\\s*%\\s*used[^\\n]{0,40}/gi))]
+            .map(m => normalizeText(m[0]))
+            .slice(0, 10);
+
         result.debug = JSON.stringify({
             daily, weekly, sonnet, design,
             planName: result.planName,
             cacheHasAccount: cacheHasAccount(cache),
+            usageHeadingFound: !!findHeading(),
+            progressbarCount: allProgressbars.length,
+            progressbars: progressbarDiagnostics,
+            headings: headingDiagnostics,
+            percentUsedMatches,
             logs,
-            url: location.href,
-            bodyText: document.body.innerText.substring(0, 1000)
+            url: location.href
         }, null, 2);
 
         result.success = result.percentage !== null || result.email !== null;
