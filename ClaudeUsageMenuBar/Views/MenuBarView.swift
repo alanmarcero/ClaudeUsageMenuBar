@@ -119,8 +119,12 @@ struct MenuBarView: View {
                 usageService.clearCache()
             }
 
-            ActionButton(label: "Log Out") {
-                usageService.logout()
+            ActionButton(label: usageService.usageData.isLoggedIn ? "Log Out" : "Log In") {
+                if usageService.usageData.isLoggedIn {
+                    usageService.logout()
+                } else {
+                    windowManager.openUsageWindow(usageService: usageService)
+                }
             }
 
             Divider()

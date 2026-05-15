@@ -9,6 +9,8 @@ final class UpdateService: ObservableObject {
     private let updaterController: SPUStandardUpdaterController
     private var canCheckObserver: AnyCancellable?
 
+    private static let dailyCheckInterval: TimeInterval = 86_400
+
     init() {
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
@@ -16,7 +18,11 @@ final class UpdateService: ObservableObject {
             userDriverDelegate: nil
         )
 
-        canCheckObserver = updaterController.updater
+        let updater = updaterController.updater
+        updater.automaticallyChecksForUpdates = true
+        updater.updateCheckInterval = Self.dailyCheckInterval
+
+        canCheckObserver = updater
             .publisher(for: \.canCheckForUpdates, options: [.initial, .new])
             .sink { [weak self] canCheckForUpdates in
                 self?.canCheckForUpdates = canCheckForUpdates
