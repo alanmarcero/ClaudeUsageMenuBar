@@ -33,10 +33,13 @@ struct MenuBarView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline) {
             Text("Claude Usage")
                 .font(.headline)
                 .fontWeight(.semibold)
+            Text("v\(appVersion)")
+                .font(.caption2)
+                .foregroundColor(.secondary)
             Spacer()
             ProgressView()
                 .scaleEffect(0.5)
@@ -46,6 +49,10 @@ struct MenuBarView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
     }
 
     // MARK: - Account Info
