@@ -2,31 +2,23 @@ import SwiftUI
 import ObjectiveC
 
 struct MenuBarView: View {
-    @EnvironmentObject var usageService: UsageService
+    @EnvironmentObject var providers: UsageProviders
     @EnvironmentObject var updateService: UpdateService
     @EnvironmentObject var windowManager: WindowManager
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            accountInfo
-            Divider().padding(.horizontal, 16)
-            usageSection(title: "Daily", percentage: usageService.usageData.percentage, resetTime: usageService.dailyResetCountdown, color: dailyUsageColor)
-            Divider().padding(.horizontal, 16)
-            usageSection(title: "Weekly", percentage: usageService.usageData.weeklyPercentage, resetTime: usageService.weeklyResetCountdown, color: weeklyUsageColor)
-            if usageService.usageData.sonnetWeeklyPercentage != nil {
+            ForEach(providers.services, id: \.provider.id) { service in
                 Divider().padding(.horizontal, 16)
-                usageSection(title: "Weekly (Sonnet)", percentage: usageService.usageData.sonnetWeeklyPercentage, resetTime: usageService.sonnetWeeklyResetCountdown, color: sonnetWeeklyUsageColor)
-            }
-            if usageService.usageData.designWeeklyPercentage != nil {
-                Divider().padding(.horizontal, 16)
-                usageSection(title: "Weekly (Design)", percentage: usageService.usageData.designWeeklyPercentage, resetTime: usageService.designWeeklyResetCountdown, color: designWeeklyUsageColor)
+                ProviderSection(service: service)
+                    .environmentObject(windowManager)
             }
             statusSection
             Divider().padding(.horizontal, 12)
-            actionButtons
+            globalButtons
         }
-        .frame(width: 260)
+        .frame(width: 280)
         .background(Color(NSColor.windowBackgroundColor))
     }
 
@@ -34,7 +26,7 @@ struct MenuBarView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Claude Usage")
+            Text("Usage")
                 .font(.headline)
                 .fontWeight(.semibold)
             Text("v\(appVersion)")
@@ -44,7 +36,7 @@ struct MenuBarView: View {
             ProgressView()
                 .scaleEffect(0.5)
                 .frame(width: 16, height: 16)
-                .opacity(usageService.isRefreshing ? 1 : 0)
+                .opacity(providers.isAnyRefreshing ? 1 : 0)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -55,60 +47,30 @@ struct MenuBarView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
     }
 
-    // MARK: - Account Info
+    // MARK: - Status Section
 
-    private var accountInfo: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            LabeledRow(label: "Email", value: usageService.usageData.email ?? "--")
+    private var statusSection: some View {
+        HStack {
+            Text("Refresh in \(providers.nextRefreshCountdown)s")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .monospacedDigit()
+            Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
     }
 
-    // MARK: - Status Section
+    // MARK: - Global Buttons
 
-    private var statusSection: some View {
+    private var globalButtons: some View {
         VStack(spacing: 4) {
-            HStack {
-                Text("Refresh in \(usageService.countdown)s")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .monospacedDigit()
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-
-            if let error = usageService.usageData.errorMessage {
-                HStack(alignment: .top) {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                        .lineLimit(3)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-                .background(Color.orange.opacity(0.1))
-            }
-        }
-        .padding(.bottom, 8)
-    }
-
-    // MARK: - Action Buttons
-
-    private var actionButtons: some View {
-        VStack(spacing: 4) {
-            ActionButton(label: "Open Usage Page / Login") {
-                windowManager.openUsageWindow(usageService: usageService)
-            }
-
-            ActionButton(label: "Refresh Now", isLoading: usageService.isRefreshing, disabled: usageService.isRefreshing) {
-                usageService.triggerRefresh()
+            ActionButton(label: "Refresh All Now", isLoading: providers.isAnyRefreshing, disabled: providers.isAnyRefreshing) {
+                providers.refreshAll()
             }
 
             ActionButton(label: "Show Debug Info") {
-                DebugWindow.show(text: usageService.debugInfo)
+                DebugWindow.show(text: providers.combinedDebugInfo)
             }
 
             ActionButton(label: "Check for Updates...", disabled: !updateService.canCheckForUpdates) {
@@ -116,15 +78,7 @@ struct MenuBarView: View {
             }
 
             ActionButton(label: "Clear Cache") {
-                usageService.clearCache()
-            }
-
-            ActionButton(label: usageService.usageData.isLoggedIn ? "Log Out" : "Log In") {
-                if usageService.usageData.isLoggedIn {
-                    usageService.logout()
-                } else {
-                    windowManager.openUsageWindow(usageService: usageService)
-                }
+                providers.services.forEach { $0.clearCache() }
             }
 
             Divider()
@@ -137,10 +91,77 @@ struct MenuBarView: View {
         }
         .padding(.vertical, 8)
     }
+}
 
-    // MARK: - Usage Section
+// MARK: - Provider Section
 
-    private func usageSection(title: String, percentage: Int?, resetTime: String?, color: Color) -> some View {
+struct ProviderSection: View {
+    @ObservedObject var service: UsageService
+    @EnvironmentObject var windowManager: WindowManager
+
+    var body: some View {
+        VStack(spacing: 0) {
+            providerHeader
+            LabeledRow(label: "Email", value: service.usageData.email ?? "--")
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+
+            usageRow("Daily", service.usageData.percentage, service.dailyResetCountdown)
+            usageRow("Weekly", service.usageData.weeklyPercentage, service.weeklyResetCountdown)
+            if service.usageData.sonnetWeeklyPercentage != nil {
+                usageRow("Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
+            }
+            if service.usageData.designWeeklyPercentage != nil {
+                usageRow("Weekly (Design)", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
+            }
+
+            if let error = service.usageData.errorMessage {
+                HStack(alignment: .top) {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .lineLimit(3)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                .background(Color.orange.opacity(0.1))
+            }
+
+            providerButtons
+        }
+        .padding(.bottom, 6)
+    }
+
+    private var providerHeader: some View {
+        HStack(spacing: 6) {
+            Image(systemName: service.provider.menuGlyph)
+            Text(service.provider.displayName)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+    }
+
+    private var providerButtons: some View {
+        VStack(spacing: 4) {
+            ActionButton(label: "Open \(service.provider.displayName) / Login") {
+                windowManager.openUsageWindow(provider: service.provider, service: service)
+            }
+            ActionButton(label: service.usageData.isLoggedIn ? "Log Out of \(service.provider.displayName)" : "Log In to \(service.provider.displayName)") {
+                if service.usageData.isLoggedIn {
+                    service.logout()
+                } else {
+                    windowManager.openUsageWindow(provider: service.provider, service: service)
+                }
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func usageRow(_ title: String, _ percentage: Int?, _ resetTime: String?) -> some View {
         VStack(spacing: 8) {
             HStack {
                 Text(title)
@@ -149,7 +170,7 @@ struct MenuBarView: View {
                 Spacer()
                 Text(percentage.map { "\($0)%" } ?? "--")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(percentage != nil ? color : .secondary)
+                    .foregroundColor(percentage != nil ? AppConfig.shared.colorForPercentage(percentage) : .secondary)
             }
 
             if let pct = percentage {
@@ -157,31 +178,11 @@ struct MenuBarView: View {
             }
 
             if let reset = resetTime {
-                VStack(alignment: .leading, spacing: 4) {
-                    LabeledRow(label: "Resets in", value: reset)
-                }
+                LabeledRow(label: "Resets in", value: reset)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-
-    // MARK: - Colors
-
-    private var dailyUsageColor: Color {
-        AppConfig.shared.colorForPercentage(usageService.usageData.percentage)
-    }
-
-    private var weeklyUsageColor: Color {
-        AppConfig.shared.colorForPercentage(usageService.usageData.weeklyPercentage)
-    }
-
-    private var sonnetWeeklyUsageColor: Color {
-        AppConfig.shared.colorForPercentage(usageService.usageData.sonnetWeeklyPercentage)
-    }
-
-    private var designWeeklyUsageColor: Color {
-        AppConfig.shared.colorForPercentage(usageService.usageData.designWeeklyPercentage)
+        .padding(.vertical, 10)
     }
 }
 

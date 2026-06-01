@@ -1,25 +1,22 @@
 import SwiftUI
 import WebKit
 
-struct ClaudeWebView: NSViewRepresentable {
-    @EnvironmentObject var usageService: UsageService
+struct ProviderWebView: NSViewRepresentable {
+    let provider: UsageProvider
+    let service: UsageService
 
     func makeNSView(context: Context) -> WKWebView {
         let webView = ClaudeWebViewFactory.makeWebView()
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
-
-        if let url = URL(string: "https://claude.ai/settings/usage") {
-            webView.load(URLRequest(url: url))
-        }
-
+        webView.load(URLRequest(url: provider.usageURL))
         return webView
     }
 
     func updateNSView(_ nsView: WKWebView, context: Context) {}
 
     func makeCoordinator() -> WebViewCoordinator {
-        WebViewCoordinator(usageService: usageService)
+        WebViewCoordinator(usageService: service, provider: provider)
     }
 }
