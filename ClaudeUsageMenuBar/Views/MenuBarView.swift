@@ -9,6 +9,7 @@ struct MenuBarView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            menuBarPicker
             ForEach(providers.services, id: \.provider.id) { service in
                 Divider().padding(.horizontal, 16)
                 ProviderSection(service: service)
@@ -20,6 +21,45 @@ struct MenuBarView: View {
         }
         .frame(width: 280)
         .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    // MARK: - Menu Bar Provider Picker
+
+    // Selects which provider's percentage shows in the menu bar. A horizontal row of
+    // glyph chips that scales to any number of providers.
+    private var menuBarPicker: some View {
+        HStack(spacing: 6) {
+            Text("Menu bar")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            ForEach(providers.services, id: \.provider.id) { service in
+                let isSelected = providers.selectedMenuBarProviderID == service.provider.id
+                Button {
+                    providers.selectedMenuBarProviderID = service.provider.id
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: service.provider.menuGlyph)
+                        Text(service.usageData.displayPercentage)
+                            .monospacedDigit()
+                    }
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(isSelected ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1)
+                    )
+                    .cornerRadius(6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Show \(service.provider.displayName) in the menu bar")
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Header

@@ -126,26 +126,33 @@ enum CodexScrapingScript {
             /\\b(used|remaining|balance|credit|credits|limit|quota|reset)\\b/i.test(t)
         ))].slice(0, 40);
 
-        // Percentage attempts.
-        const percentMatches = [...bodyText.matchAll(/(\\d+(?:\\.\\d+)?)\\s*%/g)];
-        if (percentMatches.length > 0) {
-            result.percentage = Math.round(Number(percentMatches[0][1]));
-            if (percentMatches[1]) result.weeklyPercentage = Math.round(Number(percentMatches[1][1]));
-            logs.push(`Found ${percentMatches.length} "%" matches`);
+        // Codex reports "<label> N% remaining"; Claude (and this app) display % USED,
+        // so invert: used = 100 - remaining. "5 hour usage limit" -> daily, "Weekly
+        // usage limit" -> weekly.
+        const toUsed = (remaining) => Math.round(100 - Number(remaining));
+
+        const dailyMatch = bodyText.match(/5\\s*hour usage limit\\s*(\\d+(?:\\.\\d+)?)\\s*%\\s*remaining/i);
+        if (dailyMatch) {
+            result.percentage = toUsed(dailyMatch[1]);
+            logs.push(`Daily ${dailyMatch[1]}% remaining -> ${result.percentage}% used`);
         }
 
-        // "X / Y" ratio -> percentage (e.g. usage breakdown counters).
-        const ratioMatches = [...bodyText.matchAll(/(\\d+(?:\\.\\d+)?)\\s*\\/\\s*(\\d+(?:\\.\\d+)?)/g)];
-        if (result.percentage === null && ratioMatches.length > 0) {
-            const used = Number(ratioMatches[0][1]);
-            const total = Number(ratioMatches[0][2]);
-            if (total > 0) {
-                result.percentage = Math.round((used / total) * 100);
-                logs.push(`Derived % from ratio ${used}/${total}`);
-            }
+        const weeklyMatch = bodyText.match(/weekly usage limit\\s*(\\d+(?:\\.\\d+)?)\\s*%\\s*remaining/i);
+        if (weeklyMatch) {
+            result.weeklyPercentage = toUsed(weeklyMatch[1]);
+            logs.push(`Weekly ${weeklyMatch[1]}% remaining -> ${result.weeklyPercentage}% used`);
         }
 
-        result.resetTime = findResetText(allTexts);
+        // Fallbacks if the labels change: invert any "% remaining", else take "% used".
+        if (result.percentage === null) {
+            const remaining = bodyText.match(/(\\d+(?:\\.\\d+)?)\\s*%\\s*remaining/i);
+            const used = bodyText.match(/(\\d+(?:\\.\\d+)?)\\s*%\\s*used/i);
+            if (remaining) result.percentage = toUsed(remaining[1]);
+            else if (used) result.percentage = Math.round(Number(used[1]));
+        }
+
+        const resetMatch = bodyText.match(/Resets\\s+(\\d{1,2}:\\d{2}\\s*(?:AM|PM)?)/i);
+        result.resetTime = resetMatch ? ('Resets ' + resetMatch[1]) : findResetText(allTexts);
 
         const emailMatch = bodyText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/i);
         if (emailMatch) result.email = emailMatch[0];

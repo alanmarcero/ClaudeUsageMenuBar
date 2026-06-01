@@ -24,13 +24,14 @@ struct MenuBarLabel: View {
     @ObservedObject var providers: UsageProviders
 
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(providers.services, id: \.provider.id) { service in
-                HStack(spacing: 3) {
-                    Image(systemName: service.provider.menuGlyph)
-                    Text(service.usageData.displayPercentage)
-                        .monospacedDigit()
-                }
+        HStack(spacing: 3) {
+            if let service = providers.selectedService {
+                Image(systemName: service.provider.menuGlyph)
+                Text(service.usageData.displayPercentage)
+                    .monospacedDigit()
+            } else {
+                Image(systemName: "cpu")
+                Text("--")
             }
         }
     }

@@ -9,13 +9,30 @@ final class UsageProviders: ObservableObject {
     let services: [UsageService]
     private var cancellables: Set<AnyCancellable> = []
 
+    private static let selectionKey = "menuBarProviderID"
+
+    // Which provider's percentage is shown in the menu bar. Persisted so it sticks
+    // across launches. The dropdown picker scales to however many providers exist.
+    @Published var selectedMenuBarProviderID: String {
+        didSet { UserDefaults.standard.set(selectedMenuBarProviderID, forKey: Self.selectionKey) }
+    }
+
     init(providers: [UsageProvider] = UsageProvider.all) {
         services = providers.map { UsageService(provider: $0) }
+
+        let saved = UserDefaults.standard.string(forKey: Self.selectionKey)
+        let validSaved = providers.first { $0.id == saved }?.id
+        selectedMenuBarProviderID = validSaved ?? providers.first?.id ?? ""
+
         for service in services {
             service.objectWillChange
                 .sink { [weak self] _ in self?.objectWillChange.send() }
                 .store(in: &cancellables)
         }
+    }
+
+    var selectedService: UsageService? {
+        services.first { $0.provider.id == selectedMenuBarProviderID } ?? services.first
     }
 
     func refreshAll() {
