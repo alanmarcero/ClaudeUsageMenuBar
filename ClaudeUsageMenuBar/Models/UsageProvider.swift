@@ -54,10 +54,11 @@ struct UsageProvider: Identifiable {
 
 // MARK: - Codex JavaScript Scraping Script
 
-// Diagnostics-first: the authenticated Codex analytics page can't be browsed from
-// the dev environment, so this is a best-effort extractor (progressbars + "% used"
-// + reset regex) returning the same result-dict shape as the Claude script. Refine
-// the selectors from the real "Show Debug Info" JSON after first Codex login.
+// Diagnostics-first: the Codex analytics page renders a "Balance" / "Usage breakdown"
+// layout (not Claude's progressbar/"% used" pattern) and can transiently show
+// "We couldn't load your usage" before its data fetch settles. This script retries
+// past that error state, attempts percentage/"X / Y" extraction, and dumps the page's
+// visible text + numeric tokens so the selectors can be tightened from real output.
 enum CodexScrapingScript {
     static let script = """
     const result = {
@@ -80,20 +81,21 @@ enum CodexScrapingScript {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const logs = [];
     const normalizeText = (v) => (v || '').replace(/\\s+/g, ' ').trim();
+    // Apostrophe-agnostic: matches "couldn't"/"couldn’t"/"couldnt load your usage".
+    const hasLoadError = (t) => /could.{0,3}t load your usage/i.test(t);
+
+    const bodyTextNow = () => normalizeText(document.body.innerText || document.body.textContent || '');
+
+    const pageSettled = () => {
+        const t = bodyTextNow().toLowerCase();
+        if (hasLoadError(t)) return false;
+        return /%/.test(t) || /\\$\\s*\\d/.test(t) || /\\d+\\s*\\/\\s*\\d+/.test(t) || t.includes('balance');
+    };
 
     const parsePercentage = (value) => {
         if (value === null || value === undefined) return null;
         const m = String(value).match(/(\\d+(?:\\.\\d+)?)/);
         return m ? Math.round(Number(m[1])) : null;
-    };
-
-    const getProgressPercentage = (pb) => {
-        const now = parsePercentage(pb.getAttribute('aria-valuenow'));
-        if (now !== null) return now;
-        const txt = parsePercentage(pb.getAttribute('aria-valuetext'));
-        if (txt !== null) return txt;
-        const fill = Array.from(pb.children).find(c => c.style && c.style.width);
-        return fill ? parsePercentage(fill.style.width) : null;
     };
 
     const findResetText = (texts) => {
@@ -102,35 +104,45 @@ enum CodexScrapingScript {
         return texts.find(t => /\\b\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min)\\b/i.test(t)) || null;
     };
 
-    const pageHasUsage = () => {
-        const t = document.body.innerText || '';
-        return /%\\s*used/i.test(t) || document.querySelector('[role="progressbar"]') !== null;
-    };
-
     try {
-        for (let i = 0; i < 60; i++) {
-            if (pageHasUsage()) break;
+        let sawLoadError = false;
+        for (let i = 0; i < 80; i++) {            // up to 20s
+            if (hasLoadError(bodyTextNow())) sawLoadError = true;
+            if (pageSettled()) break;
             await sleep(250);
         }
+        if (sawLoadError) logs.push('Encountered load-error state while polling');
 
-        const bodyText = document.body.innerText || '';
-        const allTexts = Array.from(document.querySelectorAll('span,p,div,h1,h2,h3,h4'))
+        const bodyText = bodyTextNow();
+        const allTexts = Array.from(document.querySelectorAll('span,p,div,h1,h2,h3,h4,li,td,th'))
             .map(el => normalizeText(el.textContent))
-            .filter(t => t && t.length <= 180);
+            .filter(t => t && t.length <= 120);
 
-        const percentMatches = [...bodyText.matchAll(/(\\d+(?:\\.\\d+)?)\\s*%\\s*used/gi)];
+        // Candidate value tokens: anything with a %, $, "X / Y", or usage/credit/balance keyword.
+        const valueTokens = [...new Set(allTexts.filter(t =>
+            /\\d+\\s*%/.test(t) ||
+            /\\$\\s*\\d/.test(t) ||
+            /\\d+\\s*\\/\\s*\\d+/.test(t) ||
+            /\\b(used|remaining|balance|credit|credits|limit|quota|reset)\\b/i.test(t)
+        ))].slice(0, 40);
+
+        // Percentage attempts.
+        const percentMatches = [...bodyText.matchAll(/(\\d+(?:\\.\\d+)?)\\s*%/g)];
         if (percentMatches.length > 0) {
             result.percentage = Math.round(Number(percentMatches[0][1]));
             if (percentMatches[1]) result.weeklyPercentage = Math.round(Number(percentMatches[1][1]));
-            logs.push(`Found ${percentMatches.length} "% used" matches`);
+            logs.push(`Found ${percentMatches.length} "%" matches`);
         }
 
-        const progressbars = Array.from(document.querySelectorAll('[role="progressbar"]'));
-        if (result.percentage === null && progressbars.length > 0) {
-            const ordered = progressbars.map(getProgressPercentage).filter(p => p !== null);
-            if (ordered[0] !== undefined) result.percentage = ordered[0];
-            if (ordered[1] !== undefined) result.weeklyPercentage = ordered[1];
-            logs.push(`Used ${ordered.length} progressbars in document order`);
+        // "X / Y" ratio -> percentage (e.g. usage breakdown counters).
+        const ratioMatches = [...bodyText.matchAll(/(\\d+(?:\\.\\d+)?)\\s*\\/\\s*(\\d+(?:\\.\\d+)?)/g)];
+        if (result.percentage === null && ratioMatches.length > 0) {
+            const used = Number(ratioMatches[0][1]);
+            const total = Number(ratioMatches[0][2]);
+            if (total > 0) {
+                result.percentage = Math.round((used / total) * 100);
+                logs.push(`Derived % from ratio ${used}/${total}`);
+            }
         }
 
         result.resetTime = findResetText(allTexts);
@@ -140,17 +152,9 @@ enum CodexScrapingScript {
         const planMatch = bodyText.match(/\\b(Plus|Pro|Team|Enterprise|Business|Free)\\b/);
         if (planMatch) result.planName = planMatch[0];
 
-        const progressbarDiagnostics = progressbars.slice(0, 10).map((pb, i) => ({
-            index: i,
-            ariaValueNow: pb.getAttribute('aria-valuenow'),
-            ariaValueText: pb.getAttribute('aria-valuetext'),
-            ariaLabel: pb.getAttribute('aria-label'),
-            nearbyText: normalizeText(pb.parentElement?.parentElement?.textContent || '').substring(0, 200)
-        }));
         const headingDiagnostics = Array.from(document.querySelectorAll('h1,h2,h3,h4'))
-            .map(h => normalizeText(h.textContent)).filter(Boolean).slice(0, 30);
-        const percentUsedMatches = [...bodyText.matchAll(/[^\\n]{0,40}\\d+\\s*%\\s*used[^\\n]{0,40}/gi)]
-            .map(m => normalizeText(m[0])).slice(0, 10);
+            .map(h => normalizeText(h.textContent)).filter(Boolean).slice(0, 40);
+        const progressbars = Array.from(document.querySelectorAll('[role="progressbar"]'));
 
         result.debug = JSON.stringify({
             percentage: result.percentage,
@@ -158,16 +162,22 @@ enum CodexScrapingScript {
             resetTime: result.resetTime,
             email: result.email,
             planName: result.planName,
+            sawLoadError,
+            pageSettled: pageSettled(),
             progressbarCount: progressbars.length,
-            progressbars: progressbarDiagnostics,
             headings: headingDiagnostics,
-            percentUsedMatches,
+            valueTokens,
+            bodyTextSnippet: bodyText.substring(0, 3000),
             logs,
             url: location.href
         }, null, 2);
 
         result.success = result.percentage !== null || result.email !== null;
-        if (!result.success) result.error = 'No Codex usage found. Logs: ' + logs.join(' | ');
+        if (!result.success) {
+            result.error = sawLoadError
+                ? 'Codex reported it could not load usage right now. Will retry automatically.'
+                : 'No Codex usage parsed yet. See valueTokens/bodyTextSnippet in debug.';
+        }
     } catch (e) {
         result.error = 'Script error: ' + e.message;
         result.debug += '\\nException: ' + e.stack;

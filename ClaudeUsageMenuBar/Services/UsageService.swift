@@ -239,6 +239,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         let urlString = url.absoluteString.lowercased()
 
         if provider.loginPaths.contains(where: { urlString.contains($0) }) {
+            debugInfo = navigationDiagnostic(state: "loginPage", url: urlString)
             setLoggedOut()
             setError("Please log in via 'Open \(provider.displayName) / Login'")
             return
@@ -253,8 +254,24 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
         if let host = url.host, host.hasSuffix(provider.primaryHost),
            !urlString.contains("/oauth"), !urlString.contains("/callback") {
+            debugInfo = navigationDiagnostic(state: "redirectingToUsage", url: urlString)
             webView.load(URLRequest(url: provider.usageURL))
+            return
         }
+
+        debugInfo = navigationDiagnostic(state: "unhandled", url: urlString)
+    }
+
+    private func navigationDiagnostic(state: String, url: String) -> String {
+        """
+        {
+          "provider": "\(provider.id)",
+          "navigationState": "\(state)",
+          "finalURL": "\(url)",
+          "expectedUsageFragment": "\(provider.usagePathFragment)",
+          "primaryHost": "\(provider.primaryHost)"
+        }
+        """
     }
 
     // MARK: - Scraping
