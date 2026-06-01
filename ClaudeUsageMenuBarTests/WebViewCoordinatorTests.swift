@@ -4,16 +4,20 @@ import XCTest
 final class WebViewCoordinatorTests: XCTestCase {
 
     var coordinator: WebViewCoordinator!
+    var codexCoordinator: WebViewCoordinator!
 
     @MainActor
     override func setUp() {
         super.setUp()
-        let usageService = UsageService()
-        coordinator = WebViewCoordinator(usageService: usageService)
+        let claudeService = UsageService(provider: .claude)
+        coordinator = WebViewCoordinator(usageService: claudeService, provider: .claude)
+        let codexService = UsageService(provider: .codex)
+        codexCoordinator = WebViewCoordinator(usageService: codexService, provider: .codex)
     }
 
     override func tearDown() {
         coordinator = nil
+        codexCoordinator = nil
         super.tearDown()
     }
 
@@ -109,26 +113,45 @@ final class WebViewCoordinatorTests: XCTestCase {
         XCTAssertFalse(coordinator.isAuthPage("/settings"))
     }
 
-    // MARK: - isClaudeMainPage Tests
+    // MARK: - isProviderMainPage Tests
 
-    func testIsClaudeMainPageTrue() {
-        XCTAssertTrue(coordinator.isClaudeMainPage(host: "claude.ai", urlString: "https://claude.ai/"))
-        XCTAssertTrue(coordinator.isClaudeMainPage(host: "claude.ai", urlString: "https://claude.ai/chat"))
-        XCTAssertTrue(coordinator.isClaudeMainPage(host: "www.claude.ai", urlString: "https://www.claude.ai/"))
-        XCTAssertTrue(coordinator.isClaudeMainPage(host: "claude.ai", urlString: "https://claude.ai/settings"))
+    func testIsProviderMainPageTrue() {
+        XCTAssertTrue(coordinator.isProviderMainPage(host: "claude.ai", urlString: "https://claude.ai/"))
+        XCTAssertTrue(coordinator.isProviderMainPage(host: "claude.ai", urlString: "https://claude.ai/chat"))
+        XCTAssertTrue(coordinator.isProviderMainPage(host: "www.claude.ai", urlString: "https://www.claude.ai/"))
+        XCTAssertTrue(coordinator.isProviderMainPage(host: "claude.ai", urlString: "https://claude.ai/settings"))
     }
 
-    func testIsClaudeMainPageFalseForAuthPages() {
-        XCTAssertFalse(coordinator.isClaudeMainPage(host: "claude.ai", urlString: "https://claude.ai/login"))
-        XCTAssertFalse(coordinator.isClaudeMainPage(host: "claude.ai", urlString: "https://claude.ai/signin"))
-        XCTAssertFalse(coordinator.isClaudeMainPage(host: "claude.ai", urlString: "https://claude.ai/oauth"))
-        XCTAssertFalse(coordinator.isClaudeMainPage(host: "claude.ai", urlString: "https://claude.ai/callback"))
+    func testIsProviderMainPageFalseForAuthPages() {
+        XCTAssertFalse(coordinator.isProviderMainPage(host: "claude.ai", urlString: "https://claude.ai/login"))
+        XCTAssertFalse(coordinator.isProviderMainPage(host: "claude.ai", urlString: "https://claude.ai/signin"))
+        XCTAssertFalse(coordinator.isProviderMainPage(host: "claude.ai", urlString: "https://claude.ai/oauth"))
+        XCTAssertFalse(coordinator.isProviderMainPage(host: "claude.ai", urlString: "https://claude.ai/callback"))
     }
 
-    func testIsClaudeMainPageFalseForOtherHosts() {
-        XCTAssertFalse(coordinator.isClaudeMainPage(host: "google.com", urlString: "https://google.com/"))
-        XCTAssertFalse(coordinator.isClaudeMainPage(host: "anthropic.com", urlString: "https://anthropic.com/"))
-        XCTAssertFalse(coordinator.isClaudeMainPage(host: "api.claude.ai", urlString: "https://api.claude.ai/"))
+    func testIsProviderMainPageFalseForOtherHosts() {
+        XCTAssertFalse(coordinator.isProviderMainPage(host: "google.com", urlString: "https://google.com/"))
+        XCTAssertFalse(coordinator.isProviderMainPage(host: "anthropic.com", urlString: "https://anthropic.com/"))
+        XCTAssertFalse(coordinator.isProviderMainPage(host: "api.claude.ai", urlString: "https://api.claude.ai/"))
+    }
+
+    // MARK: - Codex Provider Tests
+
+    func testCodexCoordinatorAllowsOpenAIHosts() {
+        XCTAssertTrue(codexCoordinator.isAllowedHost("chatgpt.com"))
+        XCTAssertTrue(codexCoordinator.isAllowedHost("openai.com"))
+        XCTAssertTrue(codexCoordinator.isAllowedHost("auth.openai.com"))
+        XCTAssertTrue(codexCoordinator.isAllowedHost("accounts.google.com"))
+    }
+
+    func testCodexCoordinatorRejectsClaudeAndUnknownHosts() {
+        XCTAssertFalse(codexCoordinator.isAllowedHost("claude.ai"))
+        XCTAssertFalse(codexCoordinator.isAllowedHost("evil.com"))
+    }
+
+    func testCodexProviderMainPageUsesProviderHost() {
+        XCTAssertTrue(codexCoordinator.isProviderMainPage(host: "chatgpt.com", urlString: "https://chatgpt.com/"))
+        XCTAssertFalse(codexCoordinator.isProviderMainPage(host: "claude.ai", urlString: "https://claude.ai/"))
     }
 
     // MARK: - ClaudeWebViewFactory Tests

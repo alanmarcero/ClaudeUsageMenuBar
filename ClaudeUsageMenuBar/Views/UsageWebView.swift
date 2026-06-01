@@ -1,34 +1,34 @@
 import SwiftUI
 
 struct UsageWebView: View {
-    @EnvironmentObject var usageService: UsageService
+    let provider: UsageProvider
+    @ObservedObject var service: UsageService
     @EnvironmentObject var windowManager: WindowManager
 
     var body: some View {
         VStack(spacing: 0) {
             toolbar
             Divider()
-            ClaudeWebView()
-                .environmentObject(usageService)
+            ProviderWebView(provider: provider, service: service)
         }
     }
 
     private var toolbar: some View {
         HStack {
-            Button(action: { usageService.triggerRefresh() }) {
+            Button(action: { service.triggerRefresh() }) {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.bordered)
-            .disabled(usageService.isRefreshing)
+            .disabled(service.isRefreshing)
 
             Spacer()
 
-            Text("Claude Usage")
+            Text("\(provider.displayName) Usage")
                 .font(.headline)
 
             Spacer()
 
-            Button("Done") { windowManager.closeUsageWindow() }
+            Button("Done") { windowManager.closeUsageWindow(provider: provider) }
                 .buttonStyle(.borderedProminent)
         }
         .padding()

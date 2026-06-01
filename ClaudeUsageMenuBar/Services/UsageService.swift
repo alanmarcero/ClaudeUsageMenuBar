@@ -37,11 +37,10 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private var rawDesignWeeklyResetTime: String?
     var refreshStartTime: Date?  // internal for @testable import
 
-    var displayText: String {
-        usageData.displayPercentage
-    }
+    let provider: UsageProvider
 
-    override init() {
+    init(provider: UsageProvider = .claude) {
+        self.provider = provider
         super.init()
         setupBackgroundWebView()
         startAutoRefresh()
@@ -65,12 +64,11 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         refreshStartTime = Date()
         usageData.errorMessage = nil
 
-        guard let webView = backgroundWebView,
-              let url = URL(string: "https://claude.ai/settings/usage") else {
+        guard let webView = backgroundWebView else {
             setError("WebView not available")
             return
         }
-        webView.load(URLRequest(url: url))
+        webView.load(URLRequest(url: provider.usageURL))
     }
 
     func logout() {
@@ -78,8 +76,11 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         let dataTypes = WKWebsiteDataStore.allWebsiteDataTypes()
 
         dataStore.fetchDataRecords(ofTypes: dataTypes) { records in
-            let claudeRecords = records.filter { $0.displayName.contains("claude") || $0.displayName.contains("anthropic") }
-            dataStore.removeData(ofTypes: dataTypes, for: claudeRecords) { [weak self] in
+            let providerRecords = records.filter { record in
+                let name = record.displayName.lowercased()
+                return self.provider.dataRecordTokens.contains { name.contains($0) }
+            }
+            dataStore.removeData(ofTypes: dataTypes, for: providerRecords) { [weak self] in
                 Task { @MainActor in
                     self?.resetToLoggedOut()
                 }
@@ -233,31 +234,47 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         guard let url = webView.url else { return }
         let urlString = url.absoluteString.lowercased()
 
-        if urlString.contains("/login") || urlString.contains("/signin") {
+        if provider.loginPaths.contains(where: { urlString.contains($0) }) {
+            debugInfo = navigationDiagnostic(state: "loginPage", url: urlString)
             setLoggedOut()
-            setError("Please log in via 'Open Usage Page'")
+            setError("Please log in via 'Open \(provider.displayName) / Login'")
             return
         }
 
-        if urlString.contains("/settings/usage") {
+        if urlString.contains(provider.usagePathFragment) {
             DispatchQueue.main.asyncAfter(deadline: .now() + Constants.scrapeDelay) { [weak self] in
                 self?.scrapeUsage(from: webView)
             }
             return
         }
 
-        if urlString.contains("claude.ai") && !urlString.contains("/oauth") && !urlString.contains("/callback") {
-            if let usageURL = URL(string: "https://claude.ai/settings/usage") {
-                webView.load(URLRequest(url: usageURL))
-            }
+        if let host = url.host, host.hasSuffix(provider.primaryHost),
+           !urlString.contains("/oauth"), !urlString.contains("/callback") {
+            debugInfo = navigationDiagnostic(state: "redirectingToUsage", url: urlString)
+            webView.load(URLRequest(url: provider.usageURL))
+            return
         }
+
+        debugInfo = navigationDiagnostic(state: "unhandled", url: urlString)
+    }
+
+    private func navigationDiagnostic(state: String, url: String) -> String {
+        """
+        {
+          "provider": "\(provider.id)",
+          "navigationState": "\(state)",
+          "finalURL": "\(url)",
+          "expectedUsageFragment": "\(provider.usagePathFragment)",
+          "primaryHost": "\(provider.primaryHost)"
+        }
+        """
     }
 
     // MARK: - Scraping
 
     private func scrapeUsage(from webView: WKWebView) {
         webView.callAsyncJavaScript(
-            UsageScrapingScript.script,
+            provider.scrapingScript,
             arguments: [:],
             in: nil,
             in: .page

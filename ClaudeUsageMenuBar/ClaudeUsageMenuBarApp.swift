@@ -3,24 +3,37 @@ import SwiftUI
 @main
 struct ClaudeUsageMenuBarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var usageService = UsageService()
+    @StateObject private var providers = UsageProviders()
     @StateObject private var updateService = UpdateService()
     @StateObject private var windowManager = WindowManager()
 
     var body: some Scene {
         MenuBarExtra {
             MenuBarView()
-                .environmentObject(usageService)
+                .environmentObject(providers)
                 .environmentObject(updateService)
                 .environmentObject(windowManager)
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "cpu.fill")
-                Text(usageService.displayText)
-                    .monospacedDigit()
-            }
+            MenuBarLabel(providers: providers)
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+struct MenuBarLabel: View {
+    @ObservedObject var providers: UsageProviders
+
+    var body: some View {
+        HStack(spacing: 3) {
+            if let service = providers.selectedService {
+                Image(systemName: service.provider.menuGlyph)
+                Text(service.usageData.displayPercentage)
+                    .monospacedDigit()
+            } else {
+                Image(systemName: "cpu")
+                Text("--")
+            }
+        }
     }
 }
 
@@ -32,32 +45,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 @MainActor
 class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
-    private var webViewWindow: NSWindow?
+    private var windows: [String: NSWindow] = [:]
 
-    func openUsageWindow(usageService: UsageService) {
-        if let existingWindow = webViewWindow {
-            existingWindow.makeKeyAndOrderFront(nil)
+    func openUsageWindow(provider: UsageProvider, service: UsageService) {
+        if let existing = windows[provider.id] {
+            existing.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
 
-        let window = createWindow(usageService: usageService)
+        let window = createWindow(provider: provider, service: service)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        webViewWindow = window
+        windows[provider.id] = window
     }
 
-    func closeUsageWindow() {
-        webViewWindow?.close()
+    func closeUsageWindow(provider: UsageProvider) {
+        windows[provider.id]?.close()
     }
 
     func windowWillClose(_ notification: Notification) {
-        webViewWindow = nil
+        guard let closing = notification.object as? NSWindow else { return }
+        windows = windows.filter { $0.value !== closing }
     }
 
-    private func createWindow(usageService: UsageService) -> NSWindow {
-        let contentView = UsageWebView()
-            .environmentObject(usageService)
+    private func createWindow(provider: UsageProvider, service: UsageService) -> NSWindow {
+        let contentView = UsageWebView(provider: provider, service: service)
             .environmentObject(self)
 
         let window = NSWindow(
@@ -66,7 +79,7 @@ class WindowManager: NSObject, ObservableObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Claude Usage"
+        window.title = "\(provider.displayName) Usage"
         window.contentView = NSHostingView(rootView: contentView)
         window.center()
         window.delegate = self

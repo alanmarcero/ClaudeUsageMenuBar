@@ -23,31 +23,12 @@ enum ClaudeWebViewFactory {
 
 class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
 
-    private enum Constants {
-        static let redirectDelay: TimeInterval = 0.5
-    }
-
     private let usageService: UsageService
+    private let provider: UsageProvider
 
-    private let allowedHostSuffixes = [
-        "claude.ai",
-        "anthropic.com",
-        "google.com",
-        "googleapis.com",
-        "gstatic.com",
-        "apple.com",
-        "icloud.com",
-        "microsoftonline.com",
-        "microsoft.com",
-        "live.com",
-        "okta.com",
-        "auth0.com",
-        "clerk.dev",
-        "clerk.accounts.dev"
-    ]
-
-    init(usageService: UsageService) {
+    init(usageService: UsageService, provider: UsageProvider = .claude) {
         self.usageService = usageService
+        self.provider = provider
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -75,7 +56,7 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
 
         let urlString = url.absoluteString.lowercased()
 
-        if urlString.contains("/settings/usage") {
+        if urlString.contains(provider.usagePathFragment) {
             Task { @MainActor in
                 usageService.triggerRefresh()
             }
@@ -83,23 +64,15 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 
     func isAllowedHost(_ host: String) -> Bool {
-        allowedHostSuffixes.contains { host == $0 || host.hasSuffix(".\($0)") }
+        provider.oauthHostSuffixes.contains { host == $0 || host.hasSuffix(".\($0)") }
     }
 
     func isAuthPage(_ urlString: String) -> Bool {
         ["/login", "/signin", "/oauth", "/callback", "/auth"].contains { urlString.contains($0) }
     }
 
-    func isClaudeMainPage(host: String, urlString: String) -> Bool {
-        let isClaudeAI = host == "claude.ai" || host == "www.claude.ai"
-        return isClaudeAI && !isAuthPage(urlString)
-    }
-
-    private func redirectToUsagePage(_ webView: WKWebView) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + Constants.redirectDelay) {
-            if let usageURL = URL(string: "https://claude.ai/settings/usage") {
-                webView.load(URLRequest(url: usageURL))
-            }
-        }
+    func isProviderMainPage(host: String, urlString: String) -> Bool {
+        let isPrimary = host == provider.primaryHost || host == "www.\(provider.primaryHost)"
+        return isPrimary && !isAuthPage(urlString)
     }
 }

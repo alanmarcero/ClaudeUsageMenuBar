@@ -16,6 +16,9 @@
 		001A0000D /* WebViewCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A0000E; };
 		001A00012 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A00013; };
 		001A00014 /* UpdateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A00015; };
+		001A00080 /* UsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A00081; };
+		001A00082 /* UsageProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A00083; };
+		002A00080 /* UsageProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00081; };
 		001A00017 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 001A00018 /* Sparkle */; };
 		002A00001 /* UsageDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00002; };
 		002A00003 /* AppConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00004; };
@@ -50,6 +53,9 @@
 		001A00011 /* ClaudeUsageMenuBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClaudeUsageMenuBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		001A00013 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		001A00015 /* UpdateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateService.swift; sourceTree = "<group>"; };
+		001A00081 /* UsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProvider.swift; sourceTree = "<group>"; };
+		001A00083 /* UsageProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProviders.swift; sourceTree = "<group>"; };
+		002A00081 /* UsageProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProviderTests.swift; sourceTree = "<group>"; };
 		002A00002 /* UsageDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageDataTests.swift; sourceTree = "<group>"; };
 		002A00004 /* AppConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigTests.swift; sourceTree = "<group>"; };
 		002A00006 /* WeeklyCountdownCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyCountdownCalculatorTests.swift; sourceTree = "<group>"; };
@@ -117,6 +123,7 @@
 			children = (
 				001A00013 /* AppConfig.swift */,
 				001A00004 /* UsageData.swift */,
+				001A00081 /* UsageProvider.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -126,6 +133,7 @@
 			children = (
 				001A00015 /* UpdateService.swift */,
 				001A00006 /* UsageService.swift */,
+				001A00083 /* UsageProviders.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -159,6 +167,7 @@
 				002A0000C /* ScrapedUsageDataTests.swift */,
 				002A0000E /* AppConfigEdgeCaseTests.swift */,
 				002A00015 /* RefreshTimeoutTests.swift */,
+				002A00081 /* UsageProviderTests.swift */,
 			);
 			path = ClaudeUsageMenuBarTests;
 			sourceTree = "<group>";
@@ -268,6 +277,8 @@
 				001A0000D /* WebViewCoordinator.swift in Sources */,
 				001A00012 /* AppConfig.swift in Sources */,
 				001A00014 /* UpdateService.swift in Sources */,
+				001A00080 /* UsageProvider.swift in Sources */,
+				001A00082 /* UsageProviders.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -283,6 +294,7 @@
 				002A0000B /* ScrapedUsageDataTests.swift in Sources */,
 				002A0000D /* AppConfigEdgeCaseTests.swift in Sources */,
 				002A0000F /* RefreshTimeoutTests.swift in Sources */,
+				002A00080 /* UsageProviderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -421,7 +433,7 @@
 				CODE_SIGN_ENTITLEMENTS = ClaudeUsageMenuBar/ClaudeUsageMenuBar.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -432,7 +444,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.claude.usage.menubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -448,7 +460,7 @@
 				CODE_SIGN_ENTITLEMENTS = ClaudeUsageMenuBar/ClaudeUsageMenuBar.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -459,7 +471,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.claude.usage.menubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -472,10 +484,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.claude.usage.menubar.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -489,10 +501,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.claude.usage.menubar.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
