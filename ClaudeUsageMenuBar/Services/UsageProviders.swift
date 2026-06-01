@@ -24,7 +24,7 @@ final class UsageProviders: ObservableObject {
         let validSaved = providers.first { $0.id == saved }?.id
         selectedMenuBarProviderID = validSaved ?? providers.first?.id ?? ""
 
-        for service in services {
+        services.forEach { service in
             service.objectWillChange
                 .sink { [weak self] _ in self?.objectWillChange.send() }
                 .store(in: &cancellables)

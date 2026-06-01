@@ -39,10 +39,6 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
     let provider: UsageProvider
 
-    var displayText: String {
-        usageData.displayPercentage
-    }
-
     init(provider: UsageProvider = .claude) {
         self.provider = provider
         super.init()

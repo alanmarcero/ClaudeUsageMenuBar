@@ -9,10 +9,11 @@ final class UsageProviderTests: XCTestCase {
     }
 
     func testEachProviderHasNonEmptyScriptAndValidURL() {
-        for provider in UsageProvider.all {
+        XCTAssertEqual(UsageProvider.all.count, 2)
+        UsageProvider.all.forEach { provider in
             XCTAssertFalse(provider.scrapingScript.isEmpty, "\(provider.id) script empty")
-            XCTAssertFalse(provider.usageURL.absoluteString.isEmpty)
-            XCTAssertTrue(provider.usagePathFragment.hasPrefix("/"))
+            XCTAssertFalse(provider.usageURL.absoluteString.isEmpty, "\(provider.id) url empty")
+            XCTAssertTrue(provider.usagePathFragment.hasPrefix("/"), "\(provider.id) fragment")
         }
     }
 

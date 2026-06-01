@@ -111,11 +111,11 @@ struct MenuBarView: View {
                     windowManager.openUsageWindow(provider: service.provider, service: service)
                 }
                 ActionButton(label: service.usageData.isLoggedIn ? "Log Out of \(service.provider.displayName)" : "Log In to \(service.provider.displayName)") {
-                    if service.usageData.isLoggedIn {
-                        service.logout()
-                    } else {
+                    guard service.usageData.isLoggedIn else {
                         windowManager.openUsageWindow(provider: service.provider, service: service)
+                        return
                     }
+                    service.logout()
                 }
             }
         }

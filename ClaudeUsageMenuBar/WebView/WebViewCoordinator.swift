@@ -23,10 +23,6 @@ enum ClaudeWebViewFactory {
 
 class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
 
-    private enum Constants {
-        static let redirectDelay: TimeInterval = 0.5
-    }
-
     private let usageService: UsageService
     private let provider: UsageProvider
 
@@ -78,11 +74,5 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     func isProviderMainPage(host: String, urlString: String) -> Bool {
         let isPrimary = host == provider.primaryHost || host == "www.\(provider.primaryHost)"
         return isPrimary && !isAuthPage(urlString)
-    }
-
-    private func redirectToUsagePage(_ webView: WKWebView) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + Constants.redirectDelay) { [provider] in
-            webView.load(URLRequest(url: provider.usageURL))
-        }
     }
 }
