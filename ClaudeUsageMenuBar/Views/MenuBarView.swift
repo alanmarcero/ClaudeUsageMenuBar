@@ -13,9 +13,10 @@ struct MenuBarView: View {
             ForEach(providers.services, id: \.provider.id) { service in
                 Divider().padding(.horizontal, 16)
                 ProviderSection(service: service)
-                    .environmentObject(windowManager)
             }
             statusSection
+            Divider().padding(.horizontal, 12)
+            accountButtons
             Divider().padding(.horizontal, 12)
             globalButtons
         }
@@ -101,6 +102,26 @@ struct MenuBarView: View {
         .padding(.vertical, 8)
     }
 
+    // MARK: - Account Buttons (per provider)
+
+    private var accountButtons: some View {
+        VStack(spacing: 4) {
+            ForEach(providers.services, id: \.provider.id) { service in
+                ActionButton(label: "Open \(service.provider.displayName) / Login") {
+                    windowManager.openUsageWindow(provider: service.provider, service: service)
+                }
+                ActionButton(label: service.usageData.isLoggedIn ? "Log Out of \(service.provider.displayName)" : "Log In to \(service.provider.displayName)") {
+                    if service.usageData.isLoggedIn {
+                        service.logout()
+                    } else {
+                        windowManager.openUsageWindow(provider: service.provider, service: service)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 8)
+    }
+
     // MARK: - Global Buttons
 
     private var globalButtons: some View {
@@ -137,14 +158,15 @@ struct MenuBarView: View {
 
 struct ProviderSection: View {
     @ObservedObject var service: UsageService
-    @EnvironmentObject var windowManager: WindowManager
 
     var body: some View {
         VStack(spacing: 0) {
             providerHeader
-            LabeledRow(label: "Email", value: service.usageData.email ?? "--")
-                .padding(.horizontal, 16)
-                .padding(.top, 4)
+            if let email = service.usageData.email {
+                LabeledRow(label: "Email", value: email)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+            }
 
             usageRow("Daily", service.usageData.percentage, service.dailyResetCountdown)
             usageRow("Weekly", service.usageData.weeklyPercentage, service.weeklyResetCountdown)
@@ -167,8 +189,6 @@ struct ProviderSection: View {
                 .padding(.vertical, 6)
                 .background(Color.orange.opacity(0.1))
             }
-
-            providerButtons
         }
         .padding(.bottom, 6)
     }
@@ -183,22 +203,6 @@ struct ProviderSection: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
-    }
-
-    private var providerButtons: some View {
-        VStack(spacing: 4) {
-            ActionButton(label: "Open \(service.provider.displayName) / Login") {
-                windowManager.openUsageWindow(provider: service.provider, service: service)
-            }
-            ActionButton(label: service.usageData.isLoggedIn ? "Log Out of \(service.provider.displayName)" : "Log In to \(service.provider.displayName)") {
-                if service.usageData.isLoggedIn {
-                    service.logout()
-                } else {
-                    windowManager.openUsageWindow(provider: service.provider, service: service)
-                }
-            }
-        }
-        .padding(.top, 4)
     }
 
     private func usageRow(_ title: String, _ percentage: Int?, _ resetTime: String?) -> some View {
