@@ -1,12 +1,15 @@
 # Claude Usage Menu Bar
 
-A macOS menu bar app that displays your Claude.ai usage.
+A macOS menu bar app that displays your AI usage. It tracks both **Claude** (claude.ai) and **OpenAI Codex** (chatgpt.com), and is provider-agnostic — adding another provider is a descriptor plus a scraping script.
 
 ## Features
 
-- Shows usage percentage in menu bar
-- Daily and weekly limits with reset countdowns
-- Email, organization, and plan display
+- Tracks multiple providers: Claude and Codex, each in its own section
+- Menu bar shows one provider's percentage; a "Menu bar" picker chooses which (scales to more providers)
+- Per-provider daily and weekly limits with reset countdowns
+- Per-provider login and logout
+- Email and plan display when the provider exposes them
+- Codex is shown as percent **used** to match Claude (its page reports percent remaining)
 - Color-coded thresholds (green < 55%, yellow 55-84%, red 85%+)
 - Auto-refresh every 30 seconds
 - Manual in-app update checks powered by Sparkle
@@ -51,7 +54,7 @@ This stores the private signing key in your macOS Keychain and writes the matchi
 For each release, increment `CFBundleVersion` and `CFBundleShortVersionString`, then build the update assets:
 
 ```bash
-./scripts/build-sparkle-update.sh v1.0
+./scripts/build-sparkle-update.sh v1.1
 ```
 
 Upload both files from `dist/` to the matching GitHub release:
@@ -64,9 +67,11 @@ The release tag passed to the script must match the GitHub release tag, because 
 ## First-Time Setup
 
 1. Click the menu bar icon
-2. Click "Open Usage Page / Login"
-3. Log in to Claude.ai
-4. Usage will appear automatically
+2. For each provider you want to track, click "Open \<Provider\> / Login" (e.g. "Open Claude / Login", "Open Codex / Login")
+3. Log in to that provider's site
+4. Usage appears automatically; use the "Menu bar" picker to choose which provider's percentage shows in the menu bar
+
+Sessions are independent per provider — logging out of one does not affect the other.
 
 ## Uninstall
 
