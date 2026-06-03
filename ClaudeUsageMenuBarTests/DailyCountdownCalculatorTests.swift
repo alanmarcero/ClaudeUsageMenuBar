@@ -34,10 +34,16 @@ final class DailyCountdownCalculatorTests: XCTestCase {
         XCTAssertEqual(DailyCountdownCalculator.calculate(from: "Resets 12:00 AM", currentDate: now), "10hr")
     }
 
-    func testRelativeStringPassesThroughUnchanged() {
-        // Claude's daily reset arrives already relative; no clock time to convert.
+    func testRelativeStringStripsRedundantResetPrefix() {
+        // Claude's daily reset arrives already relative; the UI label is "Resets in",
+        // so the redundant "Resets in" prefix in the value is stripped.
         let now = createTestDate(hour: 14, minute: 0)
-        XCTAssertEqual(DailyCountdownCalculator.calculate(from: "Resets in 2 hr 40 min", currentDate: now), "Resets in 2 hr 40 min")
+        XCTAssertEqual(DailyCountdownCalculator.calculate(from: "Resets in 2 hr 40 min", currentDate: now), "2 hr 40 min")
+    }
+
+    func testRelativeStringWithoutInPrefixIsStripped() {
+        let now = createTestDate(hour: 14, minute: 0)
+        XCTAssertEqual(DailyCountdownCalculator.calculate(from: "Resets 5 days", currentDate: now), "5 days")
     }
 
     func testJustPastResetRollsToTomorrow() {

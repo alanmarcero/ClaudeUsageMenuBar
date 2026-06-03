@@ -351,14 +351,26 @@ enum DailyCountdownCalculator {
         guard let resetString = resetString else { return nil }
 
         guard let (hour, minute) = WeeklyCountdownCalculator.extractTime(from: resetString) else {
-            return resetString
+            return stripResetPrefix(resetString)
         }
 
         guard let targetDate = nextOccurrence(hour: hour, minute: minute, from: currentDate) else {
-            return resetString
+            return stripResetPrefix(resetString)
         }
 
         return WeeklyCountdownCalculator.formatCountdown(from: currentDate, to: targetDate)
+    }
+
+    // The UI already labels the row "Resets in", so drop a leading "Resets"/"Resets in"
+    // that the raw page text (e.g. Claude's "Resets in 2 hr 40 min") carries.
+    private static func stripResetPrefix(_ string: String) -> String {
+        let pattern = #"^\s*resets?\s+(in\s+)?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+            return string
+        }
+        let range = NSRange(string.startIndex..., in: string)
+        let stripped = regex.stringByReplacingMatches(in: string, range: range, withTemplate: "")
+        return stripped.trimmingCharacters(in: .whitespaces)
     }
 
     private static func nextOccurrence(hour: Int, minute: Int, from currentDate: Date) -> Date? {
