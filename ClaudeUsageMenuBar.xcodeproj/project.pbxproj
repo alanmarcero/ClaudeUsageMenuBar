@@ -19,6 +19,7 @@
 		001A00080 /* UsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A00081; };
 		001A00082 /* UsageProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A00083; };
 		002A00080 /* UsageProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00081; };
+		002A00082 /* DailyCountdownCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00083; };
 		001A00017 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 001A00018 /* Sparkle */; };
 		002A00001 /* UsageDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00002; };
 		002A00003 /* AppConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00004; };
@@ -56,6 +57,7 @@
 		001A00081 /* UsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProvider.swift; sourceTree = "<group>"; };
 		001A00083 /* UsageProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProviders.swift; sourceTree = "<group>"; };
 		002A00081 /* UsageProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProviderTests.swift; sourceTree = "<group>"; };
+		002A00083 /* DailyCountdownCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyCountdownCalculatorTests.swift; sourceTree = "<group>"; };
 		002A00002 /* UsageDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageDataTests.swift; sourceTree = "<group>"; };
 		002A00004 /* AppConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigTests.swift; sourceTree = "<group>"; };
 		002A00006 /* WeeklyCountdownCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyCountdownCalculatorTests.swift; sourceTree = "<group>"; };
@@ -168,6 +170,7 @@
 				002A0000E /* AppConfigEdgeCaseTests.swift */,
 				002A00015 /* RefreshTimeoutTests.swift */,
 				002A00081 /* UsageProviderTests.swift */,
+				002A00083 /* DailyCountdownCalculatorTests.swift */,
 			);
 			path = ClaudeUsageMenuBarTests;
 			sourceTree = "<group>";
@@ -295,6 +298,7 @@
 				002A0000D /* AppConfigEdgeCaseTests.swift in Sources */,
 				002A0000F /* RefreshTimeoutTests.swift in Sources */,
 				002A00080 /* UsageProviderTests.swift in Sources */,
+				002A00082 /* DailyCountdownCalculatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

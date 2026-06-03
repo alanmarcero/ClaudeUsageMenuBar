@@ -204,7 +204,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     private func updateResetCountdowns() {
-        dailyResetCountdown = rawDailyResetTime
+        dailyResetCountdown = DailyCountdownCalculator.calculate(from: rawDailyResetTime)
         weeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawWeeklyResetTime)
         sonnetWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawSonnetWeeklyResetTime)
         designWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawDesignWeeklyResetTime)
@@ -339,6 +339,39 @@ private struct ScrapedUsageData {
     let email: String?
     let organizationName: String?
     let planName: String?
+}
+
+// MARK: - Daily Countdown Calculator
+
+// Converts a daily reset that names an absolute clock time (e.g. Codex's
+// "Resets 9:55 PM") into a countdown to its next occurrence. Strings with no clock
+// time (e.g. Claude's already-relative "Resets in 2 hr 40 min") pass through unchanged.
+enum DailyCountdownCalculator {
+    static func calculate(from resetString: String?, currentDate: Date = Date()) -> String? {
+        guard let resetString = resetString else { return nil }
+
+        guard let (hour, minute) = WeeklyCountdownCalculator.extractTime(from: resetString) else {
+            return resetString
+        }
+
+        guard let targetDate = nextOccurrence(hour: hour, minute: minute, from: currentDate) else {
+            return resetString
+        }
+
+        return WeeklyCountdownCalculator.formatCountdown(from: currentDate, to: targetDate)
+    }
+
+    private static func nextOccurrence(hour: Int, minute: Int, from currentDate: Date) -> Date? {
+        let calendar = Calendar.current
+        guard let target = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: currentDate) else {
+            return nil
+        }
+
+        if target <= currentDate {
+            return calendar.date(byAdding: .day, value: 1, to: target)
+        }
+        return target
+    }
 }
 
 // MARK: - Weekly Countdown Calculator
