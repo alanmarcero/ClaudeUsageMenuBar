@@ -1,45 +1,89 @@
 import SwiftUI
+import AppKit
+import Combine
 
+// The app deliberately avoids SwiftUI's `MenuBarExtra`. On notched Macs with a full
+// menu bar, the system destroys a `MenuBarExtra` status-item scene right after creating
+// it, and because that scene is the app's only scene AppKit terminates the whole app
+// (clean exit, no crash). An AppKit `NSStatusItem` instead just hides when there's no
+// room, so the app keeps running. The invisible `Settings` scene exists only to give the
+// SwiftUI `App` a valid scene; it never appears for this accessory app.
 @main
 struct ClaudeUsageMenuBarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var providers = UsageProviders()
-    @StateObject private var updateService = UpdateService()
-    @StateObject private var windowManager = WindowManager()
 
     var body: some Scene {
-        MenuBarExtra {
-            MenuBarView()
+        Settings { EmptyView() }
+    }
+}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let providers = UsageProviders()
+    private let updateService = UpdateService()
+    private let windowManager = WindowManager()
+    private var statusItemController: StatusItemController?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        statusItemController = StatusItemController(
+            providers: providers,
+            updateService: updateService,
+            windowManager: windowManager
+        )
+    }
+}
+
+// Owns the menu bar status item and the popover that hosts the SwiftUI menu. The button's
+// glyph and percentage track the selected provider; the popover lazily renders `MenuBarView`.
+@MainActor
+final class StatusItemController: NSObject {
+    private let statusItem: NSStatusItem
+    private let popover = NSPopover()
+    private let providers: UsageProviders
+    private var cancellable: AnyCancellable?
+
+    init(providers: UsageProviders, updateService: UpdateService, windowManager: WindowManager) {
+        self.providers = providers
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        super.init()
+
+        popover.behavior = .transient
+        popover.contentViewController = NSHostingController(
+            rootView: MenuBarView()
                 .environmentObject(providers)
                 .environmentObject(updateService)
                 .environmentObject(windowManager)
-        } label: {
-            MenuBarLabel(providers: providers)
+        )
+
+        if let button = statusItem.button {
+            button.imagePosition = .imageLeading
+            button.target = self
+            button.action = #selector(togglePopover)
         }
-        .menuBarExtraStyle(.window)
+
+        cancellable = providers.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateButton() }
+        updateButton()
     }
-}
 
-struct MenuBarLabel: View {
-    @ObservedObject var providers: UsageProviders
+    private func updateButton() {
+        guard let button = statusItem.button else { return }
+        let glyph = providers.selectedService?.provider.menuGlyph ?? "cpu"
+        let percentage = providers.selectedService?.usageData.displayPercentage ?? "--"
+        button.image = NSImage(systemSymbolName: glyph, accessibilityDescription: "Usage")
+        button.title = " \(percentage)"
+    }
 
-    var body: some View {
-        HStack(spacing: 3) {
-            if let service = providers.selectedService {
-                Image(systemName: service.provider.menuGlyph)
-                Text(service.usageData.displayPercentage)
-                    .monospacedDigit()
-            } else {
-                Image(systemName: "cpu")
-                Text("--")
-            }
+    @objc private func togglePopover() {
+        guard let button = statusItem.button else { return }
+        if popover.isShown {
+            popover.performClose(nil)
+            return
         }
-    }
-}
-
-class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
     }
 }
 
