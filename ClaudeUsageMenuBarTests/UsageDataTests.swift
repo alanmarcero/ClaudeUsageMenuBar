@@ -76,6 +76,18 @@ final class UsageDataTests: XCTestCase {
         XCTAssertNil(UsageCache.load(for: "codex", defaults: defaults))
     }
 
+    func testUsageCacheClear() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let snapshot = UsageSnapshot(percentage: 7, resetTime: nil,
+            weeklyPercentage: nil, weeklyResetTime: nil,
+            sonnetWeeklyPercentage: nil, sonnetWeeklyResetTime: nil,
+            designWeeklyPercentage: nil, designWeeklyResetTime: nil, lastUpdated: nil)
+        UsageCache.save(snapshot, for: "claude", defaults: defaults)
+        UsageCache.clear(for: "claude", defaults: defaults)
+        XCTAssertNil(UsageCache.load(for: "claude", defaults: defaults))
+    }
+
     // MARK: - RelativeTime
 
     func testRelativeTimeJustNow() {

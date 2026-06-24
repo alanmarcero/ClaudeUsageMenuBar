@@ -53,6 +53,10 @@ enum UsageCache {
         guard let data = defaults.data(forKey: key(for: providerID)) else { return nil }
         return try? JSONDecoder().decode(UsageSnapshot.self, from: data)
     }
+
+    static func clear(for providerID: String, defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: key(for: providerID))
+    }
 }
 
 // Builds the menu-bar icon's hover tooltip line for one provider, e.g.

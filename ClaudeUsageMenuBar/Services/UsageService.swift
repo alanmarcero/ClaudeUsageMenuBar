@@ -147,6 +147,9 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         rawDailyResetTime = nil
         rawWeeklyResetTime = nil
         rawSonnetWeeklyResetTime = nil
+        // Drop the persisted snapshot so a later launch doesn't restore stale usage
+        // after an explicit logout / cache clear.
+        UsageCache.clear(for: provider.id)
         setLoggedOut()
         usageData.errorMessage = "Logged out. Click 'Open Usage Page / Login' to sign in."
     }
