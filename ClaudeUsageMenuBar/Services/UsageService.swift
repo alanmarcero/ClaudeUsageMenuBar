@@ -42,11 +42,32 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     init(provider: UsageProvider = .claude) {
         self.provider = provider
         super.init()
+        restoreCachedUsage()
         setupBackgroundWebView()
         startAutoRefresh()
         DispatchQueue.main.asyncAfter(deadline: .now() + Constants.initialRefreshDelay) { [weak self] in
             self?.triggerRefresh()
         }
+    }
+
+    // Show the last known percentages immediately on launch (stale until the first
+    // refresh confirms; isLoggedIn stays false so a logged-out state isn't faked).
+    private func restoreCachedUsage() {
+        guard let snapshot = UsageCache.load(for: provider.id) else { return }
+        usageData.percentage = snapshot.percentage
+        usageData.resetTime = snapshot.resetTime
+        usageData.weeklyPercentage = snapshot.weeklyPercentage
+        usageData.weeklyResetTime = snapshot.weeklyResetTime
+        usageData.sonnetWeeklyPercentage = snapshot.sonnetWeeklyPercentage
+        usageData.sonnetWeeklyResetTime = snapshot.sonnetWeeklyResetTime
+        usageData.designWeeklyPercentage = snapshot.designWeeklyPercentage
+        usageData.designWeeklyResetTime = snapshot.designWeeklyResetTime
+        usageData.lastUpdated = snapshot.lastUpdated
+        rawDailyResetTime = snapshot.resetTime
+        rawWeeklyResetTime = snapshot.weeklyResetTime
+        rawSonnetWeeklyResetTime = snapshot.sonnetWeeklyResetTime
+        rawDesignWeeklyResetTime = snapshot.designWeeklyResetTime
+        updateResetCountdowns()
     }
 
     private func setupBackgroundWebView() {
@@ -145,6 +166,21 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.lastUpdated = Date()
         usageData.isLoggedIn = true
         usageData.errorMessage = nil
+
+        UsageCache.save(
+            UsageSnapshot(
+                percentage: data.percentage,
+                resetTime: data.resetTime,
+                weeklyPercentage: data.weeklyPercentage,
+                weeklyResetTime: data.weeklyResetTime,
+                sonnetWeeklyPercentage: data.sonnetWeeklyPercentage,
+                sonnetWeeklyResetTime: data.sonnetWeeklyResetTime,
+                designWeeklyPercentage: data.designWeeklyPercentage,
+                designWeeklyResetTime: data.designWeeklyResetTime,
+                lastUpdated: usageData.lastUpdated
+            ),
+            for: provider.id
+        )
 
         rawDailyResetTime = data.resetTime
         rawWeeklyResetTime = data.weeklyResetTime

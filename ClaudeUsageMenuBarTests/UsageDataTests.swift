@@ -36,4 +36,43 @@ final class UsageDataTests: XCTestCase {
         XCTAssertNil(data.planName)
         XCTAssertFalse(data.isLoggedIn)
     }
+
+    // MARK: - UsageCache
+
+    private func makeDefaults() -> (UserDefaults, String) {
+        let suite = "test-usagecache-\(UUID().uuidString)"
+        return (UserDefaults(suiteName: suite)!, suite)
+    }
+
+    func testUsageCacheRoundTrip() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let snapshot = UsageSnapshot(
+            percentage: 42, resetTime: "6h 12m",
+            weeklyPercentage: 80, weeklyResetTime: "3d 4h",
+            sonnetWeeklyPercentage: 10, sonnetWeeklyResetTime: nil,
+            designWeeklyPercentage: nil, designWeeklyResetTime: nil,
+            lastUpdated: nil
+        )
+        UsageCache.save(snapshot, for: "claude", defaults: defaults)
+        XCTAssertEqual(UsageCache.load(for: "claude", defaults: defaults), snapshot)
+    }
+
+    func testUsageCacheMissReturnsNil() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertNil(UsageCache.load(for: "claude", defaults: defaults))
+    }
+
+    func testUsageCacheIsolatedPerProvider() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let snapshot = UsageSnapshot(percentage: 5, resetTime: nil,
+            weeklyPercentage: nil, weeklyResetTime: nil,
+            sonnetWeeklyPercentage: nil, sonnetWeeklyResetTime: nil,
+            designWeeklyPercentage: nil, designWeeklyResetTime: nil, lastUpdated: nil)
+        UsageCache.save(snapshot, for: "claude", defaults: defaults)
+        XCTAssertEqual(UsageCache.load(for: "claude", defaults: defaults)?.percentage, 5)
+        XCTAssertNil(UsageCache.load(for: "codex", defaults: defaults))
+    }
 }

@@ -25,3 +25,32 @@ struct UsageData {
         return "\(percentage)%"
     }
 }
+
+// A persisted snapshot of the last successful scrape so the menu bar can show the
+// previous percentage immediately on launch instead of "--" while it re-fetches.
+struct UsageSnapshot: Codable, Equatable {
+    var percentage: Int?
+    var resetTime: String?
+    var weeklyPercentage: Int?
+    var weeklyResetTime: String?
+    var sonnetWeeklyPercentage: Int?
+    var sonnetWeeklyResetTime: String?
+    var designWeeklyPercentage: Int?
+    var designWeeklyResetTime: String?
+    var lastUpdated: Date?
+}
+
+// Stores/loads the last UsageSnapshot per provider. `defaults` is injectable for tests.
+enum UsageCache {
+    static func key(for providerID: String) -> String { "lastUsageSnapshot.\(providerID)" }
+
+    static func save(_ snapshot: UsageSnapshot, for providerID: String, defaults: UserDefaults = .standard) {
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        defaults.set(data, forKey: key(for: providerID))
+    }
+
+    static func load(for providerID: String, defaults: UserDefaults = .standard) -> UsageSnapshot? {
+        guard let data = defaults.data(forKey: key(for: providerID)) else { return nil }
+        return try? JSONDecoder().decode(UsageSnapshot.self, from: data)
+    }
+}
