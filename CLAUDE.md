@@ -95,7 +95,7 @@ ClaudeUsageMenuBar/
 │   ├── ClaudeUsageMenuBarApp.swift  # App entry point, AppDelegate, WindowManager
 │   ├── Info.plist
 │   └── ClaudeUsageMenuBar.entitlements
-├── ClaudeUsageMenuBarTests/         # 137 unit tests
+├── ClaudeUsageMenuBarTests/         # 140 unit tests
 │   ├── AppConfigTests.swift
 │   ├── AppConfigEdgeCaseTests.swift
 │   ├── UsageDataTests.swift
@@ -207,7 +207,7 @@ Key regex patterns:
 
 ## Testing
 
-Tests are in `ClaudeUsageMenuBarTests/` with **137 unit tests** covering core logic:
+Tests are in `ClaudeUsageMenuBarTests/` with **140 unit tests** covering core logic:
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
@@ -389,7 +389,7 @@ UsageService
 | `WebViewCoordinatorTests.swift` | 17 | OAuth domain whitelisting, auth page detection, main page detection |
 | `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, recovery from stuck state, boundary conditions |
 
-**Total: 137 tests**
+**Total: 140 tests**
 
 ## Verification Steps
 
