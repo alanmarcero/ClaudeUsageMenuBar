@@ -170,6 +170,11 @@ struct ProviderSection: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
             }
+            if let plan = service.usageData.planName {
+                LabeledRow(label: "Plan", value: plan)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 2)
+            }
 
             usageRow("Daily", service.usageData.percentage, service.dailyResetCountdown)
             usageRow("Weekly", service.usageData.weeklyPercentage, service.weeklyResetCountdown)
@@ -181,7 +186,10 @@ struct ProviderSection: View {
             }
 
             if let error = service.usageData.errorMessage {
-                HStack(alignment: .top) {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.orange)
                     Text(error)
                         .font(.caption)
                         .foregroundColor(.orange)
