@@ -54,3 +54,17 @@ enum UsageCache {
         return try? JSONDecoder().decode(UsageSnapshot.self, from: data)
     }
 }
+
+// Compact "x ago" formatting for the last-updated indicator. `now` is injectable for tests.
+enum RelativeTime {
+    static func string(from date: Date, now: Date = Date()) -> String {
+        let seconds = Int(now.timeIntervalSince(date))
+        if seconds < 5 { return "just now" }
+        if seconds < 60 { return "\(seconds)s ago" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes)m ago" }
+        let hours = minutes / 60
+        if hours < 24 { return "\(hours)h ago" }
+        return "\(hours / 24)d ago"
+    }
+}

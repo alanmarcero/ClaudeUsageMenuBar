@@ -203,6 +203,11 @@ struct ProviderSection: View {
                 .font(.subheadline)
                 .fontWeight(.semibold)
             Spacer()
+            if let updated = service.usageData.lastUpdated {
+                Text(RelativeTime.string(from: updated))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)

@@ -75,4 +75,32 @@ final class UsageDataTests: XCTestCase {
         XCTAssertEqual(UsageCache.load(for: "claude", defaults: defaults)?.percentage, 5)
         XCTAssertNil(UsageCache.load(for: "codex", defaults: defaults))
     }
+
+    // MARK: - RelativeTime
+
+    func testRelativeTimeJustNow() {
+        let now = Date()
+        XCTAssertEqual(RelativeTime.string(from: now, now: now), "just now")
+        XCTAssertEqual(RelativeTime.string(from: now.addingTimeInterval(-3), now: now), "just now")
+    }
+
+    func testRelativeTimeSeconds() {
+        let now = Date()
+        XCTAssertEqual(RelativeTime.string(from: now.addingTimeInterval(-30), now: now), "30s ago")
+    }
+
+    func testRelativeTimeMinutes() {
+        let now = Date()
+        XCTAssertEqual(RelativeTime.string(from: now.addingTimeInterval(-120), now: now), "2m ago")
+    }
+
+    func testRelativeTimeHours() {
+        let now = Date()
+        XCTAssertEqual(RelativeTime.string(from: now.addingTimeInterval(-7200), now: now), "2h ago")
+    }
+
+    func testRelativeTimeDays() {
+        let now = Date()
+        XCTAssertEqual(RelativeTime.string(from: now.addingTimeInterval(-2 * 86400), now: now), "2d ago")
+    }
 }
