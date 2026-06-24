@@ -103,4 +103,18 @@ final class UsageDataTests: XCTestCase {
         let now = Date()
         XCTAssertEqual(RelativeTime.string(from: now.addingTimeInterval(-2 * 86400), now: now), "2d ago")
     }
+
+    // MARK: - UsageTooltip
+
+    func testUsageTooltipBoth() {
+        XCTAssertEqual(UsageTooltip.line(provider: "Claude", daily: 47, weekly: 82), "Claude: 47% daily, 82% weekly")
+    }
+
+    func testUsageTooltipDailyOnly() {
+        XCTAssertEqual(UsageTooltip.line(provider: "Claude", daily: 47, weekly: nil), "Claude: 47% daily")
+    }
+
+    func testUsageTooltipNoData() {
+        XCTAssertEqual(UsageTooltip.line(provider: "Codex", daily: nil, weekly: nil), "Codex: no data yet")
+    }
 }

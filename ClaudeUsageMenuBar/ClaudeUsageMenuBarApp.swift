@@ -82,6 +82,9 @@ final class StatusItemController: NSObject {
 
     private func updateButton() {
         guard let providers, let button = statusItem.button else { return }
+        button.toolTip = providers.services
+            .map { UsageTooltip.line(provider: $0.provider.displayName, daily: $0.usageData.percentage, weekly: $0.usageData.weeklyPercentage) }
+            .joined(separator: "\n")
         let glyph = providers.selectedService?.provider.menuGlyph ?? "cpu"
         let percentage = providers.selectedService?.usageData.displayPercentage ?? "--"
         // Skip redundant mutations (this fires ~once/sec via the countdown). Recreating

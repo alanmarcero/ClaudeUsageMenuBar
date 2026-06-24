@@ -55,6 +55,17 @@ enum UsageCache {
     }
 }
 
+// Builds the menu-bar icon's hover tooltip line for one provider, e.g.
+// "Claude: 47% daily, 82% weekly".
+enum UsageTooltip {
+    static func line(provider: String, daily: Int?, weekly: Int?) -> String {
+        var parts: [String] = []
+        if let daily { parts.append("\(daily)% daily") }
+        if let weekly { parts.append("\(weekly)% weekly") }
+        return parts.isEmpty ? "\(provider): no data yet" : "\(provider): \(parts.joined(separator: ", "))"
+    }
+}
+
 // Compact "x ago" formatting for the last-updated indicator. `now` is injectable for tests.
 enum RelativeTime {
     static func string(from date: Date, now: Date = Date()) -> String {
