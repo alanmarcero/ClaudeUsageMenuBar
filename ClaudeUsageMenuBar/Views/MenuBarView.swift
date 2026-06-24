@@ -91,11 +91,20 @@ struct MenuBarView: View {
     // MARK: - Status Section
 
     private var statusSection: some View {
-        HStack {
-            Text("Refresh in \(providers.nextRefreshCountdown)s")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .monospacedDigit()
+        HStack(spacing: 6) {
+            if providers.isAnyRefreshing {
+                ProgressView()
+                    .scaleEffect(0.45)
+                    .frame(width: 12, height: 12)
+                Text("Refreshing…")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("Refresh in \(providers.nextRefreshCountdown)s")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+            }
             Spacer()
         }
         .padding(.horizontal, 16)
