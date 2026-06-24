@@ -42,6 +42,7 @@ final class StatusItemController: NSObject {
     private var updateService: UpdateService!
     private var windowManager: WindowManager!
     private var cancellable: AnyCancellable?
+    private var lastButtonKey: String?
 
     override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -83,6 +84,12 @@ final class StatusItemController: NSObject {
         guard let providers, let button = statusItem.button else { return }
         let glyph = providers.selectedService?.provider.menuGlyph ?? "cpu"
         let percentage = providers.selectedService?.usageData.displayPercentage ?? "--"
+        // Skip redundant mutations (this fires ~once/sec via the countdown). Recreating
+        // the NSImage and resetting the title only when something changed avoids needless
+        // status-bar relayout.
+        let key = "\(glyph)|\(percentage)"
+        guard key != lastButtonKey else { return }
+        lastButtonKey = key
         button.image = NSImage(systemSymbolName: glyph, accessibilityDescription: "Usage")
         button.title = " \(percentage)"
     }
