@@ -336,6 +336,7 @@ struct UsageProgressBar: View {
                     .fill(LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing))
                     // Floor the fill width so very small percentages still show a visible nub.
                     .frame(width: max(8, geometry.size.width * CGFloat(percentage) / 100))
+                    .animation(.easeOut(duration: 0.4), value: percentage)
             }
         }
         .frame(height: 8)
