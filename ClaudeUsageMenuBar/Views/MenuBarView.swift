@@ -115,7 +115,12 @@ struct MenuBarView: View {
 
     private var accountButtons: some View {
         VStack(spacing: 4) {
-            ForEach(providers.services, id: \.provider.id) { service in
+            ForEach(Array(providers.services.enumerated()), id: \.element.provider.id) { index, service in
+                if index > 0 {
+                    Divider()
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 2)
+                }
                 ActionButton(label: "Open \(service.provider.displayName) / Login", systemImage: "safari") {
                     windowManager.openUsageWindow(provider: service.provider, service: service)
                 }
