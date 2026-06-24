@@ -78,4 +78,10 @@ enum RelativeTime {
         if hours < 24 { return "\(hours)h ago" }
         return "\(hours / 24)d ago"
     }
+
+    // Data older than `threshold` means refreshes have been missing (logged out, error,
+    // or a snapshot restored from a previous session) — worth flagging visually.
+    static func isStale(_ date: Date, now: Date = Date(), threshold: TimeInterval = 120) -> Bool {
+        now.timeIntervalSince(date) > threshold
+    }
 }

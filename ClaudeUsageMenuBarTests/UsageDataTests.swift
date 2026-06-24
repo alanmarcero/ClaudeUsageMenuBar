@@ -117,4 +117,20 @@ final class UsageDataTests: XCTestCase {
     func testUsageTooltipNoData() {
         XCTAssertEqual(UsageTooltip.line(provider: "Codex", daily: nil, weekly: nil), "Codex: no data yet")
     }
+
+    func testIsStaleFreshData() {
+        let now = Date()
+        XCTAssertFalse(RelativeTime.isStale(now.addingTimeInterval(-30), now: now))
+    }
+
+    func testIsStaleOldData() {
+        let now = Date()
+        XCTAssertTrue(RelativeTime.isStale(now.addingTimeInterval(-300), now: now))
+    }
+
+    func testIsStaleCustomThreshold() {
+        let now = Date()
+        XCTAssertTrue(RelativeTime.isStale(now.addingTimeInterval(-20), now: now, threshold: 10))
+        XCTAssertFalse(RelativeTime.isStale(now.addingTimeInterval(-5), now: now, threshold: 10))
+    }
 }

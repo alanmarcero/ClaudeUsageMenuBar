@@ -214,7 +214,7 @@ struct ProviderSection: View {
             if let updated = service.usageData.lastUpdated {
                 Text(RelativeTime.string(from: updated))
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(RelativeTime.isStale(updated) ? .orange : .secondary)
             }
         }
         .padding(.horizontal, 16)
