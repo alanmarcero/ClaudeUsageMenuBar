@@ -215,11 +215,17 @@ struct ProviderSection: View {
 
     private func usageRow(_ title: String, _ percentage: Int?, _ resetTime: String?) -> some View {
         VStack(spacing: 8) {
-            HStack {
+            HStack(spacing: 6) {
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Spacer()
+                if let pct = percentage, pct >= AppConfig.shared.redThreshold {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .help("Usage is high")
+                }
                 Text(percentage.map { "\($0)%" } ?? "--")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundColor(percentage != nil ? AppConfig.shared.colorForPercentage(percentage) : .secondary)
