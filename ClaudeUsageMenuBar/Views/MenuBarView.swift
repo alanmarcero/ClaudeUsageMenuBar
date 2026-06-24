@@ -142,6 +142,10 @@ struct MenuBarView: View {
                 providers.refreshAll()
             }
 
+            ActionButton(label: "Settings…", systemImage: "gearshape") {
+                SettingsWindow.show()
+            }
+
             ActionButton(label: "Show Debug Info", systemImage: "ladybug") {
                 DebugWindow.show(text: providers.combinedDebugInfo)
             }
@@ -403,5 +407,59 @@ class ClipboardHelper: NSObject {
     @objc func copyToClipboard() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+}
+
+// MARK: - Settings
+
+// Lets the user tune the percentage thresholds that drive the green/orange/red
+// coloring. Bound to AppConfig.shared, which persists changes on edit.
+struct SettingsView: View {
+    @ObservedObject private var config = AppConfig.shared
+
+    var body: some View {
+        Form {
+            Section("Usage color thresholds") {
+                Stepper(value: $config.yellowThreshold, in: 1...(config.redThreshold - 1)) {
+                    HStack(spacing: 8) {
+                        Circle().fill(.orange).frame(width: 10, height: 10)
+                        Text("Orange at \(config.yellowThreshold)% and above")
+                    }
+                }
+                Stepper(value: $config.redThreshold, in: (config.yellowThreshold + 1)...100) {
+                    HStack(spacing: 8) {
+                        Circle().fill(.red).frame(width: 10, height: 10)
+                        Text("Red at \(config.redThreshold)% and above")
+                    }
+                }
+                HStack(spacing: 8) {
+                    Circle().fill(.green).frame(width: 10, height: 10)
+                    Text("Below \(config.yellowThreshold)% shows green")
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 380, height: 220)
+    }
+}
+
+// Hosts SettingsView in a standalone window (same proven pattern as DebugWindow), so
+// it works for an accessory app that has no visible app menu.
+enum SettingsWindow {
+    static func show() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 220),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Settings"
+        window.contentView = NSHostingView(rootView: SettingsView())
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        objc_setAssociatedObject(NSApp!, "settingsWindow", window, .OBJC_ASSOCIATION_RETAIN)
     }
 }

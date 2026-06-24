@@ -4,8 +4,8 @@ import SwiftUI
 class AppConfig: ObservableObject {
     static let shared = AppConfig()
 
-    @Published var yellowThreshold: Int = 55
-    @Published var redThreshold: Int = 85
+    @Published var yellowThreshold: Int = 55 { didSet { saveToUserDefaults() } }
+    @Published var redThreshold: Int = 85 { didSet { saveToUserDefaults() } }
 
     private init() {
         loadFromUserDefaults()
