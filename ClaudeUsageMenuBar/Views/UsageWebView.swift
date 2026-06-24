@@ -23,8 +23,16 @@ struct UsageWebView: View {
 
             Spacer()
 
-            Text("\(provider.displayName) Usage")
-                .font(.headline)
+            HStack(spacing: 6) {
+                Image(systemName: provider.menuGlyph)
+                Text("\(provider.displayName) Usage")
+                    .font(.headline)
+                if service.isRefreshing {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 14, height: 14)
+                }
+            }
 
             Spacer()
 
