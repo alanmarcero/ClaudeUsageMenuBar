@@ -302,14 +302,15 @@ struct UsageProgressBar: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color(NSColor.separatorColor).opacity(0.3))
-                RoundedRectangle(cornerRadius: 3)
+                Capsule()
+                    .fill(Color(NSColor.separatorColor).opacity(0.45))
+                Capsule()
                     .fill(LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing))
-                    .frame(width: geometry.size.width * CGFloat(percentage) / 100)
+                    // Floor the fill width so very small percentages still show a visible nub.
+                    .frame(width: max(8, geometry.size.width * CGFloat(percentage) / 100))
             }
         }
-        .frame(height: 6)
+        .frame(height: 8)
     }
 }
 
