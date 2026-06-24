@@ -145,4 +145,20 @@ final class UsageDataTests: XCTestCase {
         XCTAssertTrue(RelativeTime.isStale(now.addingTimeInterval(-20), now: now, threshold: 10))
         XCTAssertFalse(RelativeTime.isStale(now.addingTimeInterval(-5), now: now, threshold: 10))
     }
+
+    func testRelativeTimeUnitBoundaries() {
+        let now = Date()
+        XCTAssertEqual(RelativeTime.string(from: now.addingTimeInterval(-60), now: now), "1m ago")
+        XCTAssertEqual(RelativeTime.string(from: now.addingTimeInterval(-3600), now: now), "1h ago")
+        XCTAssertEqual(RelativeTime.string(from: now.addingTimeInterval(-86400), now: now), "1d ago")
+    }
+
+    func testUsageTooltipWeeklyOnly() {
+        XCTAssertEqual(UsageTooltip.line(provider: "Claude", daily: nil, weekly: 82), "Claude: 82% weekly")
+    }
+
+    func testIsStaleAtExactThresholdIsNotStale() {
+        let now = Date()
+        XCTAssertFalse(RelativeTime.isStale(now.addingTimeInterval(-120), now: now, threshold: 120))
+    }
 }
