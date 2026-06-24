@@ -107,10 +107,13 @@ struct MenuBarView: View {
     private var accountButtons: some View {
         VStack(spacing: 4) {
             ForEach(providers.services, id: \.provider.id) { service in
-                ActionButton(label: "Open \(service.provider.displayName) / Login") {
+                ActionButton(label: "Open \(service.provider.displayName) / Login", systemImage: "safari") {
                     windowManager.openUsageWindow(provider: service.provider, service: service)
                 }
-                ActionButton(label: service.usageData.isLoggedIn ? "Log Out of \(service.provider.displayName)" : "Log In to \(service.provider.displayName)") {
+                ActionButton(
+                    label: service.usageData.isLoggedIn ? "Log Out of \(service.provider.displayName)" : "Log In to \(service.provider.displayName)",
+                    systemImage: service.usageData.isLoggedIn ? "rectangle.portrait.and.arrow.right" : "person.crop.circle"
+                ) {
                     guard service.usageData.isLoggedIn else {
                         windowManager.openUsageWindow(provider: service.provider, service: service)
                         return
@@ -126,19 +129,19 @@ struct MenuBarView: View {
 
     private var globalButtons: some View {
         VStack(spacing: 4) {
-            ActionButton(label: "Refresh All Now", isLoading: providers.isAnyRefreshing, disabled: providers.isAnyRefreshing) {
+            ActionButton(label: "Refresh All Now", systemImage: "arrow.clockwise", isLoading: providers.isAnyRefreshing, disabled: providers.isAnyRefreshing) {
                 providers.refreshAll()
             }
 
-            ActionButton(label: "Show Debug Info") {
+            ActionButton(label: "Show Debug Info", systemImage: "ladybug") {
                 DebugWindow.show(text: providers.combinedDebugInfo)
             }
 
-            ActionButton(label: "Check for Updates...", disabled: !updateService.canCheckForUpdates) {
+            ActionButton(label: "Check for Updates...", systemImage: "arrow.down.circle", disabled: !updateService.canCheckForUpdates) {
                 updateService.checkForUpdates()
             }
 
-            ActionButton(label: "Clear Cache") {
+            ActionButton(label: "Clear Cache", systemImage: "trash") {
                 providers.services.forEach { $0.clearCache() }
             }
 
@@ -146,7 +149,7 @@ struct MenuBarView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
 
-            ActionButton(label: "Quit") {
+            ActionButton(label: "Quit", systemImage: "power") {
                 NSApplication.shared.terminate(nil)
             }
         }
@@ -252,6 +255,7 @@ struct LabeledRow: View {
 
 struct ActionButton: View {
     let label: String
+    var systemImage: String? = nil
     var isLoading: Bool = false
     var disabled: Bool = false
     let action: () -> Void
@@ -260,7 +264,13 @@ struct ActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack {
+            HStack(spacing: 8) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .frame(width: 16, alignment: .center)
+                }
                 Text(label)
                     .font(.subheadline)
                 Spacer()
