@@ -49,13 +49,18 @@ final class StatusItemController: NSObject {
         super.init()
 
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(
+        let hosting = NSHostingController(
             rootView: MenuBarView()
                 .environmentObject(providers)
                 .environmentObject(updateService)
                 .environmentObject(windowManager)
         )
+        hosting.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = hosting
 
+        // isVisible can default to false (e.g. persisted hidden state), leaving the item
+        // created but never drawn. Set it explicitly so the icon always appears.
+        statusItem.isVisible = true
         if let button = statusItem.button {
             button.imagePosition = .imageLeading
             button.target = self
@@ -82,6 +87,9 @@ final class StatusItemController: NSObject {
             popover.performClose(nil)
             return
         }
+        // Accessory (LSUIElement) apps must activate before showing, or the popover
+        // opens without the app becoming active and never renders on screen.
+        NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
     }
