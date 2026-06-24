@@ -95,7 +95,7 @@ ClaudeUsageMenuBar/
 │   ├── ClaudeUsageMenuBarApp.swift  # App entry point, AppDelegate, WindowManager
 │   ├── Info.plist
 │   └── ClaudeUsageMenuBar.entitlements
-├── ClaudeUsageMenuBarTests/         # 102 unit tests
+├── ClaudeUsageMenuBarTests/         # 137 unit tests
 │   ├── AppConfigTests.swift
 │   ├── AppConfigEdgeCaseTests.swift
 │   ├── UsageDataTests.swift
@@ -207,17 +207,18 @@ Key regex patterns:
 
 ## Testing
 
-Tests are in `ClaudeUsageMenuBarTests/` with **102 unit tests** covering core logic:
+Tests are in `ClaudeUsageMenuBarTests/` with **137 unit tests** covering core logic:
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
 | `AppConfigTests.swift` | 8 | Color threshold logic |
 | `AppConfigEdgeCaseTests.swift` | 16 | Boundary conditions, full range coverage |
-| `UsageDataTests.swift` | 11 | Display formatting, default values |
+| `UsageDataTests.swift` | 26 | Display formatting, persistence (UsageCache), RelativeTime/isStale, UsageTooltip |
 | `ScrapedUsageDataTests.swift` | 16 | UsageData model, state tests |
 | `WeeklyCountdownCalculatorTests.swift` | 9 | Basic time parsing, day calculation |
 | `WeeklyCountdownCalculatorDeterministicTests.swift` | 24 | Fixed-date tests for deterministic results |
 | `WebViewCoordinatorTests.swift` | 17 | URL filtering, OAuth whitelisting, auth detection |
+| `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, stuck-state recovery |
 
 ### Testability Patterns Used
 
@@ -379,7 +380,7 @@ UsageService
 
 | Test File | Tests | Covers |
 |-----------|-------|--------|
-| `UsageDataTests.swift` | 11 | `UsageData` computed properties, default values |
+| `UsageDataTests.swift` | 26 | `UsageData` props, `UsageCache` persistence, `RelativeTime`/`isStale`, `UsageTooltip` |
 | `ScrapedUsageDataTests.swift` | 16 | `UsageData` display formatting, state tests |
 | `AppConfigTests.swift` | 8 | Color thresholds, gradient colors, default thresholds |
 | `AppConfigEdgeCaseTests.swift` | 16 | Boundary conditions (exact thresholds), full range validation |
@@ -388,7 +389,7 @@ UsageService
 | `WebViewCoordinatorTests.swift` | 17 | OAuth domain whitelisting, auth page detection, main page detection |
 | `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, recovery from stuck state, boundary conditions |
 
-**Total: 117 tests**
+**Total: 137 tests**
 
 ## Verification Steps
 
