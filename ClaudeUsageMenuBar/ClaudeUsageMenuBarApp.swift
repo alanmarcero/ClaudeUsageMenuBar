@@ -58,19 +58,21 @@ final class StatusItemController: NSObject {
         hosting.sizingOptions = [.preferredContentSize]
         popover.contentViewController = hosting
 
-        // isVisible can default to false (e.g. persisted hidden state), leaving the item
-        // created but never drawn. Set it explicitly so the icon always appears.
-        statusItem.isVisible = true
         if let button = statusItem.button {
             button.imagePosition = .imageLeading
             button.target = self
             button.action = #selector(togglePopover)
         }
+        // Populate the icon + title BEFORE making the item visible. A zero-width (empty)
+        // item gets parked off-screen at a sentinel position and never redraws when
+        // content is added later, so it must have content first.
+        updateButton()
 
         cancellable = providers.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateButton() }
-        updateButton()
+
+        statusItem.isVisible = true
     }
 
     private func updateButton() {
