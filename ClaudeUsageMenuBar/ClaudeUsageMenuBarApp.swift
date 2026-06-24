@@ -19,34 +19,49 @@ struct ClaudeUsageMenuBarApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let providers = UsageProviders()
-    private let updateService = UpdateService()
-    private let windowManager = WindowManager()
     private var statusItemController: StatusItemController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        statusItemController = StatusItemController(
-            providers: providers,
-            updateService: updateService,
-            windowManager: windowManager
-        )
+        statusItemController = StatusItemController()
     }
 }
 
-// Owns the menu bar status item and the popover that hosts the SwiftUI menu. The button's
-// glyph and percentage track the selected provider; the popover lazily renders `MenuBarView`.
+// Owns the menu bar status item and the popover that hosts the SwiftUI menu.
+//
+// CRITICAL ORDERING: the status item is created and made visible BEFORE the providers
+// (and their background scraping web views) are initialized. If the heavy web-view
+// machinery is created first — e.g. as a stored property that inits before this point —
+// the status item arrives late and macOS denies it a menu-bar slot, parking it off-screen
+// (and that bad placement then sticks). Create the item first; bring up providers after.
 @MainActor
 final class StatusItemController: NSObject {
     private let statusItem: NSStatusItem
     private let popover = NSPopover()
-    private let providers: UsageProviders
+    private var providers: UsageProviders!
+    private var updateService: UpdateService!
+    private var windowManager: WindowManager!
     private var cancellable: AnyCancellable?
 
-    init(providers: UsageProviders, updateService: UpdateService, windowManager: WindowManager) {
-        self.providers = providers
+    override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
+
+        // 1. Show the status item first, with a placeholder, so it claims its slot.
+        if let button = statusItem.button {
+            button.imagePosition = .imageLeading
+            button.image = NSImage(systemSymbolName: "cpu", accessibilityDescription: "Usage")
+            button.title = " --"
+            button.target = self
+            button.action = #selector(togglePopover)
+        }
+        statusItem.isVisible = true
+
+        // 2. Now bring up the providers (background web views) and wire up the menu.
+        let providers = UsageProviders()
+        self.providers = providers
+        updateService = UpdateService()
+        windowManager = WindowManager()
 
         popover.behavior = .transient
         let hosting = NSHostingController(
@@ -58,25 +73,14 @@ final class StatusItemController: NSObject {
         hosting.sizingOptions = [.preferredContentSize]
         popover.contentViewController = hosting
 
-        if let button = statusItem.button {
-            button.imagePosition = .imageLeading
-            button.target = self
-            button.action = #selector(togglePopover)
-        }
-        // Populate the icon + title BEFORE making the item visible. A zero-width (empty)
-        // item gets parked off-screen at a sentinel position and never redraws when
-        // content is added later, so it must have content first.
-        updateButton()
-
         cancellable = providers.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateButton() }
-
-        statusItem.isVisible = true
+        updateButton()
     }
 
     private func updateButton() {
-        guard let button = statusItem.button else { return }
+        guard let providers, let button = statusItem.button else { return }
         let glyph = providers.selectedService?.provider.menuGlyph ?? "cpu"
         let percentage = providers.selectedService?.usageData.displayPercentage ?? "--"
         button.image = NSImage(systemSymbolName: glyph, accessibilityDescription: "Usage")
