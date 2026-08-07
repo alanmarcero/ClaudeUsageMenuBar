@@ -101,7 +101,7 @@ ClaudeUsageMenuBar/
 │   ├── ClaudeUsageMenuBarApp.swift  # App entry point, AppDelegate, WindowManager
 │   ├── Info.plist
 │   └── ClaudeUsageMenuBar.entitlements
-├── ClaudeUsageMenuBarTests/         # 161 unit tests
+├── ClaudeUsageMenuBarTests/         # 154 unit tests
 │   ├── AppConfigTests.swift
 │   ├── AppConfigEdgeCaseTests.swift
 │   ├── UsageDataTests.swift
@@ -219,7 +219,7 @@ Key regex patterns:
 
 ## Testing
 
-Tests are in `ClaudeUsageMenuBarTests/` with **161 unit tests** covering core logic:
+Tests are in `ClaudeUsageMenuBarTests/` with **154 unit tests** covering core logic:
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
@@ -231,7 +231,7 @@ Tests are in `ClaudeUsageMenuBarTests/` with **161 unit tests** covering core lo
 | `WeeklyCountdownCalculatorDeterministicTests.swift` | 24 | Fixed-date tests for deterministic results |
 | `WebViewCoordinatorTests.swift` | 17 | URL filtering, OAuth whitelisting, auth detection |
 | `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, stuck-state recovery |
-| `DiskPressureTests.swift` | 21 | Cache purge scheduling and scope, quit-marker lifecycle |
+| `DiskPressureTests.swift` | 14 | Cache purge scheduling and data-type scope |
 
 ### Testability Patterns Used
 
@@ -401,9 +401,9 @@ UsageService
 | `WeeklyCountdownCalculatorDeterministicTests.swift` | 24 | Fixed-date tests, `extractWeekday`, `extractTime`, `formatCountdown` |
 | `WebViewCoordinatorTests.swift` | 17 | OAuth domain whitelisting, auth page detection, main page detection |
 | `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, recovery from stuck state, boundary conditions |
-| `DiskPressureTests.swift` | 21 | `CacheMaintenance` purge interval + data-type scope, `QuitMarker` write/clear/exists |
+| `DiskPressureTests.swift` | 14 | `CacheMaintenance` purge interval, launch purge, data-type scope |
 
-**Total: 161 tests**
+**Total: 154 tests**
 
 ## Verification Steps
 

@@ -23,54 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        QuitMarker.clear()
         statusItemController = StatusItemController()
-    }
-}
-
-// A watchdog LaunchAgent relaunches this app whenever it finds it not running, so that a
-// termination by macOS under disk pressure (see `CacheMaintenance`) doesn't leave the menu
-// bar silently empty until the next login. That same watchdog would undo a deliberate Quit,
-// so the Quit button leaves this marker behind and the watchdog stands down while it exists;
-// launching the app clears it again.
-//
-// The marker lives in Application Support, not Caches, precisely because the termination
-// being recovered from comes with a purge of the container's Caches.
-//
-// Written only from the explicit Quit action — never from `applicationWillTerminate`, which
-// may also run on the very kill the watchdog exists to recover from.
-enum QuitMarker {
-    static let fileName = "user-quit"
-
-    static func url(in directory: URL) -> URL {
-        directory.appendingPathComponent(fileName)
-    }
-
-    static func write(in directory: URL) {
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try? Data().write(to: url(in: directory))
-    }
-
-    static func clear(in directory: URL) {
-        try? FileManager.default.removeItem(at: url(in: directory))
-    }
-
-    static func exists(in directory: URL) -> Bool {
-        FileManager.default.fileExists(atPath: url(in: directory).path)
-    }
-
-    static func defaultDirectory() -> URL? {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-    }
-
-    static func write() {
-        guard let directory = defaultDirectory() else { return }
-        write(in: directory)
-    }
-
-    static func clear() {
-        guard let directory = defaultDirectory() else { return }
-        clear(in: directory)
     }
 }
 

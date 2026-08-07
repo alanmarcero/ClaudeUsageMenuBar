@@ -22,16 +22,10 @@ if [ ! -d "$APP_BUNDLE" ]; then
 fi
 
 echo "Installing to $INSTALL_DIR..."
-# Stop the relaunch watchdog first, so it can't reopen a half-copied bundle mid-install.
-launchctl bootout "gui/$(id -u)/com.alanmarcero.claudeusagemenubar.watchdog" 2>/dev/null || true
 pkill -f "$APP_NAME" 2>/dev/null || true
 rm -rf "$INSTALL_DIR/$APP_NAME.app"
 cp -R "$APP_BUNDLE" "$INSTALL_DIR/"
 rm -rf "$BUILD_DIR"
-
-if [ "${NO_WATCHDOG:-0}" != "1" ]; then
-    bash "$SCRIPT_DIR/scripts/install-watchdog.sh"
-fi
 
 echo "Starting app..."
 open "$INSTALL_DIR/$APP_NAME.app"

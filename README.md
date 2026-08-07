@@ -42,21 +42,17 @@ runningboardd: Received termination request from [osservice<com.apple.cache_dele
   code:0xBADDD15C explanation:CacheDeleteAppContainerCaches requesting termination assertion
 ```
 
-Two things reduce it. The app now keeps its own cache small, so it's a less attractive target — it purges WebKit's response cache hourly while leaving your login alone. And an optional watchdog brings it back within a minute if macOS does kill it:
+The app keeps its own cache small so it's a less attractive target: it purges WebKit's response cache when it starts and hourly after that, leaving your login alone. On one machine that cut the container from 880 MB to under 50 MB. If it does get killed anyway, reopening it from Applications is the fix — it'll purge on launch and pick up where it left off.
 
-```bash
-bash scripts/install-watchdog.sh     # from a clone of this repo
-```
-
-That installs a LaunchAgent which checks every 60 seconds and reopens the app if it isn't running. Quitting on purpose stays quit — the app leaves a marker behind when you use **Quit**, and the watchdog respects it until you next open the app yourself. `./install.sh` sets the watchdog up for you; skip it with `NO_WATCHDOG=1 ./install.sh`. Remove it any time:
-
-```bash
-bash scripts/uninstall-watchdog.sh
-```
+> Versions 1.4.0 and 1.4.1 shipped an optional relaunch watchdog, since dropped. If you installed it, remove it with:
+> ```bash
+> launchctl bootout "gui/$(id -u)/com.alanmarcero.claudeusagemenubar.watchdog"
+> rm -f ~/Library/LaunchAgents/com.alanmarcero.claudeusagemenubar.watchdog.plist
+> ```
 
 ## Uninstall
 
-Quit the app and drag **ClaudeUsageMenuBar.app** from Applications to the Trash. If you installed the watchdog, run `bash scripts/uninstall-watchdog.sh` first.
+Quit the app and drag **ClaudeUsageMenuBar.app** from Applications to the Trash.
 
 ## Building from source
 
@@ -66,7 +62,7 @@ If you'd rather build it yourself, you need macOS 13+ and Xcode 14+:
 ./install.sh
 ```
 
-This builds a release version, installs it to `/Applications`, and sets up the relaunch watchdog described above. Or open `ClaudeUsageMenuBar.xcodeproj` in Xcode and run it with Cmd+R.
+This builds a release version and installs it to `/Applications`. Or open `ClaudeUsageMenuBar.xcodeproj` in Xcode and run it with Cmd+R.
 
 ## License
 

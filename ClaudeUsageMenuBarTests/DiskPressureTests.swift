@@ -2,9 +2,8 @@ import XCTest
 import WebKit
 @testable import ClaudeUsageMenuBar
 
-// Covers the two halves of surviving a cache_delete termination: keeping the container
-// cache small enough that macOS stops picking this app, and letting the relaunch watchdog
-// tell a deliberate Quit apart from a kill.
+// Keeping the container cache small is what stops macOS from picking this app when
+// cache_delete goes looking for space to reclaim.
 final class CacheMaintenanceTests: XCTestCase {
 
     // MARK: - Purge Scheduling
@@ -13,8 +12,8 @@ final class CacheMaintenanceTests: XCTestCase {
         XCTAssertFalse(CacheMaintenance.shouldPurge(refreshCount: 0))
     }
 
-    // An upgrading user arrives with a cache already grown large, and a watchdog relaunch
-    // happens while the disk is still under pressure. Both want the space back now.
+    // An upgrading user arrives with a cache already grown large, and an app reopened after
+    // a termination starts up with the disk still under pressure. Both want the space back now.
     func testPurgesOnFirstRefreshAfterLaunch() {
         XCTAssertTrue(CacheMaintenance.shouldPurge(refreshCount: 1))
     }
@@ -86,67 +85,5 @@ final class CacheMaintenanceTests: XCTestCase {
     func testPurgeScopeIsNarrowerThanLogout() {
         XCTAssertTrue(CacheMaintenance.httpCacheDataTypes.isSubset(of: WKWebsiteDataStore.allWebsiteDataTypes()))
         XCTAssertLessThan(CacheMaintenance.httpCacheDataTypes.count, WKWebsiteDataStore.allWebsiteDataTypes().count)
-    }
-}
-
-final class QuitMarkerTests: XCTestCase {
-
-    private var directory: URL!
-
-    override func setUpWithError() throws {
-        try super.setUpWithError()
-        directory = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("QuitMarkerTests-\(UUID().uuidString)")
-    }
-
-    override func tearDownWithError() throws {
-        try? FileManager.default.removeItem(at: directory)
-        try super.tearDownWithError()
-    }
-
-    func testNoMarkerExistsByDefault() {
-        XCTAssertFalse(QuitMarker.exists(in: directory))
-    }
-
-    func testWriteCreatesTheMarker() {
-        QuitMarker.write(in: directory)
-        XCTAssertTrue(QuitMarker.exists(in: directory))
-    }
-
-    func testWriteCreatesMissingDirectory() {
-        let nested = directory.appendingPathComponent("Application Support")
-        QuitMarker.write(in: nested)
-        XCTAssertTrue(QuitMarker.exists(in: nested))
-    }
-
-    func testClearRemovesTheMarker() {
-        QuitMarker.write(in: directory)
-        QuitMarker.clear(in: directory)
-        XCTAssertFalse(QuitMarker.exists(in: directory))
-    }
-
-    func testClearIsSafeWhenNoMarkerExists() {
-        QuitMarker.clear(in: directory)
-        XCTAssertFalse(QuitMarker.exists(in: directory))
-    }
-
-    func testWriteIsIdempotent() {
-        QuitMarker.write(in: directory)
-        QuitMarker.write(in: directory)
-        XCTAssertTrue(QuitMarker.exists(in: directory))
-    }
-
-    // The watchdog shell script looks for this exact filename; renaming it here without
-    // updating scripts/install-watchdog.sh would silently resurrect a deliberate Quit.
-    func testMarkerFileNameMatchesTheWatchdogScript() {
-        XCTAssertEqual(QuitMarker.fileName, "user-quit")
-        XCTAssertEqual(QuitMarker.url(in: directory).lastPathComponent, "user-quit")
-    }
-
-    func testDefaultDirectoryResolvesInsideTheContainer() throws {
-        let resolved = try XCTUnwrap(QuitMarker.defaultDirectory())
-        XCTAssertTrue(resolved.path.contains("Application Support"))
-        // Caches get purged by the very termination this marker outlives.
-        XCTAssertFalse(resolved.path.contains("/Caches"))
     }
 }
