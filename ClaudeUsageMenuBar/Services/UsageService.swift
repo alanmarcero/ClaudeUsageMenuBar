@@ -413,9 +413,14 @@ enum CacheMaintenance {
         WKWebsiteDataTypeFetchCache
     ]
 
+    // Purges once on the first refresh after launch, then on the interval. The launch purge
+    // matters most in the case this whole mechanism exists for: after a termination the
+    // watchdog reopens the app, which then shrinks itself immediately instead of an hour
+    // later — while the disk is still under the pressure that got it killed, and while it is
+    // still the fattest target for the next purge round.
     static func shouldPurge(refreshCount: Int, every interval: Int = purgeEveryNRefreshes) -> Bool {
         guard interval > 0, refreshCount > 0 else { return false }
-        return refreshCount % interval == 0
+        return refreshCount == 1 || refreshCount % interval == 0
     }
 
     static func purge(from dataStore: WKWebsiteDataStore = .default(), completion: @escaping () -> Void = {}) {

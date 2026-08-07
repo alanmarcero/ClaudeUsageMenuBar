@@ -175,7 +175,7 @@ xcodebuild -project ClaudeUsageMenuBar.xcodeproj \
 ### CacheMaintenance Constants (UsageService.swift)
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `purgeEveryNRefreshes` | 120 | Successful refreshes between WebKit cache purges (~1 hour) |
+| `purgeEveryNRefreshes` | 120 | Successful refreshes between WebKit cache purges (~1 hour); also purges once on the first refresh after launch |
 | `httpCacheDataTypes` | disk/memory/fetch cache | Data types purged — deliberately excludes cookies and storage |
 
 ### WebViewCoordinator.swift Constants

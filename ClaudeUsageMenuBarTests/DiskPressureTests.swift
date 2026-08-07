@@ -13,8 +13,15 @@ final class CacheMaintenanceTests: XCTestCase {
         XCTAssertFalse(CacheMaintenance.shouldPurge(refreshCount: 0))
     }
 
-    func testDoesNotPurgeOnFirstRefresh() {
-        XCTAssertFalse(CacheMaintenance.shouldPurge(refreshCount: 1))
+    // An upgrading user arrives with a cache already grown large, and a watchdog relaunch
+    // happens while the disk is still under pressure. Both want the space back now.
+    func testPurgesOnFirstRefreshAfterLaunch() {
+        XCTAssertTrue(CacheMaintenance.shouldPurge(refreshCount: 1))
+    }
+
+    func testDoesNotPurgeAgainImmediatelyAfterTheLaunchPurge() {
+        XCTAssertFalse(CacheMaintenance.shouldPurge(refreshCount: 2))
+        XCTAssertFalse(CacheMaintenance.shouldPurge(refreshCount: 3))
     }
 
     func testPurgesOnTheIntervalRefresh() {
