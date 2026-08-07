@@ -101,7 +101,7 @@ ClaudeUsageMenuBar/
 │   ├── ClaudeUsageMenuBarApp.swift  # App entry point, AppDelegate, WindowManager
 │   ├── Info.plist
 │   └── ClaudeUsageMenuBar.entitlements
-├── ClaudeUsageMenuBarTests/         # 102 unit tests
+├── ClaudeUsageMenuBarTests/         # 161 unit tests
 │   ├── AppConfigTests.swift
 │   ├── AppConfigEdgeCaseTests.swift
 │   ├── UsageDataTests.swift
@@ -172,6 +172,12 @@ xcodebuild -project ClaudeUsageMenuBar.xcodeproj \
 | `scrapeDelay` | 2.0s | Delay after page load before scraping |
 | `backgroundWebViewSize` | 1024x768 | Hidden webview dimensions |
 
+### CacheMaintenance Constants (UsageService.swift)
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `purgeEveryNRefreshes` | 120 | Successful refreshes between WebKit cache purges (~1 hour) |
+| `httpCacheDataTypes` | disk/memory/fetch cache | Data types purged — deliberately excludes cookies and storage |
+
 ### WebViewCoordinator.swift Constants
 | Constant | Value | Purpose |
 |----------|-------|---------|
@@ -213,17 +219,19 @@ Key regex patterns:
 
 ## Testing
 
-Tests are in `ClaudeUsageMenuBarTests/` with **102 unit tests** covering core logic:
+Tests are in `ClaudeUsageMenuBarTests/` with **161 unit tests** covering core logic:
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
 | `AppConfigTests.swift` | 8 | Color threshold logic |
 | `AppConfigEdgeCaseTests.swift` | 16 | Boundary conditions, full range coverage |
-| `UsageDataTests.swift` | 11 | Display formatting, default values |
+| `UsageDataTests.swift` | 26 | Display formatting, persistence (UsageCache), RelativeTime/isStale, UsageTooltip |
 | `ScrapedUsageDataTests.swift` | 16 | UsageData model, state tests |
 | `WeeklyCountdownCalculatorTests.swift` | 9 | Basic time parsing, day calculation |
 | `WeeklyCountdownCalculatorDeterministicTests.swift` | 24 | Fixed-date tests for deterministic results |
 | `WebViewCoordinatorTests.swift` | 17 | URL filtering, OAuth whitelisting, auth detection |
+| `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, stuck-state recovery |
+| `DiskPressureTests.swift` | 21 | Cache purge scheduling and scope, quit-marker lifecycle |
 
 ### Testability Patterns Used
 
@@ -393,8 +401,9 @@ UsageService
 | `WeeklyCountdownCalculatorDeterministicTests.swift` | 24 | Fixed-date tests, `extractWeekday`, `extractTime`, `formatCountdown` |
 | `WebViewCoordinatorTests.swift` | 17 | OAuth domain whitelisting, auth page detection, main page detection |
 | `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, recovery from stuck state, boundary conditions |
+| `DiskPressureTests.swift` | 21 | `CacheMaintenance` purge interval + data-type scope, `QuitMarker` write/clear/exists |
 
-**Total: 117 tests**
+**Total: 161 tests**
 
 ## Verification Steps
 

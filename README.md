@@ -33,9 +33,30 @@ Click **Settings…** in the dropdown to customize the color thresholds — the 
 
 The app updates itself through Sparkle. Click **Check for Updates...** in the dropdown, and if a newer version is available it will download and install it. There's no background nagging; it only checks when you ask.
 
+## If the icon disappears on its own
+
+When your disk gets close to full, macOS reclaims space by asking `cache_delete` to purge app caches — and it kills an app before purging that app's cache. It only does this to apps it considers non-interactive, which is exactly what a menu bar app is, so this app gets terminated while windowed apps are left alone. There's no crash report, because it isn't crashing. In the system log it looks like this:
+
+```
+runningboardd: Received termination request from [osservice<com.apple.cache_delete>]
+  code:0xBADDD15C explanation:CacheDeleteAppContainerCaches requesting termination assertion
+```
+
+Two things reduce it. The app now keeps its own cache small, so it's a less attractive target — it purges WebKit's response cache hourly while leaving your login alone. And an optional watchdog brings it back within a minute if macOS does kill it:
+
+```bash
+bash scripts/install-watchdog.sh     # from a clone of this repo
+```
+
+That installs a LaunchAgent which checks every 60 seconds and reopens the app if it isn't running. Quitting on purpose stays quit — the app leaves a marker behind when you use **Quit**, and the watchdog respects it until you next open the app yourself. `./install.sh` sets the watchdog up for you; skip it with `NO_WATCHDOG=1 ./install.sh`. Remove it any time:
+
+```bash
+bash scripts/uninstall-watchdog.sh
+```
+
 ## Uninstall
 
-Quit the app and drag **ClaudeUsageMenuBar.app** from Applications to the Trash.
+Quit the app and drag **ClaudeUsageMenuBar.app** from Applications to the Trash. If you installed the watchdog, run `bash scripts/uninstall-watchdog.sh` first.
 
 ## Building from source
 
@@ -45,7 +66,7 @@ If you'd rather build it yourself, you need macOS 13+ and Xcode 14+:
 ./install.sh
 ```
 
-This builds a release version and installs it to `/Applications`. Or open `ClaudeUsageMenuBar.xcodeproj` in Xcode and run it with Cmd+R.
+This builds a release version, installs it to `/Applications`, and sets up the relaunch watchdog described above. Or open `ClaudeUsageMenuBar.xcodeproj` in Xcode and run it with Cmd+R.
 
 ## License
 

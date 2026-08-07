@@ -36,6 +36,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private var rawSonnetWeeklyResetTime: String?
     private var rawDesignWeeklyResetTime: String?
     var refreshStartTime: Date?  // internal for @testable import
+    var completedRefreshes = 0  // internal for @testable import
 
     let provider: UsageProvider
 
@@ -194,6 +195,11 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         isRefreshing = false
         refreshStartTime = nil
         resetCountdown()
+
+        completedRefreshes += 1
+        if CacheMaintenance.shouldPurge(refreshCount: completedRefreshes) {
+            CacheMaintenance.purge()
+        }
     }
 
     // MARK: - Auto Refresh
@@ -378,6 +384,43 @@ private struct ScrapedUsageData {
     let email: String?
     let organizationName: String?
     let planName: String?
+}
+
+// MARK: - Cache Maintenance
+
+// Polling one page every 30 seconds makes WebKit hoard response data: each load writes a
+// fresh, never-reused NetworkCache entry, and WebKit sizes that cache from *available*
+// disk space, so on a roomy volume the container grew past 750 MB (~845 MB of writes a
+// day). That matters beyond the footprint: under disk pressure macOS asks cache_delete to
+// reclaim space, and cache_delete kills an app before purging its container caches —
+// picking the fattest ones, and rating an LSUIElement accessory app NonInteractive, so
+// this app gets terminated (0xBADDD15C) while windowed apps are spared.
+//
+// WebKit exposes no cache-size cap, so the only lever is to purge on a schedule. A counter
+// bounds it without the recurring walk of thousands of files a byte limit would need.
+// Measured with a 1-minute interval: 330 MB collapses to ~5 MB and re-settles at ~44 MB,
+// nearly all of it the cold-cache asset refetch on the next load rather than accumulation,
+// so the hourly interval trades one asset refetch per hour for a cache an order of
+// magnitude smaller.
+enum CacheMaintenance {
+    static let purgeEveryNRefreshes = 120  // ~1 hour at a 30-second refresh interval
+
+    // Response caches only. Cookies and local/session storage hold the signed-in session,
+    // so purging them would log the user out on a timer.
+    static let httpCacheDataTypes: Set<String> = [
+        WKWebsiteDataTypeDiskCache,
+        WKWebsiteDataTypeMemoryCache,
+        WKWebsiteDataTypeFetchCache
+    ]
+
+    static func shouldPurge(refreshCount: Int, every interval: Int = purgeEveryNRefreshes) -> Bool {
+        guard interval > 0, refreshCount > 0 else { return false }
+        return refreshCount % interval == 0
+    }
+
+    static func purge(from dataStore: WKWebsiteDataStore = .default(), completion: @escaping () -> Void = {}) {
+        dataStore.removeData(ofTypes: httpCacheDataTypes, modifiedSince: .distantPast, completionHandler: completion)
+    }
 }
 
 // MARK: - Daily Countdown Calculator

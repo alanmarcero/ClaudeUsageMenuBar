@@ -168,6 +168,7 @@ struct MenuBarView: View {
                 .padding(.vertical, 4)
 
             ActionButton(label: "Quit", systemImage: "power") {
+                QuitMarker.write()
                 NSApplication.shared.terminate(nil)
             }
         }

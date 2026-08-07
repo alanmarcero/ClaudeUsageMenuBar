@@ -29,6 +29,7 @@
 		002A0000B /* ScrapedUsageDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A0000C; };
 		002A0000D /* AppConfigEdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A0000E; };
 		002A0000F /* RefreshTimeoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00015; };
+		002A00090 /* DiskPressureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00091; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -66,6 +67,7 @@
 		002A0000C /* ScrapedUsageDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrapedUsageDataTests.swift; sourceTree = "<group>"; };
 		002A0000E /* AppConfigEdgeCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigEdgeCaseTests.swift; sourceTree = "<group>"; };
 		002A00015 /* RefreshTimeoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshTimeoutTests.swift; sourceTree = "<group>"; };
+		002A00091 /* DiskPressureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskPressureTests.swift; sourceTree = "<group>"; };
 		002A00011 /* ClaudeUsageMenuBarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClaudeUsageMenuBarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -171,6 +173,7 @@
 				002A00015 /* RefreshTimeoutTests.swift */,
 				002A00081 /* UsageProviderTests.swift */,
 				002A00083 /* DailyCountdownCalculatorTests.swift */,
+				002A00091 /* DiskPressureTests.swift */,
 			);
 			path = ClaudeUsageMenuBarTests;
 			sourceTree = "<group>";
@@ -299,6 +302,7 @@
 				002A0000F /* RefreshTimeoutTests.swift in Sources */,
 				002A00080 /* UsageProviderTests.swift in Sources */,
 				002A00082 /* DailyCountdownCalculatorTests.swift in Sources */,
+				002A00090 /* DiskPressureTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -437,7 +441,7 @@
 				CODE_SIGN_ENTITLEMENTS = ClaudeUsageMenuBar/ClaudeUsageMenuBar.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -448,7 +452,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.3.0;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alanmarcero.claudeusagemenubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -464,7 +468,7 @@
 				CODE_SIGN_ENTITLEMENTS = ClaudeUsageMenuBar/ClaudeUsageMenuBar.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -475,7 +479,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.3.0;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alanmarcero.claudeusagemenubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -488,10 +492,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.3.0;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.claude.usage.menubar.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -505,10 +509,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.3.0;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.claude.usage.menubar.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
