@@ -476,9 +476,17 @@ enum DailyCountdownCalculator {
 
 enum WeeklyCountdownCalculator {
     private static let dayAbbreviations = ["Sun": 1, "Mon": 2, "Tue": 3, "Wed": 4, "Thu": 5, "Fri": 6, "Sat": 7]
+    private static let monthNumbers = [
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+        "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12
+    ]
 
     static func calculate(from resetString: String?, currentDate: Date = Date()) -> String? {
         guard let resetString = resetString else { return nil }
+
+        if let targetDate = extractAbsoluteDate(from: resetString) {
+            return formatCountdown(from: currentDate, to: targetDate)
+        }
 
         guard let weekday = extractWeekday(from: resetString),
               let (hour, minute) = extractTime(from: resetString) else {
@@ -490,6 +498,39 @@ enum WeeklyCountdownCalculator {
         }
 
         return formatCountdown(from: currentDate, to: targetDate)
+    }
+
+    static func extractAbsoluteDate(from string: String, calendar: Calendar = .current) -> Date? {
+        let pattern = #"\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2}),\s+(\d{4})(?:\s+at)?\s+(\d{1,2}):(\d{2})\s*(AM|PM)\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: string, range: NSRange(string.startIndex..., in: string)),
+              let monthRange = Range(match.range(at: 1), in: string),
+              let dayRange = Range(match.range(at: 2), in: string),
+              let yearRange = Range(match.range(at: 3), in: string),
+              let hourRange = Range(match.range(at: 4), in: string),
+              let minuteRange = Range(match.range(at: 5), in: string),
+              let ampmRange = Range(match.range(at: 6), in: string),
+              let month = monthNumbers[String(string[monthRange]).prefix(3).lowercased()],
+              let day = Int(string[dayRange]),
+              let year = Int(string[yearRange]),
+              var hour = Int(string[hourRange]),
+              let minute = Int(string[minuteRange]) else {
+            return nil
+        }
+
+        let ampm = String(string[ampmRange]).uppercased()
+        if ampm == "PM" && hour != 12 { hour += 12 }
+        else if ampm == "AM" && hour == 12 { hour = 0 }
+
+        var components = DateComponents()
+        components.calendar = calendar
+        components.timeZone = calendar.timeZone
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hour
+        components.minute = minute
+        return calendar.date(from: components)
     }
 
     static func extractWeekday(from string: String) -> Int? {

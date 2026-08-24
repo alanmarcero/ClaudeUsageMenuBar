@@ -194,7 +194,9 @@ struct ProviderSection: View {
                     .padding(.top, 2)
             }
 
-            usageRow("Daily", service.usageData.percentage, service.dailyResetCountdown)
+            if service.provider.id != UsageProvider.codex.id || service.usageData.hasDailyLimit {
+                usageRow("Daily", service.usageData.percentage, service.dailyResetCountdown)
+            }
             usageRow("Weekly", service.usageData.weeklyPercentage, service.weeklyResetCountdown)
             if service.usageData.sonnetWeeklyPercentage != nil {
                 usageRow("Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)

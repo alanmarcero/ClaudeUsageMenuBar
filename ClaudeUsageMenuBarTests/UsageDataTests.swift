@@ -14,6 +14,12 @@ final class UsageDataTests: XCTestCase {
         XCTAssertEqual(data.displayPercentage, "--")
     }
 
+    func testDisplayPercentageFallsBackToWeekly() {
+        var data = UsageData()
+        data.weeklyPercentage = 78
+        XCTAssertEqual(data.displayPercentage, "78%")
+    }
+
     func testDisplayPercentageWithZero() {
         var data = UsageData()
         data.percentage = 0
@@ -35,6 +41,16 @@ final class UsageDataTests: XCTestCase {
         XCTAssertNil(data.organizationName)
         XCTAssertNil(data.planName)
         XCTAssertFalse(data.isLoggedIn)
+    }
+
+    func testWeeklyOnlyDataDoesNotHaveDailyLimit() {
+        var data = UsageData()
+        data.weeklyPercentage = 78
+        data.weeklyResetTime = "Resets Aug 31, 2026 9:01 AM"
+        XCTAssertFalse(data.hasDailyLimit)
+
+        data.percentage = 0
+        XCTAssertTrue(data.hasDailyLimit)
     }
 
     // MARK: - UsageCache

@@ -95,7 +95,7 @@ ClaudeUsageMenuBar/
 │   ├── ClaudeUsageMenuBarApp.swift  # App entry point, AppDelegate, WindowManager
 │   ├── Info.plist
 │   └── ClaudeUsageMenuBar.entitlements
-├── ClaudeUsageMenuBarTests/         # 140 unit tests
+├── ClaudeUsageMenuBarTests/         # 161 unit tests
 │   ├── AppConfigTests.swift
 │   ├── AppConfigEdgeCaseTests.swift
 │   ├── UsageDataTests.swift
@@ -213,17 +213,19 @@ Key regex patterns:
 
 ## Testing
 
-Tests are in `ClaudeUsageMenuBarTests/` with **154 unit tests** covering core logic:
+Tests are in `ClaudeUsageMenuBarTests/` with **161 unit tests** covering core logic:
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
 | `AppConfigTests.swift` | 8 | Color threshold logic |
-| `AppConfigEdgeCaseTests.swift` | 16 | Boundary conditions, full range coverage |
-| `UsageDataTests.swift` | 26 | Display formatting, persistence (UsageCache), RelativeTime/isStale, UsageTooltip |
-| `ScrapedUsageDataTests.swift` | 16 | UsageData model, state tests |
+| `AppConfigEdgeCaseTests.swift` | 17 | Boundary conditions, full range coverage |
+| `UsageDataTests.swift` | 25 | Display formatting, persistence (UsageCache), RelativeTime/isStale, UsageTooltip |
+| `ScrapedUsageDataTests.swift` | 10 | UsageData model, state tests |
 | `WeeklyCountdownCalculatorTests.swift` | 9 | Basic time parsing, day calculation |
-| `WeeklyCountdownCalculatorDeterministicTests.swift` | 24 | Fixed-date tests for deterministic results |
-| `WebViewCoordinatorTests.swift` | 17 | URL filtering, OAuth whitelisting, auth detection |
+| `WeeklyCountdownCalculatorDeterministicTests.swift` | 26 | Fixed-date tests for deterministic results |
+| `DailyCountdownCalculatorTests.swift` | 7 | Clock-time and relative daily resets |
+| `UsageProviderTests.swift` | 7 | Provider registry and Codex scraper fixtures |
+| `WebViewCoordinatorTests.swift` | 23 | URL filtering, OAuth whitelisting, auth detection |
 | `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, stuck-state recovery |
 | `DiskPressureTests.swift` | 14 | Cache purge scheduling and data-type scope |
 
@@ -387,17 +389,19 @@ UsageService
 
 | Test File | Tests | Covers |
 |-----------|-------|--------|
-| `UsageDataTests.swift` | 26 | `UsageData` props, `UsageCache` persistence, `RelativeTime`/`isStale`, `UsageTooltip` |
-| `ScrapedUsageDataTests.swift` | 16 | `UsageData` display formatting, state tests |
+| `UsageDataTests.swift` | 25 | `UsageData` props, `UsageCache` persistence, `RelativeTime`/`isStale`, `UsageTooltip` |
+| `ScrapedUsageDataTests.swift` | 10 | `UsageData` display formatting, state tests |
 | `AppConfigTests.swift` | 8 | Color thresholds, gradient colors, default thresholds |
-| `AppConfigEdgeCaseTests.swift` | 16 | Boundary conditions (exact thresholds), full range validation |
+| `AppConfigEdgeCaseTests.swift` | 17 | Boundary conditions (exact thresholds), full range validation |
 | `WeeklyCountdownCalculatorTests.swift` | 9 | Time parsing, day calculation, edge cases (12 AM/PM) |
-| `WeeklyCountdownCalculatorDeterministicTests.swift` | 24 | Fixed-date tests, `extractWeekday`, `extractTime`, `formatCountdown` |
-| `WebViewCoordinatorTests.swift` | 17 | OAuth domain whitelisting, auth page detection, main page detection |
+| `WeeklyCountdownCalculatorDeterministicTests.swift` | 26 | Fixed-date tests, absolute dates, `extractWeekday`, `extractTime`, `formatCountdown` |
+| `DailyCountdownCalculatorTests.swift` | 7 | Clock-time and relative daily resets |
+| `UsageProviderTests.swift` | 7 | Provider registry and Codex scraper fixtures |
+| `WebViewCoordinatorTests.swift` | 23 | OAuth domain whitelisting, auth page detection, main page detection |
 | `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, recovery from stuck state, boundary conditions |
 | `DiskPressureTests.swift` | 14 | `CacheMaintenance` purge interval, launch purge, data-type scope |
 
-**Total: 154 tests**
+**Total: 161 tests**
 
 ## Verification Steps
 

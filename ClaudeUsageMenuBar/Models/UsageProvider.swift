@@ -98,12 +98,6 @@ enum CodexScrapingScript {
         return m ? Math.round(Number(m[1])) : null;
     };
 
-    const findResetText = (texts) => {
-        const startsWithReset = texts.find(t => /^resets?\\b/i.test(t));
-        if (startsWithReset) return startsWithReset;
-        return texts.find(t => /\\b\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min)\\b/i.test(t)) || null;
-    };
-
     try {
         let sawLoadError = false;
         for (let i = 0; i < 80; i++) {            // up to 20s
@@ -126,33 +120,47 @@ enum CodexScrapingScript {
             /\\b(used|remaining|balance|credit|credits|limit|quota|reset)\\b/i.test(t)
         ))].slice(0, 40);
 
-        // Codex reports "<label> N% remaining"; Claude (and this app) display % USED,
-        // so invert: used = 100 - remaining. "5 hour usage limit" -> daily, "Weekly
-        // usage limit" -> weekly.
+        // Keep each reset scoped to its labeled limit. A document-wide reset cannot
+        // distinguish a weekly-only limit from a five-hour limit.
         const toUsed = (remaining) => Math.round(100 - Number(remaining));
+        const limitLabelPattern = /\\b(?:5\\s*(?:-|–)?\\s*hour|weekly) usage limit\\b/i;
 
-        const dailyMatch = bodyText.match(/5\\s*hour usage limit\\s*(\\d+(?:\\.\\d+)?)\\s*%\\s*remaining/i);
+        const findResetForLimit = (labelPattern) => {
+            const labelMatch = bodyText.match(labelPattern);
+            if (!labelMatch || labelMatch.index === undefined) return null;
+
+            const contentStart = labelMatch.index + labelMatch[0].length;
+            const remainingText = bodyText.substring(contentStart);
+            const nextLabel = remainingText.match(limitLabelPattern);
+            const sectionEnd = nextLabel && nextLabel.index !== undefined
+                ? contentStart + nextLabel.index
+                : bodyText.length;
+            const section = bodyText.substring(labelMatch.index, sectionEnd);
+
+            const clockReset = section.match(/\\bresets?\\s+.*?\\d{1,2}:\\d{2}\\s*(?:AM|PM)\\b/i);
+            if (clockReset) return normalizeText(clockReset[0]);
+
+            const relativeReset = section.match(/\\bresets?\\s+(?:in\\s+)?\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min)(?:\\s+\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min)){0,2}/i);
+            return relativeReset ? normalizeText(relativeReset[0]) : null;
+        };
+
+        const dailyLabelPattern = /\\b5\\s*(?:-|–)?\\s*hour usage limit\\b/i;
+        const dailyMatch = bodyText.match(/5\\s*(?:-|–)?\\s*hour usage limit\\s*(\\d+(?:\\.\\d+)?)\\s*%\\s*remaining/i);
         if (dailyMatch) {
             result.percentage = toUsed(dailyMatch[1]);
             logs.push(`Daily ${dailyMatch[1]}% remaining -> ${result.percentage}% used`);
         }
 
+        if (dailyMatch) result.resetTime = findResetForLimit(dailyLabelPattern);
+
+        const weeklyLabelPattern = /\\bweekly usage limit\\b/i;
         const weeklyMatch = bodyText.match(/weekly usage limit\\s*(\\d+(?:\\.\\d+)?)\\s*%\\s*remaining/i);
         if (weeklyMatch) {
             result.weeklyPercentage = toUsed(weeklyMatch[1]);
             logs.push(`Weekly ${weeklyMatch[1]}% remaining -> ${result.weeklyPercentage}% used`);
         }
 
-        // Fallbacks if the labels change: invert any "% remaining", else take "% used".
-        if (result.percentage === null) {
-            const remaining = bodyText.match(/(\\d+(?:\\.\\d+)?)\\s*%\\s*remaining/i);
-            const used = bodyText.match(/(\\d+(?:\\.\\d+)?)\\s*%\\s*used/i);
-            if (remaining) result.percentage = toUsed(remaining[1]);
-            else if (used) result.percentage = Math.round(Number(used[1]));
-        }
-
-        const resetMatch = bodyText.match(/Resets\\s+(\\d{1,2}:\\d{2}\\s*(?:AM|PM)?)/i);
-        result.resetTime = resetMatch ? ('Resets ' + resetMatch[1]) : findResetText(allTexts);
+        if (weeklyMatch) result.weeklyResetTime = findResetForLimit(weeklyLabelPattern);
 
         const emailMatch = bodyText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/i);
         if (emailMatch) result.email = emailMatch[0];
@@ -167,6 +175,7 @@ enum CodexScrapingScript {
             percentage: result.percentage,
             weeklyPercentage: result.weeklyPercentage,
             resetTime: result.resetTime,
+            weeklyResetTime: result.weeklyResetTime,
             email: result.email,
             planName: result.planName,
             sawLoadError,
@@ -179,7 +188,7 @@ enum CodexScrapingScript {
             url: location.href
         }, null, 2);
 
-        result.success = result.percentage !== null || result.email !== null;
+        result.success = result.percentage !== null || result.weeklyPercentage !== null || result.email !== null;
         if (!result.success) {
             result.error = sawLoadError
                 ? 'Codex reported it could not load usage right now. Will retry automatically.'

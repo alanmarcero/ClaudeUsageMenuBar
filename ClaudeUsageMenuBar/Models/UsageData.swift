@@ -21,8 +21,12 @@ struct UsageData {
     var errorMessage: String?
 
     var displayPercentage: String {
-        guard let percentage = percentage else { return "--" }
+        guard let percentage = percentage ?? weeklyPercentage else { return "--" }
         return "\(percentage)%"
+    }
+
+    var hasDailyLimit: Bool {
+        percentage != nil || resetTime != nil
     }
 }
 

@@ -17,6 +17,16 @@ final class WeeklyCountdownCalculatorDeterministicTests: XCTestCase {
         return Calendar.current.date(from: components)!
     }
 
+    private func createDate(year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Date {
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hour
+        components.minute = minute
+        return Calendar.current.date(from: components)!
+    }
+
     // MARK: - extractWeekday Tests
 
     func testExtractWeekdaySunday() {
@@ -194,6 +204,26 @@ final class WeeklyCountdownCalculatorDeterministicTests: XCTestCase {
         XCTAssertNotNil(result)
         XCTAssertTrue(result!.contains("1d"))
         XCTAssertTrue(result!.contains("2hr"))
+    }
+
+    func testCalculateWithAbsoluteDate() {
+        let currentDate = createDate(year: 2026, month: 8, day: 24, hour: 11, minute: 43)
+        let result = WeeklyCountdownCalculator.calculate(
+            from: "Resets Aug 31, 2026 9:01 AM",
+            currentDate: currentDate
+        )
+
+        XCTAssertEqual(result, "6d 21hr 18min")
+    }
+
+    func testCalculateWithFullMonthAndAtSeparator() {
+        let currentDate = createDate(year: 2026, month: 8, day: 24, hour: 11, minute: 43)
+        let result = WeeklyCountdownCalculator.calculate(
+            from: "Resets August 25, 2026 at 9:01 AM",
+            currentDate: currentDate
+        )
+
+        XCTAssertEqual(result, "21hr 18min")
     }
 
     func testCalculateReturnsNilForNilInput() {
