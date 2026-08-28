@@ -85,6 +85,22 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testCodexResetIgnoresExplanatoryResetCopy() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>
+          <div>Weekly usage limit</div>
+          <div>22% remaining</div>
+          <div>Resets</div>
+          <div>Use a reset to restore your weekly limit.</div>
+          <div>Resets August 31, 2026 at 9:01 AM</div>
+        </div>
+        """)
+
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 78)
+        XCTAssertEqual(result["weeklyResetTime"] as? String, "Resets August 31, 2026 at 9:01 AM")
+    }
+
+    @MainActor
     private func scrapeCodexFixture(_ body: String) async throws -> [String: Any] {
         let webView = WKWebView()
         let navigationWaiter = NavigationWaiter()

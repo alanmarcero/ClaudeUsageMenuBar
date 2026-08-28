@@ -137,7 +137,10 @@ enum CodexScrapingScript {
                 : bodyText.length;
             const section = bodyText.substring(labelMatch.index, sectionEnd);
 
-            const clockReset = section.match(/\\bresets?\\s+.*?\\d{1,2}:\\d{2}\\s*(?:AM|PM)\\b/i);
+            // Match only a real reset timestamp. A broad wildcard here used to start at
+            // explanatory copy such as "Resets — Use a reset to restore your..." and
+            // consume everything through a later timestamp.
+            const clockReset = section.match(/\\bresets?\\s+(?:(?:Sun(?:day)?|Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?)\\s+|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\s+\\d{1,2},\\s*\\d{4}(?:\\s+at)?\\s+)?\\d{1,2}:\\d{2}\\s*(?:AM|PM)\\b/i);
             if (clockReset) return normalizeText(clockReset[0]);
 
             const relativeReset = section.match(/\\bresets?\\s+(?:in\\s+)?\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min)(?:\\s+\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min)){0,2}/i);

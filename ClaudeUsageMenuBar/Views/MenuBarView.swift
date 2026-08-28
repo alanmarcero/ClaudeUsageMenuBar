@@ -163,6 +163,10 @@ struct MenuBarView: View {
                 providers.services.forEach { $0.clearCache() }
             }
 
+            ActionButton(label: "About", systemImage: "info.circle") {
+                AboutWindow.show()
+            }
+
             Divider()
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
@@ -468,5 +472,83 @@ enum SettingsWindow {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         objc_setAssociatedObject(NSApp!, "settingsWindow", window, .OBJC_ASSOCIATION_RETAIN)
+    }
+}
+
+// MARK: - About
+
+struct AboutView: View {
+    private static let repositoryURL = URL(string: "https://github.com/alanmarcero/ClaudeUsageMenuBar")!
+
+    private var versionDescription: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "Version \(version) (\(build))"
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.14))
+                    .frame(width: 72, height: 72)
+                Image(systemName: "cpu.fill")
+                    .font(.system(size: 34, weight: .medium))
+                    .foregroundColor(.accentColor)
+            }
+
+            VStack(spacing: 4) {
+                Text("Claude Usage Menu Bar")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Text(versionDescription)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Text("A macOS menu bar app that shows your AI usage at a glance. Track Claude and OpenAI Codex limits, reset countdowns, plan details, and refresh status without leaving the menu bar.")
+                .font(.callout)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Link(destination: Self.repositoryURL) {
+                Label("View on GitHub", systemImage: "link")
+            }
+
+            Text("MIT License · macOS 13 or later")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .padding(28)
+        .frame(width: 410)
+    }
+}
+
+@MainActor
+enum AboutWindow {
+    private static var window: NSWindow?
+
+    static func show() {
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 410, height: 350),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "About Claude Usage Menu Bar"
+        window.contentView = NSHostingView(rootView: AboutView())
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        self.window = window
     }
 }
