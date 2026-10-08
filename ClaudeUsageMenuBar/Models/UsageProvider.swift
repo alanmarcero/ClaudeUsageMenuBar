@@ -41,8 +41,8 @@ struct UsageProvider: Identifiable {
         displayName: "Codex",
         menuGlyph: "chevron.left.forwardslash.chevron.right",
         primaryHost: "chatgpt.com",
-        usageURL: URL(string: "https://chatgpt.com/codex/cloud/settings/analytics")!,
-        usagePathFragment: "/codex/cloud/settings/analytics",
+        usageURL: URL(string: "https://chatgpt.com/settings/usage")!,
+        usagePathFragment: "/settings/usage",
         loginPaths: ["/login", "/auth/login", "/auth"],
         oauthHostSuffixes: ["chatgpt.com", "openai.com", "oaistatic.com", "oaiusercontent.com"] + sharedSSOHosts,
         dataRecordTokens: ["openai", "chatgpt", "oaistatic"],
@@ -54,11 +54,6 @@ struct UsageProvider: Identifiable {
 
 // MARK: - Codex JavaScript Scraping Script
 
-// Diagnostics-first: the Codex analytics page renders a "Balance" / "Usage breakdown"
-// layout (not Claude's progressbar/"% used" pattern) and can transiently show
-// "We couldn't load your usage" before its data fetch settles. This script retries
-// past that error state, attempts percentage/"X / Y" extraction, and dumps the page's
-// visible text + numeric tokens so the selectors can be tightened from real output.
 enum CodexScrapingScript {
     static let script = """
     const result = {
@@ -86,16 +81,32 @@ enum CodexScrapingScript {
 
     const bodyTextNow = () => normalizeText(document.body.innerText || document.body.textContent || '');
 
-    const pageSettled = () => {
-        const t = bodyTextNow().toLowerCase();
-        if (hasLoadError(t)) return false;
-        return /%/.test(t) || /\\$\\s*\\d/.test(t) || /\\d+\\s*\\/\\s*\\d+/.test(t) || t.includes('balance');
+    const dailyLabelPattern = /^5\\s*(?:-|–)?\\s*hour (?:usage )?limit$/i;
+    const weeklyLabelPattern = /^weekly (?:usage )?limit$/i;
+    const remainingPattern = /(\\d+(?:\\.\\d+)?)\\s*%\\s*(?:remaining|left)\\b/i;
+
+    const findLimitSection = (labelPattern) => {
+        const labels = Array.from(document.querySelectorAll('span,p,div,h1,h2,h3,h4'))
+            .filter(el => {
+                const text = normalizeText(el.textContent);
+                return dailyLabelPattern.test(text) || weeklyLabelPattern.test(text);
+            });
+        for (const label of labels.filter(el => labelPattern.test(normalizeText(el.textContent)))) {
+            for (let container = label.parentElement; container && container !== document.body; container = container.parentElement) {
+                if (labels.some(other => container.contains(other) && !labelPattern.test(normalizeText(other.textContent)))) break;
+                const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+                const parts = [];
+                while (walker.nextNode()) parts.push(walker.currentNode.textContent);
+                const section = normalizeText(parts.join(' '));
+                if (remainingPattern.test(section)) return section;
+            }
+        }
+        return null;
     };
 
-    const parsePercentage = (value) => {
-        if (value === null || value === undefined) return null;
-        const m = String(value).match(/(\\d+(?:\\.\\d+)?)/);
-        return m ? Math.round(Number(m[1])) : null;
+    const pageSettled = () => {
+        if (hasLoadError(bodyTextNow())) return false;
+        return findLimitSection(dailyLabelPattern) !== null || findLimitSection(weeklyLabelPattern) !== null;
     };
 
     try {
@@ -120,50 +131,32 @@ enum CodexScrapingScript {
             /\\b(used|remaining|balance|credit|credits|limit|quota|reset)\\b/i.test(t)
         ))].slice(0, 40);
 
-        // Keep each reset scoped to its labeled limit. A document-wide reset cannot
-        // distinguish a weekly-only limit from a five-hour limit.
-        const toUsed = (remaining) => Math.round(100 - Number(remaining));
-        const limitLabelPattern = /\\b(?:5\\s*(?:-|–)?\\s*hour|weekly) usage limit\\b/i;
-
-        const findResetForLimit = (labelPattern) => {
-            const labelMatch = bodyText.match(labelPattern);
-            if (!labelMatch || labelMatch.index === undefined) return null;
-
-            const contentStart = labelMatch.index + labelMatch[0].length;
-            const remainingText = bodyText.substring(contentStart);
-            const nextLabel = remainingText.match(limitLabelPattern);
-            const sectionEnd = nextLabel && nextLabel.index !== undefined
-                ? contentStart + nextLabel.index
-                : bodyText.length;
-            const section = bodyText.substring(labelMatch.index, sectionEnd);
-
+        const findResetForLimit = (section) => {
             // Match only a real reset timestamp. A broad wildcard here used to start at
             // explanatory copy such as "Resets — Use a reset to restore your..." and
             // consume everything through a later timestamp.
             const clockReset = section.match(/\\bresets?\\s+(?:(?:Sun(?:day)?|Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?)\\s+|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\s+\\d{1,2},\\s*\\d{4}(?:\\s+at)?\\s+)?\\d{1,2}:\\d{2}\\s*(?:AM|PM)\\b/i);
             if (clockReset) return normalizeText(clockReset[0]);
 
-            const relativeReset = section.match(/\\bresets?\\s+(?:in\\s+)?\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min)(?:\\s+\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min)){0,2}/i);
+            const relativeReset = section.match(/\\bresets?\\s+(?:in\\s+)?\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min|m)(?:\\s+\\d+\\s*(?:days?|d|hours?|hrs?|hr|h|minutes?|mins?|min|m)){0,2}/i);
             return relativeReset ? normalizeText(relativeReset[0]) : null;
         };
 
-        const dailyLabelPattern = /\\b5\\s*(?:-|–)?\\s*hour usage limit\\b/i;
-        const dailyMatch = bodyText.match(/5\\s*(?:-|–)?\\s*hour usage limit\\s*(\\d+(?:\\.\\d+)?)\\s*%\\s*remaining/i);
-        if (dailyMatch) {
-            result.percentage = toUsed(dailyMatch[1]);
-            logs.push(`Daily ${dailyMatch[1]}% remaining -> ${result.percentage}% used`);
+        const dailySection = findLimitSection(dailyLabelPattern);
+        if (dailySection) {
+            const remaining = dailySection.match(remainingPattern)[1];
+            result.percentage = Math.round(100 - Number(remaining));
+            result.resetTime = findResetForLimit(dailySection);
+            logs.push(`Daily ${remaining}% remaining -> ${result.percentage}% used`);
         }
 
-        if (dailyMatch) result.resetTime = findResetForLimit(dailyLabelPattern);
-
-        const weeklyLabelPattern = /\\bweekly usage limit\\b/i;
-        const weeklyMatch = bodyText.match(/weekly usage limit\\s*(\\d+(?:\\.\\d+)?)\\s*%\\s*remaining/i);
-        if (weeklyMatch) {
-            result.weeklyPercentage = toUsed(weeklyMatch[1]);
-            logs.push(`Weekly ${weeklyMatch[1]}% remaining -> ${result.weeklyPercentage}% used`);
+        const weeklySection = findLimitSection(weeklyLabelPattern);
+        if (weeklySection) {
+            const remaining = weeklySection.match(remainingPattern)[1];
+            result.weeklyPercentage = Math.round(100 - Number(remaining));
+            result.weeklyResetTime = findResetForLimit(weeklySection);
+            logs.push(`Weekly ${remaining}% remaining -> ${result.weeklyPercentage}% used`);
         }
-
-        if (weeklyMatch) result.weeklyResetTime = findResetForLimit(weeklyLabelPattern);
 
         const emailMatch = bodyText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/i);
         if (emailMatch) result.email = emailMatch[0];

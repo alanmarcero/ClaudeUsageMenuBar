@@ -33,6 +33,66 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testCodexWeeklyLimitWithResetBeforePercentLeft() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div><div>Weekly limit</div><div><span>Resets in 7d 0h</span><span>100% left</span></div></div>
+        <div>Usage limit resets</div>
+        <div>Use a reset to restore your 5-hour limit, weekly limit, or both</div>
+        <div>Full reset Expires Oct 22 at 5:12 PM EDT Use reset</div>
+        <div>Weekly limits Period % of limit used Sep 29 – Oct 6 44.5%</div>
+        """)
+
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 0)
+        XCTAssertEqual(result["weeklyResetTime"] as? String, "Resets in 7d 0h")
+        XCTAssertTrue(result["percentage"] is NSNull)
+        XCTAssertTrue(result["resetTime"] is NSNull)
+        XCTAssertEqual(result["success"] as? Bool, true)
+    }
+
+    @MainActor
+    func testCodexNewLimitCardsKeepPercentagesAndResetsSeparate() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div><span>5-hour limit</span><span>Resets in 4h 12m</span><span>91% left</span></div>
+        <div><span>Weekly limit</span><span>Resets in 6d 2h</span><span>22% left</span></div>
+        """)
+
+        XCTAssertEqual(result["percentage"] as? Int, 9)
+        XCTAssertEqual(result["resetTime"] as? String, "Resets in 4h 12m")
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 78)
+        XCTAssertEqual(result["weeklyResetTime"] as? String, "Resets in 6d 2h")
+    }
+
+    @MainActor
+    func testCodexReadsLimitCardsInInactiveOverviewTab() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div hidden><div><span>Weekly limit</span><span>Resets in 7d 0h</span><span>100% left</span></div></div>
+        <div>Usage history</div><div>Weekly limits Period % of limit used Sep 29 – Oct 6 44.5%</div>
+        """)
+
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 0)
+        XCTAssertEqual(result["weeklyResetTime"] as? String, "Resets in 7d 0h")
+    }
+
+    @MainActor
+    func testCodexWaitsForCurrentLimitDespiteHistoricalPercentages() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>Weekly limits Period % of limit used Sep 29 – Oct 6 44.5%</div>
+        <div id="limit">Loading usage data…</div>
+        <script>
+          window.showCurrentLimit = () => {
+            setTimeout(() => {
+              document.getElementById('limit').innerHTML =
+                '<div>Weekly usage limit</div><div>22% remaining</div><div>Resets in 6d 2h</div>';
+            }, 500);
+          };
+        </script>
+        """, beforeScrape: "window.showCurrentLimit()")
+
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 78)
+        XCTAssertEqual(result["weeklyResetTime"] as? String, "Resets in 6d 2h")
+    }
+
+    @MainActor
     func testCodexWeeklyOnlyFixtureDoesNotPopulateDaily() async throws {
         let result = try await scrapeCodexFixture("""
         <div>
@@ -101,7 +161,7 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
-    private func scrapeCodexFixture(_ body: String) async throws -> [String: Any] {
+    private func scrapeCodexFixture(_ body: String, beforeScrape: String = "") async throws -> [String: Any] {
         let webView = WKWebView()
         let navigationWaiter = NavigationWaiter()
 
@@ -112,7 +172,7 @@ final class UsageProviderTests: XCTestCase {
         }
 
         let value = try await webView.callAsyncJavaScript(
-            CodexScrapingScript.script,
+            beforeScrape + ";\n" + CodexScrapingScript.script,
             arguments: [:],
             in: nil,
             contentWorld: .page
