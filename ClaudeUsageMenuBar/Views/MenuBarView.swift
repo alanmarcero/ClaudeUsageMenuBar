@@ -4,35 +4,29 @@ import ObjectiveC
 struct MenuBarView: View {
     @EnvironmentObject var providers: UsageProviders
     @EnvironmentObject var updateService: UpdateService
-    @EnvironmentObject var windowManager: WindowManager
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            menuBarPicker
             ForEach(providers.services, id: \.provider.id) { service in
                 Divider().padding(.horizontal, 16)
                 ProviderSection(service: service)
             }
-            statusSection
-            Divider().padding(.horizontal, 12)
-            accountButtons
-            Divider().padding(.horizontal, 12)
-            globalButtons
+            Divider()
+            footer
         }
         .frame(width: 280)
         .background(Color(NSColor.windowBackgroundColor))
     }
 
-    // MARK: - Menu Bar Provider Picker
+    // MARK: - Header
 
-    // Selects which provider's percentage shows in the menu bar. A horizontal row of
-    // glyph chips that scales to any number of providers.
-    private var menuBarPicker: some View {
+    // The glyph chips select which provider's percentage shows in the menu bar.
+    private var header: some View {
         HStack(spacing: 6) {
-            Text("Menu bar")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            Text("Usage")
+                .font(.headline)
+            Spacer()
             ForEach(providers.services, id: \.provider.id) { service in
                 let isSelected = providers.selectedMenuBarProviderID == service.provider.id
                 Button {
@@ -57,125 +51,55 @@ struct MenuBarView: View {
                 .buttonStyle(.plain)
                 .help("Show \(service.provider.displayName) in the menu bar")
             }
-            Spacer()
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Usage")
-                .font(.headline)
-                .fontWeight(.semibold)
-            Text("v\(appVersion)")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-            Spacer()
-            ProgressView()
-                .scaleEffect(0.5)
-                .frame(width: 16, height: 16)
-                .opacity(providers.isAnyRefreshing ? 1 : 0)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
         .background(Color(NSColor.controlBackgroundColor))
     }
 
-    private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-    }
+    // MARK: - Footer
 
-    // MARK: - Status Section
-
-    private var statusSection: some View {
-        HStack(spacing: 6) {
-            if providers.isAnyRefreshing {
-                ProgressView()
-                    .scaleEffect(0.45)
-                    .frame(width: 12, height: 12)
-                Text("Refreshing…")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } else {
-                Text("Refresh in \(providers.nextRefreshCountdown)s")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .monospacedDigit()
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-    }
-
-    // MARK: - Account Buttons (per provider)
-
-    private var accountButtons: some View {
-        VStack(spacing: 4) {
-            ForEach(Array(providers.services.enumerated()), id: \.element.provider.id) { index, service in
-                if index > 0 {
-                    Divider()
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 2)
-                }
-                ActionButton(label: "Open \(service.provider.displayName) / Login", systemImage: "safari") {
-                    windowManager.openUsageWindow(provider: service.provider, service: service)
-                }
-                ActionButton(
-                    label: service.usageData.isLoggedIn ? "Log Out of \(service.provider.displayName)" : "Log In to \(service.provider.displayName)",
-                    systemImage: service.usageData.isLoggedIn ? "rectangle.portrait.and.arrow.right" : "person.crop.circle"
-                ) {
-                    guard service.usageData.isLoggedIn else {
-                        windowManager.openUsageWindow(provider: service.provider, service: service)
-                        return
-                    }
-                    service.logout()
-                }
-            }
-        }
-        .padding(.vertical, 8)
-    }
-
-    // MARK: - Global Buttons
-
-    private var globalButtons: some View {
-        VStack(spacing: 4) {
-            ActionButton(label: "Refresh All Now", systemImage: "arrow.clockwise", isLoading: providers.isAnyRefreshing, disabled: providers.isAnyRefreshing) {
+    private var footer: some View {
+        HStack(spacing: 4) {
+            IconButton(systemImage: "arrow.clockwise", help: "Refresh all now") {
                 providers.refreshAll()
             }
-
-            ActionButton(label: "Settings…", systemImage: "gearshape") {
-                SettingsWindow.show()
-            }
-
-            ActionButton(label: "Show Debug Info", systemImage: "ladybug") {
-                DebugWindow.show(text: providers.combinedDebugInfo)
-            }
-
-            ActionButton(label: "Check for Updates...", systemImage: "arrow.down.circle", disabled: !updateService.canCheckForUpdates) {
-                updateService.checkForUpdates()
-            }
-
-            ActionButton(label: "Clear Cache", systemImage: "trash") {
-                providers.services.forEach { $0.clearCache() }
-            }
-
-            ActionButton(label: "About", systemImage: "info.circle") {
-                AboutWindow.show()
-            }
-
-            Divider()
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-
-            ActionButton(label: "Quit", systemImage: "power") {
+            .disabled(providers.isAnyRefreshing)
+            Text(providers.isAnyRefreshing ? "Refreshing…" : "Refresh in \(providers.nextRefreshCountdown)s")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .monospacedDigit()
+            Spacer()
+            moreMenu
+            IconButton(systemImage: "power", help: "Quit") {
                 NSApplication.shared.terminate(nil)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+    }
+
+    private var moreMenu: some View {
+        Menu {
+            Button("Settings…") { SettingsWindow.show() }
+            Button("Check for Updates…") { updateService.checkForUpdates() }
+                .disabled(!updateService.canCheckForUpdates)
+            Divider()
+            Button("Show Debug Info") { DebugWindow.show(text: providers.combinedDebugInfo) }
+            Button("Clear Cache") { providers.services.forEach { $0.clearCache() } }
+            Divider()
+            Button("About \(appVersionLabel)") { AboutWindow.show() }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("More")
+    }
+
+    private var appVersionLabel: String {
+        "v" + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")
     }
 }
 
@@ -186,18 +110,8 @@ struct ProviderSection: View {
     @EnvironmentObject var windowManager: WindowManager
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 10) {
             providerHeader
-            if let email = service.usageData.email {
-                LabeledRow(label: "Email", value: email)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 4)
-            }
-            if let plan = service.usageData.planName {
-                LabeledRow(label: "Plan", value: plan)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 2)
-            }
 
             if service.provider.id != UsageProvider.codex.id || service.usageData.hasDailyLimit {
                 usageRow("Daily", service.usageData.percentage, service.dailyResetCountdown)
@@ -210,58 +124,87 @@ struct ProviderSection: View {
                 usageRow("Weekly (Design)", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
             }
             if let resets = service.usageData.availableResets {
-                LabeledRow(label: "Resets", value: "\(resets)")
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                if resets > 0 {
-                    ActionButton(label: "Open Reset UI", systemImage: "arrow.counterclockwise") {
-                        windowManager.openUsageWindow(provider: service.provider, service: service)
-                    }
-                }
+                resetsRow(resets)
             }
 
             if let error = service.usageData.errorMessage {
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .font(.caption)
-                        .foregroundColor(.orange)
                     Text(error)
-                        .font(.caption)
-                        .foregroundColor(.orange)
                         .lineLimit(3)
-                    Spacer()
+                    Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
+                .font(.caption)
+                .foregroundColor(.orange)
+                .padding(8)
                 .background(Color.orange.opacity(0.1))
+                .cornerRadius(6)
             }
         }
-        .padding(.bottom, 6)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private func openUsageWindow() {
+        windowManager.openUsageWindow(provider: service.provider, service: service)
     }
 
     private var providerHeader: some View {
         HStack(spacing: 6) {
             Image(systemName: service.provider.menuGlyph)
-            Text(service.provider.displayName)
-                .font(.subheadline)
-                .fontWeight(.semibold)
+                .font(.caption)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(service.provider.displayName)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    if let plan = service.usageData.planName {
+                        Text(plan)
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color.primary.opacity(0.08))
+                            .cornerRadius(4)
+                    }
+                }
+                if let email = service.usageData.email {
+                    Text(email)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
             Spacer()
             if let updated = service.usageData.lastUpdated {
                 Text(RelativeTime.string(from: updated))
                     .font(.caption2)
                     .foregroundColor(RelativeTime.isStale(updated) ? .orange : .secondary)
             }
+            IconButton(systemImage: "safari", help: "Open \(service.provider.displayName)", action: openUsageWindow)
+            if service.usageData.isLoggedIn {
+                IconButton(systemImage: "rectangle.portrait.and.arrow.right", help: "Log out of \(service.provider.displayName)") {
+                    service.logout()
+                }
+            }
+            if !service.usageData.isLoggedIn {
+                IconButton(systemImage: "person.crop.circle", help: "Log in to \(service.provider.displayName)", action: openUsageWindow)
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
     }
 
     private func usageRow(_ title: String, _ percentage: Int?, _ resetTime: String?) -> some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 6) {
+        VStack(spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(title)
                     .font(.subheadline)
-                    .fontWeight(.medium)
+                if let reset = resetTime {
+                    Text("resets in \(reset)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
                 if let pct = percentage, pct >= AppConfig.shared.redThreshold {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -270,79 +213,54 @@ struct ProviderSection: View {
                         .help("Usage is high")
                 }
                 Text(percentage.map { "\($0)%" } ?? "--")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
                     .foregroundColor(percentage != nil ? AppConfig.shared.colorForPercentage(percentage) : .secondary)
             }
 
             if let pct = percentage {
                 UsageProgressBar(percentage: pct, colors: AppConfig.shared.gradientColors(for: pct))
             }
+        }
+    }
 
-            if let reset = resetTime {
-                LabeledRow(label: "Resets in", value: reset)
+    private func resetsRow(_ resets: Int) -> some View {
+        HStack(spacing: 6) {
+            Text("Resets")
+                .font(.subheadline)
+            Text("\(resets)")
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+            Spacer()
+            if resets > 0 {
+                Button("Open Reset UI", action: openUsageWindow)
+                    .controlSize(.small)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
     }
 }
 
 // MARK: - Reusable Components
 
-struct LabeledRow: View {
-    let label: String
-    let value: String
-
-    var body: some View {
-        HStack {
-            Text("\(label):")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text(value)
-                .font(.caption)
-                .foregroundColor(.primary)
-                .lineLimit(1)
-            Spacer()
-        }
-    }
-}
-
-struct ActionButton: View {
-    let label: String
-    var systemImage: String? = nil
-    var isLoading: Bool = false
-    var disabled: Bool = false
+struct IconButton: View {
+    let systemImage: String
+    let help: String
     let action: () -> Void
 
     @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .frame(width: 16, alignment: .center)
-                }
-                Text(label)
-                    .font(.subheadline)
-                Spacer()
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(0.4)
-                        .frame(width: 12, height: 12)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-            .background(isHovered && !disabled ? Color.primary.opacity(0.1) : Color.clear)
-            .cornerRadius(4)
-            .contentShape(Rectangle())
+            Image(systemName: systemImage)
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+                .frame(width: 22, height: 22)
+                .background(isHovered ? Color.primary.opacity(0.1) : Color.clear)
+                .cornerRadius(5)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(disabled)
-        .opacity(disabled ? 0.5 : 1)
+        .help(help)
         .onHover { hovering in
             isHovered = hovering
         }

@@ -301,8 +301,8 @@ ClaudeUsageMenuBarApp.swift
 │   ├── UsageService (environment object)
 │   ├── WindowManager (environment object)
 │   ├── AppConfig.shared (singleton)
-│   ├── LabeledRow (component)
-│   ├── ActionButton (component)
+│   ├── ProviderSection (component)
+│   ├── IconButton (component)
 │   ├── UsageProgressBar (component)
 │   └── DebugWindow (utility)
 │       └── ClipboardHelper (helper)
@@ -354,10 +354,11 @@ UsageService
 #### MenuBarView.swift
 | Type | Function/Property | Called By | Calls |
 |------|-------------------|-----------|-------|
-| `MenuBarView` | `body` | SwiftUI | `header`, `accountInfo`, `usageSection`, `statusSection`, `actionButtons` |
-| `MenuBarView` | `usageSection(title:percentage:usage:resetTime:color:)` | `body` | `UsageProgressBar`, `LabeledRow`, `AppConfig.shared.gradientColors` |
-| `ActionButton` | `body` | `actionButtons` | `action` closure |
-| `DebugWindow` | `show(text:)` | "Show Debug Info" button | `ClipboardHelper` |
+| `MenuBarView` | `body` | SwiftUI | `header`, `ProviderSection`, `footer` |
+| `MenuBarView` | `footer` / `moreMenu` | `body` | `refreshAll`, `SettingsWindow`, `DebugWindow`, `AboutWindow`, `checkForUpdates` |
+| `ProviderSection` | `usageRow(_:_:_:)` | `body` | `UsageProgressBar`, `AppConfig.shared.gradientColors` |
+| `IconButton` | `body` | provider header, footer | `action` closure |
+| `DebugWindow` | `show(text:)` | "Show Debug Info" menu item | `ClipboardHelper` |
 | `ClipboardHelper` | `copyToClipboard()` | Copy button | `NSPasteboard` |
 
 #### WebViewCoordinator.swift
