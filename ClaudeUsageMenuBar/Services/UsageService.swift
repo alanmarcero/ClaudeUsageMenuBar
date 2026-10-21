@@ -9,6 +9,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
     enum Constants {
         static let refreshInterval: TimeInterval = 30
+        // Anthropic's usage endpoint sends HTTP 429 when the app calls it every 30 seconds.
+        static let claudeCodeRefreshInterval: TimeInterval = 300
         static let timerInterval: TimeInterval = 1.0
         static let initialRefreshDelay: TimeInterval = 2.0
         static let scrapeDelay: TimeInterval = 2.0
@@ -269,7 +271,11 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     private func resetCountdown() {
-        countdown = Int(Constants.refreshInterval)
+        countdown = Int(currentRefreshInterval)
+    }
+
+    var currentRefreshInterval: TimeInterval {  // internal for @testable import
+        isUsingClaudeCodeLogin ? Constants.claudeCodeRefreshInterval : Constants.refreshInterval
     }
 
     private func updateResetCountdowns() {

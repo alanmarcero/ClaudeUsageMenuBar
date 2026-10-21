@@ -44,7 +44,8 @@ struct UsageProvider: Identifiable {
         menuGlyph: "chevron.left.forwardslash.chevron.right",
         primaryHost: "chatgpt.com",
         usageURL: URL(string: "https://chatgpt.com/settings/usage")!,
-        usagePathFragment: "/settings/usage",
+        // chatgpt.com can redirect the usage page to "/?mweb_fallback=1#settings/usage".
+        usagePathFragment: "settings/usage",
         loginPaths: ["/login", "/auth/login", "/auth"],
         oauthHostSuffixes: ["chatgpt.com", "openai.com", "oaistatic.com", "oaiusercontent.com"] + sharedSSOHosts,
         dataRecordTokens: ["openai", "chatgpt", "oaistatic"],

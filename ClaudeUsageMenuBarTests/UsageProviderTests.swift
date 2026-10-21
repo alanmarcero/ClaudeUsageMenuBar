@@ -14,8 +14,12 @@ final class UsageProviderTests: XCTestCase {
         UsageProvider.all.forEach { provider in
             XCTAssertFalse(provider.scrapingScript.isEmpty, "\(provider.id) script empty")
             XCTAssertFalse(provider.usageURL.absoluteString.isEmpty, "\(provider.id) url empty")
-            XCTAssertTrue(provider.usagePathFragment.hasPrefix("/"), "\(provider.id) fragment")
+            XCTAssertTrue(provider.usageURL.absoluteString.contains(provider.usagePathFragment), "\(provider.id) fragment")
         }
+    }
+
+    func testCodexFragmentMatchesHashRedirect() {
+        XCTAssertTrue("https://chatgpt.com/?mweb_fallback=1#settings/usage".contains(UsageProvider.codex.usagePathFragment))
     }
 
     func testClaudeOAuthHostsIncludeSharedSSOAndOwnDomains() {
