@@ -13,6 +13,11 @@ final class WeeklyCountdownCalculatorTests: XCTestCase {
         XCTAssertEqual(result, "invalid string")
     }
 
+    func testCalculateStripsRelativeResetPrefix() {
+        // Codex's weekly reset arrives already relative, e.g. "Resets in 6d 22h".
+        XCTAssertEqual(WeeklyCountdownCalculator.calculate(from: "Resets in 6d 22h"), "6d 22h")
+    }
+
     func testCalculateWithMissingTime() {
         let result = WeeklyCountdownCalculator.calculate(from: "Thu")
         XCTAssertEqual(result, "Thu")

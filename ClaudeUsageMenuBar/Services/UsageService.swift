@@ -479,7 +479,7 @@ enum DailyCountdownCalculator {
 
     // The UI already labels the row "Resets in", so drop a leading "Resets"/"Resets in"
     // that the raw page text (e.g. Claude's "Resets in 2 hr 40 min") carries.
-    private static func stripResetPrefix(_ string: String) -> String {
+    static func stripResetPrefix(_ string: String) -> String {
         let pattern = #"^\s*resets?\s+(in\s+)?"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
             return string
@@ -520,11 +520,11 @@ enum WeeklyCountdownCalculator {
 
         guard let weekday = extractWeekday(from: resetString),
               let (hour, minute) = extractTime(from: resetString) else {
-            return resetString
+            return DailyCountdownCalculator.stripResetPrefix(resetString)
         }
 
         guard let targetDate = calculateTargetDate(weekday: weekday, hour: hour, minute: minute, from: currentDate) else {
-            return resetString
+            return DailyCountdownCalculator.stripResetPrefix(resetString)
         }
 
         return formatCountdown(from: currentDate, to: targetDate)

@@ -41,6 +41,7 @@ struct MenuBarView: View {
                             .monospacedDigit()
                     }
                     .font(.caption)
+                    .fixedSize()
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(isSelected ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.06))
