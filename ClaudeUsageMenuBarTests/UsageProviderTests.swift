@@ -178,6 +178,19 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testCodexWaitsForResetButtonsThatRenderAfterTheLimitCards() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div><span>Weekly limit</span><span>Resets in 6d 2h</span><span>22% left</span></div>
+        <div id="resets">Usage limit resets</div>
+        """, beforeScrape: """
+        setTimeout(() => document.getElementById('resets').insertAdjacentHTML('beforeend',
+            '<button>Use reset</button><button>Use reset</button>'), 1000)
+        """)
+
+        XCTAssertEqual(result["availableResets"] as? Int, 2)
+    }
+
+    @MainActor
     func testCodexResetsSectionWithoutButtonsMeansZeroAvailable() async throws {
         let result = try await scrapeCodexFixture("""
         <div><span>Weekly limit</span><span>Resets in 6d 2h</span><span>22% left</span></div>

@@ -165,18 +165,27 @@ enum CodexScrapingScript {
 
         // Each available reset has its own "Use reset" button. Skip script and style
         // text: the page bundles its UI strings there.
-        const resetsWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-            acceptNode: (node) => /^(SCRIPT|STYLE)$/.test(node.parentElement?.tagName ?? '')
-                ? NodeFilter.FILTER_REJECT
-                : NodeFilter.FILTER_ACCEPT
-        });
-        const pageTextParts = [];
-        while (resetsWalker.nextNode()) pageTextParts.push(resetsWalker.currentNode.textContent);
-        const pageText = normalizeText(pageTextParts.join(' '));
-        if (/usage limit resets/i.test(pageText)) {
-            result.availableResets = (pageText.match(/\\buse reset\\b/gi) || []).length;
-            logs.push(`Available resets: ${result.availableResets}`);
+        const countAvailableResets = () => {
+            const resetsWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+                acceptNode: (node) => /^(SCRIPT|STYLE)$/.test(node.parentElement?.tagName ?? '')
+                    ? NodeFilter.FILTER_REJECT
+                    : NodeFilter.FILTER_ACCEPT
+            });
+            const pageTextParts = [];
+            while (resetsWalker.nextNode()) pageTextParts.push(resetsWalker.currentNode.textContent);
+            const pageText = normalizeText(pageTextParts.join(' '));
+            if (!/usage limit resets/i.test(pageText)) return null;
+            return (pageText.match(/\\buse reset\\b/gi) || []).length;
+        };
+
+        // The reset list can render after the limit cards. A count made too early
+        // reads 0, so wait up to 5s for the buttons before accepting 0.
+        result.availableResets = countAvailableResets();
+        for (let i = 0; i < 20 && result.availableResets === 0; i++) {
+            await sleep(250);
+            result.availableResets = countAvailableResets();
         }
+        if (result.availableResets !== null) logs.push(`Available resets: ${result.availableResets}`);
 
         const emailMatch = bodyText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/i);
         if (emailMatch) result.email = emailMatch[0];
