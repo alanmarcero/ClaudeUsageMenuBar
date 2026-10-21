@@ -26,6 +26,9 @@ struct MenuBarView: View {
         HStack(spacing: 6) {
             Text("Usage")
                 .font(.headline)
+            Text(appVersionLabel)
+                .font(.caption2)
+                .foregroundColor(.secondary)
             Spacer()
             ForEach(providers.services, id: \.provider.id) { service in
                 let isSelected = providers.selectedMenuBarProviderID == service.provider.id

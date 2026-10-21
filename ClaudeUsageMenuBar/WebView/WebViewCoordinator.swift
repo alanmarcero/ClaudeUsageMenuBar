@@ -32,7 +32,13 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        guard navigationAction.request.url != nil else {
+        guard let url = navigationAction.request.url else {
+            decisionHandler(.cancel)
+            return
+        }
+
+        if opensInBrowser(url, navigationType: navigationAction.navigationType) {
+            NSWorkspace.shared.open(url)
             decisionHandler(.cancel)
             return
         }
@@ -65,6 +71,12 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
 
     func isAllowedHost(_ host: String) -> Bool {
         provider.oauthHostSuffixes.contains { host == $0 || host.hasSuffix(".\($0)") }
+    }
+
+    // A clicked link to a host outside the provider and SSO list opens in the default
+    // browser, so other sites do not get the signed-in web view. Redirects stay here.
+    func opensInBrowser(_ url: URL, navigationType: WKNavigationType) -> Bool {
+        navigationType == .linkActivated && !isAllowedHost(url.host ?? "")
     }
 
     func isAuthPage(_ urlString: String) -> Bool {

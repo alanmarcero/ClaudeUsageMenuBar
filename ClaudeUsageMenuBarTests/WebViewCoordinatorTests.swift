@@ -77,6 +77,21 @@ final class WebViewCoordinatorTests: XCTestCase {
         XCTAssertFalse(coordinator.isAllowedHost("fakegoogle.com"))
     }
 
+    // MARK: - opensInBrowser Tests
+
+    func testOpensInBrowserForClickedLinkToUnknownHost() {
+        XCTAssertTrue(coordinator.opensInBrowser(URL(string: "https://example.com/")!, navigationType: .linkActivated))
+    }
+
+    func testOpensInBrowserKeepsClickedLinkToAllowedHost() {
+        XCTAssertFalse(coordinator.opensInBrowser(URL(string: "https://claude.ai/settings/usage")!, navigationType: .linkActivated))
+        XCTAssertFalse(coordinator.opensInBrowser(URL(string: "https://accounts.google.com/o/oauth2")!, navigationType: .linkActivated))
+    }
+
+    func testOpensInBrowserKeepsRedirectsToUnknownHost() {
+        XCTAssertFalse(coordinator.opensInBrowser(URL(string: "https://sso.example.com/login")!, navigationType: .other))
+    }
+
     // MARK: - isAuthPage Tests
 
     func testIsAuthPageLogin() {
