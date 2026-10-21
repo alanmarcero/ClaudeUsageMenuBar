@@ -38,6 +38,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private var rawWeeklyResetTime: String?
     private var rawSonnetWeeklyResetTime: String?
     private var rawDesignWeeklyResetTime: String?
+    private var isCheckingClaudeResets = false
     var refreshStartTime: Date?  // internal for @testable import
     var completedRefreshes = 0  // internal for @testable import
 
@@ -99,11 +100,44 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             let login = await Task.detached { ClaudeCodeUsageAPI.readLogin() }.value
             isUsingClaudeCodeLogin = login != nil
             guard let login else {
+                isCheckingClaudeResets = false
                 loadUsagePage()
                 return
             }
             handleScrapingResult(await ClaudeCodeUsageAPI.fetchResult(login: login), error: nil)
+            checkClaudeResets()
         }
+    }
+
+    // The usage API does not report resets, so read them from the claude.ai usage page.
+    // The page loads only if the web view has a claude.ai session. With no session,
+    // the Resets row stays hidden and no error shows.
+    private func checkClaudeResets() {
+        isCheckingClaudeResets = true
+        loadUsagePage()
+    }
+
+    private func finishClaudeResetsCheck(_ result: Any?) {
+        isCheckingClaudeResets = false
+        let dict = result as? [String: Any]
+        let count = dict?["availableResets"] as? Int ?? 0
+        usageData.availableResets = count > 0 ? count : nil
+        debugInfo += "\n\nclaudeResets: \(dict?["debug"] as? String ?? "no usage page")"
+    }
+
+    private func handleResetsCheckNavigation(webView: WKWebView, url: URL) {
+        let urlString = url.absoluteString.lowercased()
+        if urlString.contains(provider.usagePathFragment) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Constants.scrapeDelay) {
+                webView.callAsyncJavaScript(ClaudeResetsScript.script, arguments: [:], in: nil, in: .page) { [weak self] result in
+                    Task { @MainActor [weak self] in
+                        self?.finishClaudeResetsCheck(try? result.get())
+                    }
+                }
+            }
+            return
+        }
+        finishClaudeResetsCheck(nil)
     }
 
     private func loadUsagePage() {
@@ -190,7 +224,10 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.email = data.email
         usageData.organizationName = data.organizationName
         usageData.planName = data.planName
-        usageData.availableResets = data.availableResets
+        // With the Claude Code login, checkClaudeResets sets the count.
+        if !isUsingClaudeCodeLogin {
+            usageData.availableResets = data.availableResets
+        }
         usageData.lastUpdated = Date()
         usageData.isLoggedIn = true
         usageData.errorMessage = nil
@@ -295,18 +332,31 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
     nonisolated func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         Task { @MainActor [weak self] in
-            self?.setError("Navigation failed: \(error.localizedDescription)")
+            self?.handleNavigationFailure("Navigation failed: \(error.localizedDescription)")
         }
     }
 
     nonisolated func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         Task { @MainActor [weak self] in
-            self?.setError("Load failed: \(error.localizedDescription)")
+            self?.handleNavigationFailure("Load failed: \(error.localizedDescription)")
         }
+    }
+
+    private func handleNavigationFailure(_ message: String) {
+        guard !isCheckingClaudeResets else {
+            finishClaudeResetsCheck(nil)
+            return
+        }
+        setError(message)
     }
 
     private func handleNavigationFinished(webView: WKWebView) {
         guard let url = webView.url else { return }
+
+        if isCheckingClaudeResets {
+            handleResetsCheckNavigation(webView: webView, url: url)
+            return
+        }
         let urlString = url.absoluteString.lowercased()
 
         if provider.loginPaths.contains(where: { urlString.contains($0) }) {

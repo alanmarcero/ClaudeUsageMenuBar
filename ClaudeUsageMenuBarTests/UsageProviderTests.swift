@@ -212,7 +212,30 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
-    private func scrapeCodexFixture(_ body: String, beforeScrape: String = "") async throws -> [String: Any] {
+    func testClaudeResetsCountsResetForFreeButtons() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>Weekly limits</div><div role="progressbar"></div>
+        <button>Reset for free</button>
+        <button>Reset password</button>
+        """, script: ClaudeResetsScript.script)
+
+        XCTAssertEqual(result["availableResets"] as? Int, 1)
+    }
+
+    @MainActor
+    func testClaudeResetsWaitsForButtonsThatRenderLate() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div id="usage">Weekly limits</div>
+        """, beforeScrape: """
+        setTimeout(() => document.getElementById('usage').insertAdjacentHTML('beforeend',
+            '<button>Reset for free</button>'), 1000)
+        """, script: ClaudeResetsScript.script)
+
+        XCTAssertEqual(result["availableResets"] as? Int, 1)
+    }
+
+    @MainActor
+    private func scrapeCodexFixture(_ body: String, beforeScrape: String = "", script: String = CodexScrapingScript.script) async throws -> [String: Any] {
         let webView = WKWebView()
         let navigationWaiter = NavigationWaiter()
 
@@ -223,7 +246,7 @@ final class UsageProviderTests: XCTestCase {
         }
 
         let value = try await webView.callAsyncJavaScript(
-            beforeScrape + ";\n" + CodexScrapingScript.script,
+            beforeScrape + ";\n" + script,
             arguments: [:],
             in: nil,
             contentWorld: .page

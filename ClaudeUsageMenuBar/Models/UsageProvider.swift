@@ -56,6 +56,34 @@ struct UsageProvider: Identifiable {
     static let all: [UsageProvider] = [.claude, .codex]
 }
 
+// MARK: - Claude Resets JavaScript Script
+
+// Counts the reset buttons on the claude.ai usage page, e.g. "Reset for free".
+// The buttons can render after the usage bars, so it waits up to 10s for one.
+enum ClaudeResetsScript {
+    static let script = """
+    const resetButtonPattern = /^(reset for free|use reset|reset now|reset)$/i;
+    const normalizeText = (v) => (v || '').replace(/\\s+/g, ' ').trim();
+    const resetButtons = () => Array.from(document.querySelectorAll('button,[role="button"]'))
+        .filter(el => resetButtonPattern.test(normalizeText(el.textContent)));
+
+    let buttons = resetButtons();
+    for (let i = 0; i < 40 && buttons.length === 0; i++) {
+        await new Promise(r => setTimeout(r, 250));
+        buttons = resetButtons();
+    }
+
+    return {
+        availableResets: buttons.length,
+        debug: JSON.stringify({
+            availableResets: buttons.length,
+            buttonTexts: buttons.map(el => normalizeText(el.textContent)),
+            url: location.href
+        })
+    };
+    """
+}
+
 // MARK: - Codex JavaScript Scraping Script
 
 enum CodexScrapingScript {
