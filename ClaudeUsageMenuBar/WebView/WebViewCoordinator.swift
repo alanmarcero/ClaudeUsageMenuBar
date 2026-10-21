@@ -37,7 +37,8 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
             return
         }
 
-        if opensInBrowser(url, navigationType: navigationAction.navigationType) {
+        let isTopLevel = navigationAction.targetFrame?.isMainFrame ?? true
+        if isTopLevel && opensInBrowser(url) {
             NSWorkspace.shared.open(url)
             decisionHandler(.cancel)
             return
@@ -53,6 +54,10 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let url = navigationAction.request.url, opensInBrowser(url) {
+            NSWorkspace.shared.open(url)
+            return nil
+        }
         webView.load(navigationAction.request)
         return nil
     }
@@ -73,10 +78,11 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         provider.oauthHostSuffixes.contains { host == $0 || host.hasSuffix(".\($0)") }
     }
 
-    // A clicked link to a host outside the provider and SSO list opens in the default
-    // browser, so other sites do not get the signed-in web view. Redirects stay here.
-    func opensInBrowser(_ url: URL, navigationType: WKNavigationType) -> Bool {
-        navigationType == .linkActivated && !isAllowedHost(url.host ?? "")
+    // A page, popup or redirect to a web host outside the provider and SSO list opens
+    // in the default browser. Other sites cannot show in the signed-in, provider-titled
+    // window. Subframes, such as bot checks, still load.
+    func opensInBrowser(_ url: URL) -> Bool {
+        ["http", "https"].contains(url.scheme?.lowercased()) && !isAllowedHost(url.host ?? "")
     }
 
     func isAuthPage(_ urlString: String) -> Bool {

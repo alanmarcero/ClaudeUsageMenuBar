@@ -79,17 +79,18 @@ final class WebViewCoordinatorTests: XCTestCase {
 
     // MARK: - opensInBrowser Tests
 
-    func testOpensInBrowserForClickedLinkToUnknownHost() {
-        XCTAssertTrue(coordinator.opensInBrowser(URL(string: "https://example.com/")!, navigationType: .linkActivated))
+    func testOpensInBrowserForUnknownHost() {
+        XCTAssertTrue(coordinator.opensInBrowser(URL(string: "https://example.com/")!))
+        XCTAssertTrue(coordinator.opensInBrowser(URL(string: "http://fakeclaude.ai.evil.com/login")!))
     }
 
-    func testOpensInBrowserKeepsClickedLinkToAllowedHost() {
-        XCTAssertFalse(coordinator.opensInBrowser(URL(string: "https://claude.ai/settings/usage")!, navigationType: .linkActivated))
-        XCTAssertFalse(coordinator.opensInBrowser(URL(string: "https://accounts.google.com/o/oauth2")!, navigationType: .linkActivated))
+    func testOpensInBrowserKeepsAllowedHosts() {
+        XCTAssertFalse(coordinator.opensInBrowser(URL(string: "https://claude.ai/settings/usage")!))
+        XCTAssertFalse(coordinator.opensInBrowser(URL(string: "https://accounts.google.com/o/oauth2")!))
     }
 
-    func testOpensInBrowserKeepsRedirectsToUnknownHost() {
-        XCTAssertFalse(coordinator.opensInBrowser(URL(string: "https://sso.example.com/login")!, navigationType: .other))
+    func testOpensInBrowserKeepsNonWebSchemes() {
+        XCTAssertFalse(coordinator.opensInBrowser(URL(string: "about:blank")!))
     }
 
     // MARK: - isAuthPage Tests
