@@ -95,7 +95,7 @@ ClaudeUsageMenuBar/
 │   ├── ClaudeUsageMenuBarApp.swift  # App entry point, AppDelegate, WindowManager
 │   ├── Info.plist
 │   └── ClaudeUsageMenuBar.entitlements
-├── ClaudeUsageMenuBarTests/         # 162 unit tests
+├── ClaudeUsageMenuBarTests/         # 169 unit tests
 │   ├── AppConfigTests.swift
 │   ├── AppConfigEdgeCaseTests.swift
 │   ├── UsageDataTests.swift
@@ -213,7 +213,7 @@ Key regex patterns:
 
 ## Testing
 
-Tests are in `ClaudeUsageMenuBarTests/` with **162 unit tests** covering core logic:
+Tests are in `ClaudeUsageMenuBarTests/` with **169 unit tests** covering core logic:
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
@@ -224,7 +224,7 @@ Tests are in `ClaudeUsageMenuBarTests/` with **162 unit tests** covering core lo
 | `WeeklyCountdownCalculatorTests.swift` | 9 | Basic time parsing, day calculation |
 | `WeeklyCountdownCalculatorDeterministicTests.swift` | 26 | Fixed-date tests for deterministic results |
 | `DailyCountdownCalculatorTests.swift` | 7 | Clock-time and relative daily resets |
-| `UsageProviderTests.swift` | 8 | Provider registry and Codex scraper fixtures |
+| `UsageProviderTests.swift` | 15 | Provider registry and Codex scraper fixtures |
 | `WebViewCoordinatorTests.swift` | 23 | URL filtering, OAuth whitelisting, auth detection |
 | `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, stuck-state recovery |
 | `DiskPressureTests.swift` | 14 | Cache purge scheduling and data-type scope |
@@ -396,12 +396,12 @@ UsageService
 | `WeeklyCountdownCalculatorTests.swift` | 9 | Time parsing, day calculation, edge cases (12 AM/PM) |
 | `WeeklyCountdownCalculatorDeterministicTests.swift` | 26 | Fixed-date tests, absolute dates, `extractWeekday`, `extractTime`, `formatCountdown` |
 | `DailyCountdownCalculatorTests.swift` | 7 | Clock-time and relative daily resets |
-| `UsageProviderTests.swift` | 8 | Provider registry and Codex scraper fixtures |
+| `UsageProviderTests.swift` | 15 | Provider registry and Codex scraper fixtures |
 | `WebViewCoordinatorTests.swift` | 23 | OAuth domain whitelisting, auth page detection, main page detection |
 | `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, recovery from stuck state, boundary conditions |
 | `DiskPressureTests.swift` | 14 | `CacheMaintenance` purge interval, launch purge, data-type scope |
 
-**Total: 162 tests**
+**Total: 169 tests**
 
 ## Verification Steps
 

@@ -69,6 +69,7 @@ enum CodexScrapingScript {
         email: null,
         orgName: null,
         planName: null,
+        availableResets: null,
         error: null,
         debug: ''
     };
@@ -158,6 +159,21 @@ enum CodexScrapingScript {
             logs.push(`Weekly ${remaining}% remaining -> ${result.weeklyPercentage}% used`);
         }
 
+        // Each available reset has its own "Use reset" button. Skip script and style
+        // text: the page bundles its UI strings there.
+        const resetsWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+            acceptNode: (node) => /^(SCRIPT|STYLE)$/.test(node.parentElement?.tagName ?? '')
+                ? NodeFilter.FILTER_REJECT
+                : NodeFilter.FILTER_ACCEPT
+        });
+        const pageTextParts = [];
+        while (resetsWalker.nextNode()) pageTextParts.push(resetsWalker.currentNode.textContent);
+        const pageText = normalizeText(pageTextParts.join(' '));
+        if (/usage limit resets/i.test(pageText)) {
+            result.availableResets = (pageText.match(/\\buse reset\\b/gi) || []).length;
+            logs.push(`Available resets: ${result.availableResets}`);
+        }
+
         const emailMatch = bodyText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/i);
         if (emailMatch) result.email = emailMatch[0];
         const planMatch = bodyText.match(/\\b(Plus|Pro|Team|Enterprise|Business|Free)\\b/);
@@ -174,6 +190,7 @@ enum CodexScrapingScript {
             weeklyResetTime: result.weeklyResetTime,
             email: result.email,
             planName: result.planName,
+            availableResets: result.availableResets,
             sawLoadError,
             pageSettled: pageSettled(),
             progressbarCount: progressbars.length,

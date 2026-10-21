@@ -183,6 +183,7 @@ struct MenuBarView: View {
 
 struct ProviderSection: View {
     @ObservedObject var service: UsageService
+    @EnvironmentObject var windowManager: WindowManager
 
     var body: some View {
         VStack(spacing: 0) {
@@ -207,6 +208,16 @@ struct ProviderSection: View {
             }
             if service.usageData.designWeeklyPercentage != nil {
                 usageRow("Weekly (Design)", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
+            }
+            if let resets = service.usageData.availableResets {
+                LabeledRow(label: "Resets", value: "\(resets)")
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                if resets > 0 {
+                    ActionButton(label: "Open Reset UI", systemImage: "arrow.counterclockwise") {
+                        windowManager.openUsageWindow(provider: service.provider, service: service)
+                    }
+                }
             }
 
             if let error = service.usageData.errorMessage {

@@ -161,6 +161,40 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testCodexCountsEachUseResetButtonAsAnAvailableReset() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div><span>Weekly limit</span><span>Resets in 6d 2h</span><span>22% left</span></div>
+        <div>Usage limit resets</div>
+        <div>Use a reset to restore your 5-hour limit, weekly limit, or both</div>
+        <div>Full reset Expires Oct 22 at 5:12 PM EDT <button>Use reset</button></div>
+        <div>Weekly reset Expires Oct 29 at 5:12 PM EDT <button>Use reset</button></div>
+        """)
+
+        XCTAssertEqual(result["availableResets"] as? Int, 2)
+    }
+
+    @MainActor
+    func testCodexResetsSectionWithoutButtonsMeansZeroAvailable() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div><span>Weekly limit</span><span>Resets in 6d 2h</span><span>22% left</span></div>
+        <div>Usage limit resets</div>
+        <div>Use a reset to restore your 5-hour limit, weekly limit, or both</div>
+        <script>const strings = { useReset: "Use reset" };</script>
+        """)
+
+        XCTAssertEqual(result["availableResets"] as? Int, 0)
+    }
+
+    @MainActor
+    func testCodexWithoutResetsSectionLeavesAvailableResetsUnset() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div><span>Weekly limit</span><span>Resets in 6d 2h</span><span>22% left</span></div>
+        """)
+
+        XCTAssertTrue(result["availableResets"] is NSNull)
+    }
+
+    @MainActor
     private func scrapeCodexFixture(_ body: String, beforeScrape: String = "") async throws -> [String: Any] {
         let webView = WKWebView()
         let navigationWaiter = NavigationWaiter()

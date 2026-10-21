@@ -167,6 +167,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.email = data.email
         usageData.organizationName = data.organizationName
         usageData.planName = data.planName
+        usageData.availableResets = data.availableResets
         usageData.lastUpdated = Date()
         usageData.isLoggedIn = true
         usageData.errorMessage = nil
@@ -364,7 +365,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             designWeeklyResetTime: dict["designWeeklyResetTime"] as? String,
             email: dict["email"] as? String,
             organizationName: dict["orgName"] as? String,
-            planName: dict["planName"] as? String
+            planName: dict["planName"] as? String,
+            availableResets: dict["availableResets"] as? Int
         )
         applyScrapedData(data)
     }
@@ -384,6 +386,7 @@ private struct ScrapedUsageData {
     let email: String?
     let organizationName: String?
     let planName: String?
+    let availableResets: Int?
 }
 
 // MARK: - Cache Maintenance

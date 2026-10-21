@@ -16,6 +16,7 @@ struct UsageData {
     var email: String?
     var organizationName: String?
     var planName: String?
+    var availableResets: Int?
     var lastUpdated: Date?
     var isLoggedIn: Bool = false
     var errorMessage: String?
