@@ -9,9 +9,11 @@ struct UsageData {
 
     var sonnetWeeklyPercentage: Int?
     var sonnetWeeklyResetTime: String?
+    var sonnetWeeklyLabel: String?
 
     var designWeeklyPercentage: Int?
     var designWeeklyResetTime: String?
+    var designWeeklyLabel: String?
 
     var email: String?
     var organizationName: String?
@@ -42,6 +44,8 @@ struct UsageSnapshot: Codable, Equatable {
     var sonnetWeeklyResetTime: String?
     var designWeeklyPercentage: Int?
     var designWeeklyResetTime: String?
+    var sonnetWeeklyLabel: String?
+    var designWeeklyLabel: String?
     var lastUpdated: Date?
 }
 

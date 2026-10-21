@@ -14,6 +14,7 @@ struct UsageProvider: Identifiable {
     let oauthHostSuffixes: [String]
     let dataRecordTokens: [String] // WKWebsiteDataStore display-name tokens cleared on logout
     let scrapingScript: String
+    let readsClaudeCodeLogin: Bool // prefer Claude Code's saved login over the web page
 
     static let sharedSSOHosts = [
         "google.com", "googleapis.com", "gstatic.com",
@@ -33,7 +34,8 @@ struct UsageProvider: Identifiable {
         loginPaths: ["/login", "/signin"],
         oauthHostSuffixes: ["claude.ai", "anthropic.com"] + sharedSSOHosts,
         dataRecordTokens: ["claude", "anthropic"],
-        scrapingScript: UsageScrapingScript.script
+        scrapingScript: UsageScrapingScript.script,
+        readsClaudeCodeLogin: true
     )
 
     static let codex = UsageProvider(
@@ -46,7 +48,8 @@ struct UsageProvider: Identifiable {
         loginPaths: ["/login", "/auth/login", "/auth"],
         oauthHostSuffixes: ["chatgpt.com", "openai.com", "oaistatic.com", "oaiusercontent.com"] + sharedSSOHosts,
         dataRecordTokens: ["openai", "chatgpt", "oaistatic"],
-        scrapingScript: CodexScrapingScript.script
+        scrapingScript: CodexScrapingScript.script,
+        readsClaudeCodeLogin: false
     )
 
     static let all: [UsageProvider] = [.claude, .codex]

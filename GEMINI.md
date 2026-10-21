@@ -2,6 +2,15 @@
 
 This file provides guidance to Gemini when working with code in this repository.
 
+## Claude Code Login Source
+
+When Claude Code is signed in on the Mac, the Claude provider skips the web page. `ClaudeCodeUsageAPI` (Services/ClaudeCodeUsageAPI.swift) reads Claude Code's saved OAuth login with `/usr/bin/security find-generic-password -s "Claude Code-credentials" -w` and calls `GET https://api.anthropic.com/api/oauth/usage` with `anthropic-beta: oauth-2025-04-20`. It maps the response's `limits` rows (`session`, `weekly_all`, `weekly_scoped`) into the same fields the scraper fills.
+
+- This exists because an SSO device-compliance check (Microsoft Entra) can block the claude.ai login in the embedded web view.
+- The app never refreshes the login. A refresh replaces the token and signs Claude Code out. An expired login shows an error until Claude Code renews it.
+- The `security` tool is used instead of `SecItemCopyMatching`: the item's access list trusts that tool, so no prompt shows, even after an update of this ad hoc signed app.
+- With no Claude Code login, the provider falls back to the web scraping described below.
+
 ## Maintenance & Scraping Strategy
 
 The Claude.ai usage page is highly dynamic and frequently changes its DOM structure (tag names, class names, etc.). To handle this, the app uses a **label-centric** approach rather than a selector-centric one.
@@ -101,7 +110,7 @@ ClaudeUsageMenuBar/
 │   ├── ClaudeUsageMenuBarApp.swift  # App entry point, AppDelegate, WindowManager
 │   ├── Info.plist
 │   └── ClaudeUsageMenuBar.entitlements
-├── ClaudeUsageMenuBarTests/         # 169 unit tests
+├── ClaudeUsageMenuBarTests/         # 182 unit tests
 │   ├── AppConfigTests.swift
 │   ├── AppConfigEdgeCaseTests.swift
 │   ├── UsageDataTests.swift
@@ -219,7 +228,7 @@ Key regex patterns:
 
 ## Testing
 
-Tests are in `ClaudeUsageMenuBarTests/` with **169 unit tests** covering core logic:
+Tests are in `ClaudeUsageMenuBarTests/` with **182 unit tests** covering core logic:
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
@@ -234,6 +243,7 @@ Tests are in `ClaudeUsageMenuBarTests/` with **169 unit tests** covering core lo
 | `WebViewCoordinatorTests.swift` | 23 | URL filtering, OAuth whitelisting, auth detection |
 | `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, stuck-state recovery |
 | `DiskPressureTests.swift` | 14 | Cache purge scheduling and data-type scope |
+| `ClaudeCodeUsageAPITests.swift` | 13 | Claude Code login parsing, usage endpoint mapping, reset formatting |
 
 ### Testability Patterns Used
 
@@ -407,8 +417,9 @@ UsageService
 | `WebViewCoordinatorTests.swift` | 23 | OAuth domain whitelisting, auth page detection, main page detection |
 | `RefreshTimeoutTests.swift` | 15 | Refresh timeout detection, recovery from stuck state, boundary conditions |
 | `DiskPressureTests.swift` | 14 | `CacheMaintenance` purge interval, launch purge, data-type scope |
+| `ClaudeCodeUsageAPITests.swift` | 13 | `ClaudeCodeUsageAPI` login parsing, `limits` mapping, expired login, `resetText` |
 
-**Total: 169 tests**
+**Total: 182 tests**
 
 ## Verification Steps
 

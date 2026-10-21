@@ -26,6 +26,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     @Published var sonnetWeeklyResetCountdown: String?
     @Published var designWeeklyResetCountdown: String?
     @Published var debugInfo: String = ""
+    @Published var isUsingClaudeCodeLogin = false
 
     // MARK: - Private Properties
 
@@ -63,6 +64,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.sonnetWeeklyResetTime = snapshot.sonnetWeeklyResetTime
         usageData.designWeeklyPercentage = snapshot.designWeeklyPercentage
         usageData.designWeeklyResetTime = snapshot.designWeeklyResetTime
+        usageData.sonnetWeeklyLabel = snapshot.sonnetWeeklyLabel
+        usageData.designWeeklyLabel = snapshot.designWeeklyLabel
         usageData.lastUpdated = snapshot.lastUpdated
         rawDailyResetTime = snapshot.resetTime
         rawWeeklyResetTime = snapshot.weeklyResetTime
@@ -86,6 +89,22 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         refreshStartTime = Date()
         usageData.errorMessage = nil
 
+        guard provider.readsClaudeCodeLogin else {
+            loadUsagePage()
+            return
+        }
+        Task {
+            let login = await Task.detached { ClaudeCodeUsageAPI.readLogin() }.value
+            isUsingClaudeCodeLogin = login != nil
+            guard let login else {
+                loadUsagePage()
+                return
+            }
+            handleScrapingResult(await ClaudeCodeUsageAPI.fetchResult(login: login), error: nil)
+        }
+    }
+
+    private func loadUsagePage() {
         guard let webView = backgroundWebView else {
             setError("WebView not available")
             return
@@ -164,6 +183,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.sonnetWeeklyResetTime = data.sonnetWeeklyResetTime
         usageData.designWeeklyPercentage = data.designWeeklyPercentage
         usageData.designWeeklyResetTime = data.designWeeklyResetTime
+        usageData.sonnetWeeklyLabel = data.sonnetWeeklyLabel
+        usageData.designWeeklyLabel = data.designWeeklyLabel
         usageData.email = data.email
         usageData.organizationName = data.organizationName
         usageData.planName = data.planName
@@ -182,6 +203,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
                 sonnetWeeklyResetTime: data.sonnetWeeklyResetTime,
                 designWeeklyPercentage: data.designWeeklyPercentage,
                 designWeeklyResetTime: data.designWeeklyResetTime,
+                sonnetWeeklyLabel: data.sonnetWeeklyLabel,
+                designWeeklyLabel: data.designWeeklyLabel,
                 lastUpdated: usageData.lastUpdated
             ),
             for: provider.id
@@ -363,6 +386,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             sonnetWeeklyResetTime: dict["sonnetWeeklyResetTime"] as? String,
             designWeeklyPercentage: dict["designWeeklyPercentage"] as? Int,
             designWeeklyResetTime: dict["designWeeklyResetTime"] as? String,
+            sonnetWeeklyLabel: dict["sonnetWeeklyLabel"] as? String,
+            designWeeklyLabel: dict["designWeeklyLabel"] as? String,
             email: dict["email"] as? String,
             organizationName: dict["orgName"] as? String,
             planName: dict["planName"] as? String,
@@ -383,6 +408,8 @@ private struct ScrapedUsageData {
     let sonnetWeeklyResetTime: String?
     let designWeeklyPercentage: Int?
     let designWeeklyResetTime: String?
+    let sonnetWeeklyLabel: String?
+    let designWeeklyLabel: String?
     let email: String?
     let organizationName: String?
     let planName: String?

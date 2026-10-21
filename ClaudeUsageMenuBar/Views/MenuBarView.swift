@@ -118,10 +118,10 @@ struct ProviderSection: View {
             }
             usageRow("Weekly", service.usageData.weeklyPercentage, service.weeklyResetCountdown)
             if service.usageData.sonnetWeeklyPercentage != nil {
-                usageRow("Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
+                usageRow("Weekly (\(service.usageData.sonnetWeeklyLabel ?? "Sonnet"))", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
             }
             if service.usageData.designWeeklyPercentage != nil {
-                usageRow("Weekly (Design)", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
+                usageRow("Weekly (\(service.usageData.designWeeklyLabel ?? "Design"))", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
             }
             if let resets = service.usageData.availableResets {
                 resetsRow(resets)
@@ -183,13 +183,21 @@ struct ProviderSection: View {
                     .font(.caption2)
                     .foregroundColor(RelativeTime.isStale(updated) ? .orange : .secondary)
             }
-            IconButton(systemImage: "safari", help: "Open \(service.provider.displayName)", action: openUsageWindow)
-            if service.usageData.isLoggedIn {
+            IconButton(systemImage: "safari", help: "Open \(service.provider.displayName)") {
+                // Claude Code's login can't sign in the embedded web view, so with it the
+                // page opens in the default browser and there is no app login to manage.
+                guard service.isUsingClaudeCodeLogin else {
+                    openUsageWindow()
+                    return
+                }
+                NSWorkspace.shared.open(service.provider.usageURL)
+            }
+            if !service.isUsingClaudeCodeLogin && service.usageData.isLoggedIn {
                 IconButton(systemImage: "rectangle.portrait.and.arrow.right", help: "Log out of \(service.provider.displayName)") {
                     service.logout()
                 }
             }
-            if !service.usageData.isLoggedIn {
+            if !service.isUsingClaudeCodeLogin && !service.usageData.isLoggedIn {
                 IconButton(systemImage: "person.crop.circle", help: "Log in to \(service.provider.displayName)", action: openUsageWindow)
             }
         }
