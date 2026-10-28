@@ -264,6 +264,25 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testCodexLeavesCreditsNullForZeroOrMissingLimit() async throws {
+        for limit in ["{ unit: 'credit', limit: '0', used: '0' }", "{ unit: 'credit', limit: null, used: null }"] {
+            let result = try await scrapeCodexFixture("""
+            <div><span>Weekly limit</span><span>Resets in 6d 2h</span><span>22% left</span></div>
+            """, beforeScrape: """
+            window.fetch = async (url) => ({
+                ok: true,
+                json: async () => url === '/api/auth/session'
+                    ? { accessToken: 'token' }
+                    : { spend_control: { individual_limit: \(limit) } }
+            })
+            """)
+
+            XCTAssertTrue(result["creditsUsed"] is NSNull, limit)
+            XCTAssertTrue(result["creditsLimit"] is NSNull, limit)
+        }
+    }
+
+    @MainActor
     private func scrapeCodexFixture(_ body: String, beforeScrape: String = "", script: String = CodexScrapingScript.script) async throws -> [String: Any] {
         let webView = WKWebView()
         let navigationWaiter = NavigationWaiter()

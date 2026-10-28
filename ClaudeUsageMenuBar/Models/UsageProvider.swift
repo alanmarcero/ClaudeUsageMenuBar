@@ -228,8 +228,12 @@ enum CodexScrapingScript {
                 if (!response.ok) return `HTTP ${response.status}`;
                 const limit = (await response.json()).spend_control?.individual_limit;
                 if (limit?.unit !== 'credit') return 'no credit limit';
-                result.creditsUsed = Number(limit.used);
-                result.creditsLimit = Number(limit.limit);
+                const used = Number(limit.used);
+                const creditLimit = Number(limit.limit);
+                // A 0 limit means no credits are available. NaN crashes the Int conversion in Swift.
+                if (!Number.isFinite(used) || !Number.isFinite(creditLimit) || creditLimit <= 0) return 'no usable credit limit';
+                result.creditsUsed = used;
+                result.creditsLimit = creditLimit;
                 return 'ok';
             } catch (e) {
                 return 'error: ' + e.message;
