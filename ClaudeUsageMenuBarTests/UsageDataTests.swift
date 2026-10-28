@@ -177,4 +177,17 @@ final class UsageDataTests: XCTestCase {
         let now = Date()
         XCTAssertFalse(RelativeTime.isStale(now.addingTimeInterval(-120), now: now, threshold: 120))
     }
+
+    func testCreditUsageSummaryRoundsToWholeCredits() {
+        XCTAssertEqual(CreditUsage.summary(used: 533.5049, limit: 5000), "534 of 5,000 monthly credits used")
+    }
+
+    func testCreditUsageEstimatedSpendAtFourCentsPerCredit() {
+        XCTAssertEqual(CreditUsage.estimatedSpend(used: 533.5049), "≈ $21.34 spent at $0.04 per credit")
+    }
+
+    func testCreditUsagePercentage() {
+        XCTAssertEqual(CreditUsage.percentage(used: 533.5, limit: 5000), 11)
+        XCTAssertNil(CreditUsage.percentage(used: 10, limit: 0))
+    }
 }

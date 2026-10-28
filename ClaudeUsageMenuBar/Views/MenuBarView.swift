@@ -130,6 +130,9 @@ struct ProviderSection: View {
             if let resets = service.usageData.availableResets {
                 resetsRow(resets)
             }
+            if let used = service.usageData.creditsUsed, let limit = service.usageData.creditsLimit {
+                creditsRow(used: used, limit: limit)
+            }
 
             if let error = service.usageData.errorMessage {
                 HStack(alignment: .top, spacing: 6) {
@@ -234,6 +237,16 @@ struct ProviderSection: View {
                 UsageProgressBar(percentage: pct, colors: AppConfig.shared.gradientColors(for: pct))
             }
         }
+    }
+
+    private func creditsRow(used: Double, limit: Double) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            usageRow("Credits", CreditUsage.percentage(used: used, limit: limit), nil)
+            Text(CreditUsage.summary(used: used, limit: limit))
+            Text(CreditUsage.estimatedSpend(used: used))
+                .foregroundColor(.secondary)
+        }
+        .font(.caption)
     }
 
     private func resetsRow(_ resets: Int) -> some View {

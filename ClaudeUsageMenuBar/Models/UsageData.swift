@@ -19,6 +19,8 @@ struct UsageData {
     var organizationName: String?
     var planName: String?
     var availableResets: Int?
+    var creditsUsed: Double?
+    var creditsLimit: Double?
     var lastUpdated: Date?
     var isLoggedIn: Bool = false
     var errorMessage: String?
@@ -46,6 +48,8 @@ struct UsageSnapshot: Codable, Equatable {
     var designWeeklyResetTime: String?
     var sonnetWeeklyLabel: String?
     var designWeeklyLabel: String?
+    var creditsUsed: Double?
+    var creditsLimit: Double?
     var lastUpdated: Date?
 }
 
@@ -76,6 +80,30 @@ enum UsageTooltip {
         if let daily { parts.append("\(daily)% daily") }
         if let weekly { parts.append("\(weekly)% weekly") }
         return parts.isEmpty ? "\(provider): no data yet" : "\(provider): \(parts.joined(separator: ", "))"
+    }
+}
+
+// OpenAI publishes no credit price.
+// Its Codex pricing page bills desktop voice at $0.05 or 1.25 credits a minute.
+enum CreditUsage {
+    static let dollarsPerCredit = 0.04
+
+    static func percentage(used: Double, limit: Double) -> Int? {
+        limit > 0 ? Int((used / limit * 100).rounded()) : nil
+    }
+
+    static func summary(used: Double, limit: Double) -> String {
+        "\(wholeNumber(used)) of \(wholeNumber(limit)) monthly credits used"
+    }
+
+    static func estimatedSpend(used: Double) -> String {
+        let spend = (used * dollarsPerCredit).formatted(.currency(code: "USD"))
+        let rate = dollarsPerCredit.formatted(.currency(code: "USD"))
+        return "≈ \(spend) spent at \(rate) per credit"
+    }
+
+    private static func wholeNumber(_ value: Double) -> String {
+        Int(value.rounded()).formatted(.number.grouping(.automatic))
     }
 }
 

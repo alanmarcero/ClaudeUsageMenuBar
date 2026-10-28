@@ -235,6 +235,35 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testCodexReadsMonthlyCreditsFromUsageAPI() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div><span>Weekly limit</span><span>Resets in 6d 2h</span><span>22% left</span></div>
+        """, beforeScrape: """
+        window.fetch = async (url) => ({
+            ok: true,
+            json: async () => url === '/api/auth/session'
+                ? { accessToken: 'token', account: { id: 'account' } }
+                : { spend_control: { individual_limit: { unit: 'credit', limit: '5000', used: '533.5' } } }
+        })
+        """)
+
+        XCTAssertEqual(result["creditsUsed"] as? Double, 533.5)
+        XCTAssertEqual(result["creditsLimit"] as? Double, 5000)
+    }
+
+    @MainActor
+    func testCodexLeavesCreditsNullWhenUsageAPIFails() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div><span>Weekly limit</span><span>Resets in 6d 2h</span><span>22% left</span></div>
+        """, beforeScrape: """
+        window.fetch = async () => ({ ok: false, status: 401, json: async () => ({ accessToken: 'token' }) })
+        """)
+
+        XCTAssertTrue(result["creditsUsed"] is NSNull)
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 78)
+    }
+
+    @MainActor
     private func scrapeCodexFixture(_ body: String, beforeScrape: String = "", script: String = CodexScrapingScript.script) async throws -> [String: Any] {
         let webView = WKWebView()
         let navigationWaiter = NavigationWaiter()

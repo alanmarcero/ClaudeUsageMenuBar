@@ -69,6 +69,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.designWeeklyResetTime = snapshot.designWeeklyResetTime
         usageData.sonnetWeeklyLabel = snapshot.sonnetWeeklyLabel
         usageData.designWeeklyLabel = snapshot.designWeeklyLabel
+        usageData.creditsUsed = snapshot.creditsUsed
+        usageData.creditsLimit = snapshot.creditsLimit
         usageData.lastUpdated = snapshot.lastUpdated
         rawDailyResetTime = snapshot.resetTime
         rawWeeklyResetTime = snapshot.weeklyResetTime
@@ -224,6 +226,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.email = data.email
         usageData.organizationName = data.organizationName
         usageData.planName = data.planName
+        usageData.creditsUsed = data.creditsUsed
+        usageData.creditsLimit = data.creditsLimit
         // With the Claude Code login, checkClaudeResets sets the count.
         if !isUsingClaudeCodeLogin {
             usageData.availableResets = data.availableResets
@@ -244,6 +248,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
                 designWeeklyResetTime: data.designWeeklyResetTime,
                 sonnetWeeklyLabel: data.sonnetWeeklyLabel,
                 designWeeklyLabel: data.designWeeklyLabel,
+                creditsUsed: data.creditsUsed,
+                creditsLimit: data.creditsLimit,
                 lastUpdated: usageData.lastUpdated
             ),
             for: provider.id
@@ -447,7 +453,9 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             email: dict["email"] as? String,
             organizationName: dict["orgName"] as? String,
             planName: dict["planName"] as? String,
-            availableResets: dict["availableResets"] as? Int
+            availableResets: dict["availableResets"] as? Int,
+            creditsUsed: dict["creditsUsed"] as? Double,
+            creditsLimit: dict["creditsLimit"] as? Double
         )
         applyScrapedData(data)
     }
@@ -470,6 +478,8 @@ private struct ScrapedUsageData {
     let organizationName: String?
     let planName: String?
     let availableResets: Int?
+    let creditsUsed: Double?
+    let creditsLimit: Double?
 }
 
 // MARK: - Cache Maintenance

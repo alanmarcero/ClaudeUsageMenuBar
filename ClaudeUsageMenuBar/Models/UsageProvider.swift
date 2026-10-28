@@ -102,6 +102,8 @@ enum CodexScrapingScript {
         orgName: null,
         planName: null,
         availableResets: null,
+        creditsUsed: null,
+        creditsLimit: null,
         error: null,
         debug: ''
     };
@@ -215,6 +217,27 @@ enum CodexScrapingScript {
         }
         if (result.availableResets !== null) logs.push(`Available resets: ${result.availableResets}`);
 
+        // The usage API reports the credit limit. It needs the session's access token.
+        const readCredits = async () => {
+            try {
+                const session = await (await fetch('/api/auth/session')).json();
+                if (!session.accessToken) return 'no access token';
+                const headers = { Authorization: `Bearer ${session.accessToken}` };
+                if (session.account?.id) headers['ChatGPT-Account-Id'] = session.account.id;
+                const response = await fetch('/backend-api/wham/usage', { headers });
+                if (!response.ok) return `HTTP ${response.status}`;
+                const limit = (await response.json()).spend_control?.individual_limit;
+                if (limit?.unit !== 'credit') return 'no credit limit';
+                result.creditsUsed = Number(limit.used);
+                result.creditsLimit = Number(limit.limit);
+                return 'ok';
+            } catch (e) {
+                return 'error: ' + e.message;
+            }
+        };
+        const creditsStatus = await readCredits();
+        logs.push(`Credits: ${creditsStatus}`);
+
         const emailMatch = bodyText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/i);
         if (emailMatch) result.email = emailMatch[0];
         const planMatch = bodyText.match(/\\b(Plus|Pro|Team|Enterprise|Business|Free)\\b/);
@@ -232,6 +255,8 @@ enum CodexScrapingScript {
             email: result.email,
             planName: result.planName,
             availableResets: result.availableResets,
+            creditsUsed: result.creditsUsed,
+            creditsLimit: result.creditsLimit,
             sawLoadError,
             pageSettled: pageSettled(),
             progressbarCount: progressbars.length,
