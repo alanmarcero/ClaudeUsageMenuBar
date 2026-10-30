@@ -348,9 +348,12 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         }
     }
 
+    // With the Claude Code login, the web view loads only to count resets. claude.ai can
+    // finish a second navigation to its login page after that check ends. Ignore it, or
+    // the logged-out path clears the Daily usage the API already filled.
     private func handleNavigationFailure(_ message: String) {
-        guard !isCheckingClaudeResets else {
-            finishClaudeResetsCheck(nil)
+        guard !isUsingClaudeCodeLogin else {
+            if isCheckingClaudeResets { finishClaudeResetsCheck(nil) }
             return
         }
         setError(message)
@@ -359,8 +362,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private func handleNavigationFinished(webView: WKWebView) {
         guard let url = webView.url else { return }
 
-        if isCheckingClaudeResets {
-            handleResetsCheckNavigation(webView: webView, url: url)
+        if isUsingClaudeCodeLogin {
+            if isCheckingClaudeResets { handleResetsCheckNavigation(webView: webView, url: url) }
             return
         }
         let urlString = url.absoluteString.lowercased()

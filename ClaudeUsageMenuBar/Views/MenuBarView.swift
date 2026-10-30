@@ -90,6 +90,7 @@ struct MenuBarView: View {
                 .disabled(!updateService.canCheckForUpdates)
             Divider()
             Button("Show Debug Info") { DebugWindow.show(text: providers.combinedDebugInfo) }
+            Button("Copy Debug Info") { ClipboardHelper(text: providers.combinedDebugInfo).copyToClipboard() }
             Button("Clear Cache") { providers.services.forEach { $0.clearCache() } }
             Divider()
             Button("About \(appVersionLabel)") { AboutWindow.show() }
