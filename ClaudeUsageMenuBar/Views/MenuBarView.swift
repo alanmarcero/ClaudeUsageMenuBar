@@ -462,7 +462,7 @@ struct AboutView: View {
                     .foregroundColor(.secondary)
             }
 
-            Text("A macOS menu bar app that shows your AI usage at a glance. Track Claude and OpenAI Codex limits, reset countdowns, plan details, and refresh status without leaving the menu bar.")
+            Text("A macOS menu bar app that shows your Claude and OpenAI Codex usage limits, reset countdowns and plan.")
                 .font(.callout)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

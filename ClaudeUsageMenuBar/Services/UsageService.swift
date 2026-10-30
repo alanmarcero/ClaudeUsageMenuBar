@@ -209,7 +209,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         // after an explicit logout / cache clear.
         UsageCache.clear(for: provider.id)
         setLoggedOut()
-        usageData.errorMessage = "Logged out. Click 'Open Usage Page / Login' to sign in."
+        usageData.errorMessage = "Logged out. Click the person icon next to \(provider.displayName) to sign in."
     }
 
     private func applyScrapedData(_ data: ScrapedUsageData) {
@@ -371,7 +371,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         if provider.loginPaths.contains(where: { urlString.contains($0) }) {
             debugInfo = navigationDiagnostic(state: "loginPage", url: urlString)
             setLoggedOut()
-            setError("Please log in via 'Open \(provider.displayName) / Login'")
+            setError("Click the person icon next to \(provider.displayName) to log in.")
             return
         }
 

@@ -1,15 +1,15 @@
 # Claude Usage Menu Bar
 
-A macOS menu bar app that shows your AI usage at a glance. It tracks both **Claude** (claude.ai) and **OpenAI Codex** (chatgpt.com).
+A macOS menu bar app that shows your **Claude** (claude.ai) and **OpenAI Codex** (chatgpt.com) usage limits.
 
 ## What it shows
 
-- Your current usage percentage right in the menu bar — hover the icon for a quick summary of every provider
+- Your current usage percentage in the menu bar. Hover over the icon for a summary of each provider.
 - A dropdown with each provider's daily and weekly limits, reset countdowns, plan, and when it last refreshed
-- Color coding so you can see at a glance how close you are (green / orange / red, with a warning icon once you cross the red threshold)
-- A picker to choose which provider's percentage appears in the menu bar
+- Green, orange and red colors that show how close you are to a limit, with a warning icon above the red threshold
+- Provider buttons at the top of the dropdown that choose which percentage appears in the menu bar
 
-It remembers your last reading, so your usage appears immediately on launch instead of a dash, and it flags when the data is stale.
+It saves your last reading, so your usage shows on launch instead of a dash. The last-updated time turns orange when the data is stale.
 
 ## Install
 
@@ -17,32 +17,34 @@ It remembers your last reading, so your usage appears immediately on launch inst
 2. Unzip it and drag **ClaudeUsageMenuBar.app** into your **Applications** folder.
 3. Open it. A CPU icon appears in your menu bar.
 
-The first time you open it, macOS may warn that it's from an unidentified developer. If so, open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**.
+The first time you open it, macOS may warn that it's from an unidentified developer. If so, open **System Settings > Privacy & Security**, scroll down, and click **Open Anyway**.
 
 ## Logging in
 
-Click the menu bar icon and choose **Open Claude / Login** (and **Open Codex / Login** if you use Codex). Sign in to each site once, and your usage shows up automatically. The two logins are independent, so signing out of one leaves the other alone.
+If Claude Code is signed in on your Mac, the app reads Claude usage with that login, and you do not need to sign in to Claude in the app.
 
-Use the **Menu bar** picker in the dropdown to choose which provider's percentage is shown in the menu bar.
+Otherwise, click the menu bar icon, then click the person icon next to Claude or Codex. Sign in to each site once. The two logins are separate, so signing out of one does not sign out the other.
+
+Click a provider button at the top of the dropdown to show that provider's percentage in the menu bar.
 
 ## Settings
 
-Click **Settings…** in the dropdown to customize the color thresholds — the percentages at which the bars and numbers turn orange and red (defaults: orange at 55%, red at 85%).
+Click **Settings…** in the dropdown to change the percentages at which the bars and numbers turn orange and red. The defaults are orange at 55% and red at 85%.
 
 ## Updating
 
-The app updates itself through Sparkle. Click **Check for Updates...** in the dropdown, and if a newer version is available it will download and install it. There's no background nagging; it only checks when you ask.
+The app updates itself through Sparkle. Click **Check for Updates...** in the dropdown, and if a newer version is available, it downloads and installs it. The app checks only when you ask.
 
 ## If the icon disappears on its own
 
-When your disk gets close to full, macOS reclaims space by asking `cache_delete` to purge app caches — and it kills an app before purging that app's cache. It only does this to apps it considers non-interactive, which is exactly what a menu bar app is, so this app gets terminated while windowed apps are left alone. There's no crash report, because it isn't crashing. In the system log it looks like this:
+When your disk gets close to full, macOS reclaims space by asking `cache_delete` to purge app caches, and it kills an app before it purges that app's cache. It does this only to apps it considers non-interactive. A menu bar app is one, so macOS stops this app and leaves windowed apps running. There's no crash report, because it isn't crashing. In the system log it looks like this:
 
 ```
 runningboardd: Received termination request from [osservice<com.apple.cache_delete>]
   code:0xBADDD15C explanation:CacheDeleteAppContainerCaches requesting termination assertion
 ```
 
-The app keeps its own cache small so it's a less attractive target: it purges WebKit's response cache when it starts and hourly after that, leaving your login alone. On one machine that cut the container from 880 MB to under 50 MB. If it does get killed anyway, reopening it from Applications is the fix — it'll purge on launch and pick up where it left off.
+The app keeps its cache small so macOS is less likely to pick it. It purges WebKit's response cache at launch and every hour after that, and keeps your login. On one machine that cut the container from 880 MB to under 50 MB. If macOS stops it anyway, open it again from Applications. It purges the cache at launch and shows your last reading.
 
 > Versions 1.4.0 and 1.4.1 shipped an optional relaunch watchdog, since dropped. If you installed it, remove it with:
 > ```bash
@@ -56,7 +58,7 @@ Quit the app and drag **ClaudeUsageMenuBar.app** from Applications to the Trash.
 
 ## Building from source
 
-If you'd rather build it yourself, you need macOS 13+ and Xcode 14+:
+To build it yourself, you need macOS 13+ and Xcode 14+:
 
 ```bash
 ./install.sh

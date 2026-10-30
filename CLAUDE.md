@@ -440,7 +440,7 @@ pgrep -x ClaudeUsageMenuBar && echo "App is running"
 
 1. App launches as menu bar accessory (no Dock icon due to `LSUIElement=true`)
 2. User clicks menu bar icon (CPU icon with "--" percentage)
-3. Clicks "Open Usage Page / Login"
+3. Clicks the person icon ("Log in to Claude")
 4. Web view window opens to `https://claude.ai/settings/usage`
 5. User logs in via OAuth (Google, Microsoft, Apple, etc.)
 6. `WebViewCoordinator` detects successful login, triggers refresh
