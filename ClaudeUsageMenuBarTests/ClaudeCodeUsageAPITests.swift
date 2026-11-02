@@ -12,7 +12,9 @@ final class ClaudeCodeUsageAPITests: XCTestCase {
         {"kind": "session", "percent": 5, "resets_at": "2026-10-21T18:10:00.219432+00:00", "scope": null},
         {"kind": "weekly_all", "percent": 14.4, "resets_at": "2026-10-25T07:00:00.219453+00:00", "scope": null},
         {"kind": "weekly_scoped", "percent": 0, "resets_at": "2026-10-25T07:00:00+00:00",
-         "scope": {"model": {"id": null, "display_name": "Fable"}, "surface": null}}
+         "scope": {"model": {"id": null, "display_name": "Fable"}, "surface": null}},
+        {"kind": "weekly_scoped", "percent": 30, "resets_at": "2026-10-25T07:00:00+00:00",
+         "scope": {"model": {"id": null, "display_name": "Sonnet"}, "surface": null}}
       ]
     }
     """
@@ -53,12 +55,12 @@ final class ClaudeCodeUsageAPITests: XCTestCase {
         XCTAssertEqual(result["resetTime"] as? String, "Resets Oct 21, 2026 2:10 PM")
         XCTAssertEqual(result["weeklyPercentage"] as? Int, 14)
         XCTAssertEqual(result["weeklyResetTime"] as? String, "Resets Oct 25, 2026 3:00 AM")
-        XCTAssertEqual(result["sonnetWeeklyPercentage"] as? Int, 0)
-        XCTAssertEqual(result["sonnetWeeklyLabel"] as? String, "Fable")
+        XCTAssertEqual(result["sonnetWeeklyPercentage"] as? Int, 30)
+        XCTAssertEqual(result["sonnetWeeklyLabel"] as? String, "Sonnet")
         XCTAssertEqual(result["planName"] as? String, "Team")
     }
 
-    func testUsageResultWithOneScopedLimitLeavesSecondSlotEmpty() {
+    func testUsageResultDropsHiddenScopedLimitAndLeavesSecondSlotEmpty() {
         let result = ClaudeCodeUsageAPI.usageResult(from: Data(usageBody.utf8), httpStatus: 200, planName: nil, timeZone: eastern)
 
         XCTAssertNil(result["designWeeklyPercentage"] as? Int)

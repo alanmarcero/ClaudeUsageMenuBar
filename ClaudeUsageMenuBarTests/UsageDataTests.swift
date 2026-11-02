@@ -32,6 +32,23 @@ final class UsageDataTests: XCTestCase {
         XCTAssertEqual(data.displayPercentage, "100%")
     }
 
+    func testWeeklyLimitReachedMakesDailyFull() {
+        var data = UsageData()
+        data.percentage = 20
+        data.weeklyPercentage = 100
+        XCTAssertTrue(data.isWeeklyLimitReached)
+        XCTAssertEqual(data.dailyPercentage, 100)
+        XCTAssertEqual(data.displayPercentage, "100%")
+    }
+
+    func testWeeklyBelowLimitKeepsDaily() {
+        var data = UsageData()
+        data.percentage = 20
+        data.weeklyPercentage = 99
+        XCTAssertFalse(data.isWeeklyLimitReached)
+        XCTAssertEqual(data.dailyPercentage, 20)
+    }
+
     func testDefaultValues() {
         let data = UsageData()
         XCTAssertNil(data.percentage)

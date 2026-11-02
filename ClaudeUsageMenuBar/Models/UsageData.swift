@@ -25,8 +25,17 @@ struct UsageData {
     var isLoggedIn: Bool = false
     var errorMessage: String?
 
+    var isWeeklyLimitReached: Bool {
+        (weeklyPercentage ?? 0) >= 100
+    }
+
+    // The daily limit cannot be used once the weekly limit is spent, so it reads as full.
+    var dailyPercentage: Int? {
+        isWeeklyLimitReached ? 100 : percentage
+    }
+
     var displayPercentage: String {
-        guard let percentage = percentage ?? weeklyPercentage else { return "--" }
+        guard let percentage = dailyPercentage ?? weeklyPercentage else { return "--" }
         return "\(percentage)%"
     }
 

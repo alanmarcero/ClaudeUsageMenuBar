@@ -11,6 +11,7 @@ enum ClaudeCodeUsageAPI {
     static let keychainService = "Claude Code-credentials"
     static let requestTimeout: TimeInterval = 20
     static let expiredLoginMessage = "Claude Code's login has expired. Open Claude Code to renew it."
+    static let hiddenScopedLimits: Set<String> = ["Fable"]
 
     struct Login: Equatable {
         let accessToken: String
@@ -70,7 +71,8 @@ enum ClaudeCodeUsageAPI {
     }
 
     // Maps the response's "limits" rows: "session" is the 5-hour limit, "weekly_all" the
-    // weekly limit, and each "weekly_scoped" row a per-model weekly limit (e.g. Fable).
+    // weekly limit, and each "weekly_scoped" row a per-model weekly limit. Rows named in
+    // hiddenScopedLimits are dropped.
     static func usageResult(from data: Data, httpStatus: Int, planName: String?, timeZone: TimeZone = .current) -> [String: Any] {
         let debug: [String: Any] = [
             "source": "claudeCodeLogin",
@@ -91,11 +93,6 @@ enum ClaudeCodeUsageAPI {
         let limits = json["limits"] as? [[String: Any]] ?? []
         let session = limits.first { $0["kind"] as? String == "session" }
         let weekly = limits.first { $0["kind"] as? String == "weekly_all" }
-        let scoped = limits.filter { $0["kind"] as? String == "weekly_scoped" }
-        let firstScoped = scoped.first
-        let secondScoped = scoped.dropFirst().first
-        let hasUsage = session != nil || weekly != nil
-
         let percent = { (limit: [String: Any]?) in (limit?["percent"] as? Double).map { Int($0.rounded()) } }
         let reset = { (limit: [String: Any]?) in
             (limit?["resets_at"] as? String).flatMap { resetText(fromISODate: $0, timeZone: timeZone) }
@@ -106,6 +103,12 @@ enum ClaudeCodeUsageAPI {
             let surface = scope?["surface"] as? [String: Any]
             return model?["display_name"] as? String ?? surface?["display_name"] as? String ?? scope?["surface"] as? String
         }
+        let scoped = limits.filter {
+            $0["kind"] as? String == "weekly_scoped" && !hiddenScopedLimits.contains(scopeName($0) ?? "")
+        }
+        let firstScoped = scoped.first
+        let secondScoped = scoped.dropFirst().first
+        let hasUsage = session != nil || weekly != nil
 
         let fields: [String: Any] = [
             "success": hasUsage,
