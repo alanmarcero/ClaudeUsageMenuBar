@@ -175,6 +175,27 @@ final class UsageProviderTests: XCTestCase {
         """)
 
         XCTAssertEqual(result["availableResets"] as? Int, 2)
+        XCTAssertEqual(UsageReset.list(from: result["resets"]), [
+            UsageReset(title: "Full reset", expires: "Oct 22 at 5:12 PM EDT"),
+            UsageReset(title: "Weekly reset", expires: "Oct 29 at 5:12 PM EDT")
+        ])
+    }
+
+    @MainActor
+    func testCodexReadsResetDetailsFromNestedRowSpans() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div><span>Weekly limit</span><span>Resets in 6d 2h</span><span>22% left</span></div>
+        <div>Usage limit resets</div>
+        <ul>
+          <li><div><span>Full reset</span><span>Expires Nov 10, 3:00 PM EST</span></div><button><span>Use reset</span></button></li>
+          <li><div><span>Usage reset</span><span>Expires Nov 17, 3:00 PM EST</span></div><button><span>Use reset</span></button></li>
+        </ul>
+        """)
+
+        XCTAssertEqual(UsageReset.list(from: result["resets"]), [
+            UsageReset(title: "Full reset", expires: "Nov 10, 3:00 PM EST"),
+            UsageReset(title: "Usage reset", expires: "Nov 17, 3:00 PM EST")
+        ])
     }
 
     @MainActor
@@ -220,6 +241,21 @@ final class UsageProviderTests: XCTestCase {
         """, script: ClaudeResetsScript.script)
 
         XCTAssertEqual(result["availableResets"] as? Int, 1)
+        XCTAssertEqual(UsageReset.list(from: result["resets"]), [UsageReset(title: nil, expires: nil)])
+    }
+
+    @MainActor
+    func testClaudeResetsReadsEachExpiration() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>Weekly limits</div>
+        <div><span>Weekly reset</span><span>Expires Nov 12</span><button>Reset for free</button></div>
+        <div><span>Weekly reset</span><span>Expires Nov 19</span><button>Reset for free</button></div>
+        """, script: ClaudeResetsScript.script)
+
+        XCTAssertEqual(UsageReset.list(from: result["resets"]), [
+            UsageReset(title: "Weekly reset", expires: "Nov 12"),
+            UsageReset(title: "Weekly reset", expires: "Nov 19")
+        ])
     }
 
     @MainActor

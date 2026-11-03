@@ -56,6 +56,27 @@ struct UsageProvider: Identifiable {
     static let all: [UsageProvider] = [.claude, .codex]
 }
 
+// MARK: - Reset Details JavaScript
+
+// The row of a reset button is its closest parent with "Expires" text and no other reset button.
+// The script that includes this must define normalizeText.
+enum ResetDetailsScript {
+    static let describeResets = """
+    const describeResets = (buttons) => buttons.map(button => {
+        let row = button.parentElement;
+        while (row && row !== document.body && !/Expires\\s/.test(row.textContent)) row = row.parentElement;
+        if (!row || row === document.body || buttons.some(other => other !== button && row.contains(other))) {
+            return { title: null, expires: null };
+        }
+        const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+        const parts = [];
+        while (walker.nextNode()) if (!button.contains(walker.currentNode)) parts.push(walker.currentNode.textContent);
+        const match = normalizeText(parts.join(' ')).match(/^(.*?)\\s*\\bExpires\\s+(.+)$/);
+        return { title: match?.[1] || null, expires: match?.[2] || null };
+    });
+    """
+}
+
 // MARK: - Claude Resets JavaScript Script
 
 // Counts the reset buttons on the claude.ai usage page, e.g. "Reset for free".
@@ -66,18 +87,22 @@ enum ClaudeResetsScript {
     const normalizeText = (v) => (v || '').replace(/\\s+/g, ' ').trim();
     const resetButtons = () => Array.from(document.querySelectorAll('button,[role="button"]'))
         .filter(el => resetButtonPattern.test(normalizeText(el.textContent)));
+    \(ResetDetailsScript.describeResets)
 
     let buttons = resetButtons();
     for (let i = 0; i < 40 && buttons.length === 0; i++) {
         await new Promise(r => setTimeout(r, 250));
         buttons = resetButtons();
     }
+    const resets = describeResets(buttons);
 
     return {
         availableResets: buttons.length,
+        resets,
         debug: JSON.stringify({
             availableResets: buttons.length,
             buttonTexts: buttons.map(el => normalizeText(el.textContent)),
+            resets,
             url: location.href
         })
     };
@@ -102,6 +127,7 @@ enum CodexScrapingScript {
         orgName: null,
         planName: null,
         availableResets: null,
+        resets: [],
         creditsUsed: null,
         creditsLimit: null,
         error: null,
@@ -113,6 +139,7 @@ enum CodexScrapingScript {
     const normalizeText = (v) => (v || '').replace(/\\s+/g, ' ').trim();
     // Apostrophe-agnostic: matches "couldn't"/"couldn’t"/"couldnt load your usage".
     const hasLoadError = (t) => /could.{0,3}t load your usage/i.test(t);
+    \(ResetDetailsScript.describeResets)
 
     const bodyTextNow = () => normalizeText(document.body.innerText || document.body.textContent || '');
 
@@ -216,6 +243,8 @@ enum CodexScrapingScript {
             result.availableResets = countAvailableResets();
         }
         if (result.availableResets !== null) logs.push(`Available resets: ${result.availableResets}`);
+        result.resets = describeResets(Array.from(document.querySelectorAll('button,[role="button"]'))
+            .filter(el => /^use reset$/i.test(normalizeText(el.textContent))));
 
         // The usage API reports the credit limit. It needs the session's access token.
         const readCredits = async () => {
@@ -259,6 +288,7 @@ enum CodexScrapingScript {
             email: result.email,
             planName: result.planName,
             availableResets: result.availableResets,
+            resets: result.resets,
             creditsUsed: result.creditsUsed,
             creditsLimit: result.creditsLimit,
             sawLoadError,

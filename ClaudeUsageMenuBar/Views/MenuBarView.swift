@@ -130,6 +130,9 @@ struct ProviderSection: View {
             }
             if let resets = service.usageData.availableResets {
                 resetsRow(resets)
+                ForEach(Array(service.usageData.resets.enumerated()), id: \.offset) { _, reset in
+                    resetDetailRow(reset)
+                }
             }
             if let used = service.usageData.creditsUsed, let limit = service.usageData.creditsLimit {
                 creditsRow(used: used, limit: limit)
@@ -238,6 +241,18 @@ struct ProviderSection: View {
                 UsageProgressBar(percentage: pct, colors: AppConfig.shared.gradientColors(for: pct))
             }
         }
+    }
+
+    private func resetDetailRow(_ reset: UsageReset) -> some View {
+        HStack(spacing: 6) {
+            Text(reset.title ?? "Reset")
+            Spacer()
+            if let expires = reset.expires {
+                Text("Expires \(expires)")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .font(.caption)
     }
 
     private func creditsRow(used: Double, limit: Double) -> some View {

@@ -124,6 +124,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         let dict = result as? [String: Any]
         let count = dict?["availableResets"] as? Int ?? 0
         usageData.availableResets = count > 0 ? count : nil
+        usageData.resets = UsageReset.list(from: dict?["resets"])
         debugInfo += "\n\nclaudeResets: \(dict?["debug"] as? String ?? "no usage page")"
     }
 
@@ -231,6 +232,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         // With the Claude Code login, checkClaudeResets sets the count.
         if !isUsingClaudeCodeLogin {
             usageData.availableResets = data.availableResets
+            usageData.resets = data.resets
         }
         usageData.lastUpdated = Date()
         usageData.isLoggedIn = true
@@ -457,6 +459,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             organizationName: dict["orgName"] as? String,
             planName: dict["planName"] as? String,
             availableResets: dict["availableResets"] as? Int,
+            resets: UsageReset.list(from: dict["resets"]),
             creditsUsed: dict["creditsUsed"] as? Double,
             creditsLimit: dict["creditsLimit"] as? Double
         )
@@ -481,6 +484,7 @@ private struct ScrapedUsageData {
     let organizationName: String?
     let planName: String?
     let availableResets: Int?
+    let resets: [UsageReset]
     let creditsUsed: Double?
     let creditsLimit: Double?
 }

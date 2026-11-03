@@ -1,5 +1,16 @@
 import Foundation
 
+struct UsageReset: Equatable {
+    let title: String?
+    let expires: String?
+
+    static func list(from value: Any?) -> [UsageReset] {
+        (value as? [[String: Any]] ?? []).map {
+            UsageReset(title: $0["title"] as? String, expires: $0["expires"] as? String)
+        }
+    }
+}
+
 struct UsageData {
     var percentage: Int?
     var resetTime: String?
@@ -19,6 +30,7 @@ struct UsageData {
     var organizationName: String?
     var planName: String?
     var availableResets: Int?
+    var resets: [UsageReset] = []
     var creditsUsed: Double?
     var creditsLimit: Double?
     var lastUpdated: Date?
