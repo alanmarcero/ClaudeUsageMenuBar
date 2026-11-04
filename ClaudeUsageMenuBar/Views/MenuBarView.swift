@@ -15,7 +15,7 @@ struct MenuBarView: View {
             Divider()
             footer
         }
-        .frame(width: 280)
+        .frame(width: 360)
         .background(Color(NSColor.windowBackgroundColor))
     }
 
@@ -121,7 +121,9 @@ struct ProviderSection: View {
             if service.provider.id != UsageProvider.codex.id || service.usageData.hasDailyLimit {
                 usageRow(service.provider.primaryLabel, service.usageData.dailyPercentage, service.usageData.isWeeklyLimitReached && service.usageData.weeklyBlocksPrimary ? nil : service.dailyResetCountdown)
             }
-            usageRow(service.provider.secondaryLabel, service.usageData.weeklyPercentage, service.weeklyResetCountdown)
+            if let secondaryLabel = service.provider.secondaryLabel {
+                usageRow(secondaryLabel, service.usageData.weeklyPercentage, service.weeklyResetCountdown)
+            }
             if service.usageData.sonnetWeeklyPercentage != nil {
                 usageRow(service.usageData.sonnetWeeklyLabel ?? "Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
             }
@@ -477,7 +479,7 @@ struct AboutView: View {
                     .foregroundColor(.secondary)
             }
 
-            Text("A macOS menu bar app that shows your Claude, OpenAI Codex and Cursor usage limits, reset countdowns and plan.")
+            Text("A macOS menu bar app that shows your Claude, OpenAI Codex, Cursor and Grok Bot usage limits, reset countdowns and plan.")
                 .font(.callout)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

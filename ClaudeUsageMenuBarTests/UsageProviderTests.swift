@@ -6,11 +6,11 @@ final class UsageProviderTests: XCTestCase {
 
     func testRegistryContainsClaudeAndCodex() {
         let ids = UsageProvider.all.map { $0.id }
-        XCTAssertEqual(ids, ["claude", "codex", "cursor"])
+        XCTAssertEqual(ids, ["claude", "codex", "cursor", "grokbot"])
     }
 
     func testEachProviderHasNonEmptyScriptAndValidURL() {
-        XCTAssertEqual(UsageProvider.all.count, 3)
+        XCTAssertEqual(UsageProvider.all.count, 4)
         UsageProvider.all.forEach { provider in
             XCTAssertFalse(provider.scrapingScript.isEmpty, "\(provider.id) script empty")
             XCTAssertFalse(provider.usageURL.absoluteString.isEmpty, "\(provider.id) url empty")
@@ -62,6 +62,90 @@ final class UsageProviderTests: XCTestCase {
 
         data.weeklyBlocksPrimary = true
         XCTAssertEqual(data.dailyPercentage, 100)
+    }
+
+    func testGrokBotSharesCursorLoginAndHasOnlyAWeeklyRow() {
+        XCTAssertEqual(UsageProvider.grokBot.primaryHost, "cursor.com")
+        XCTAssertEqual(UsageProvider.grokBot.primaryLabel, "Weekly")
+        XCTAssertNil(UsageProvider.grokBot.secondaryLabel)
+        XCTAssertTrue(UsageProvider.grokBot.oauthHostSuffixes.contains("cursor.com"))
+        XCTAssertTrue(UsageProvider.grokBot.oauthHostSuffixes.contains("workos.com"))
+    }
+
+    @MainActor
+    func testGrokBotReadsWeeklyPoolFromSandUsageStatus() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>Grok Bot dashboard</div>
+        """, beforeScrape: """
+        window.fetch = async () => ({
+            ok: true, status: 200,
+            json: async () => ({
+                currentPeriodStart: '2026-09-11T18:43:19.645Z',
+                nextResetTimestampUtc: '2026-09-18T18:43:19.645Z',
+                usagePercent: 42,
+                hasAvailableUsage: true,
+                hasNonZeroIncludedLimit: true,
+                grokPlanLabel: 'Grok Bot Plan',
+                cursorPlanName: 'Pro'
+            })
+        })
+        """, script: GrokBotScrapingScript.script)
+
+        XCTAssertEqual(result["percentage"] as? Int, 42)
+        XCTAssertEqual(result["planName"] as? String, "Pro")
+        let reset = try XCTUnwrap(result["resetTime"] as? String)
+        XCTAssertTrue(reset.hasPrefix("Resets Sep "), reset)
+        XCTAssertTrue(reset.contains("2026"), reset)
+        XCTAssertEqual(result["success"] as? Bool, true)
+    }
+
+    @MainActor
+    func testGrokBotAcceptsSnakeCaseSandFields() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>Grok Bot dashboard</div>
+        """, beforeScrape: """
+        window.fetch = async () => ({
+            ok: true, status: 200,
+            json: async () => ({
+                usage_percent: 7,
+                next_reset_timestamp_utc: '2026-09-18T18:43:19.645Z',
+                has_non_zero_included_limit: true,
+                grok_plan_label: 'Grok Bot Plan'
+            })
+        })
+        """, script: GrokBotScrapingScript.script)
+
+        XCTAssertEqual(result["percentage"] as? Int, 7)
+        XCTAssertEqual(result["planName"] as? String, "Grok Bot Plan")
+        XCTAssertEqual(result["success"] as? Bool, true)
+    }
+
+    @MainActor
+    func testGrokBotWithoutIncludedPoolReportsNotIncludedNotZero() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>Grok Bot dashboard</div>
+        """, beforeScrape: """
+        window.fetch = async () => ({
+            ok: true, status: 200,
+            json: async () => ({ usagePercent: 0, hasNonZeroIncludedLimit: false, includedLimitZero: true })
+        })
+        """, script: GrokBotScrapingScript.script)
+
+        XCTAssertEqual(result["success"] as? Bool, false)
+        XCTAssertEqual(result["error"] as? String, "Your plan does not include Grok Bot usage.")
+        XCTAssertTrue(result["percentage"] is NSNull)
+    }
+
+    @MainActor
+    func testGrokBotUnauthenticatedSandStatusAsksForLogin() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>Grok Bot dashboard</div>
+        """, beforeScrape: """
+        window.fetch = async () => ({ ok: false, status: 401, json: async () => ({}) })
+        """, script: GrokBotScrapingScript.script)
+
+        XCTAssertEqual(result["success"] as? Bool, false)
+        XCTAssertEqual(result["error"] as? String, "Click the person icon next to Grok Bot to log in.")
     }
 
     @MainActor

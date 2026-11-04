@@ -16,7 +16,7 @@ struct UsageProvider: Identifiable {
     let scrapingScript: String
     let readsClaudeCodeLogin: Bool // prefer Claude Code's saved login over the web page
     let primaryLabel: String       // row title for the primary (percentage) limit
-    let secondaryLabel: String     // row title for the secondary (weeklyPercentage) limit
+    let secondaryLabel: String?    // row title for the secondary limit; nil hides that row
     let weeklyBlocksPrimary: Bool  // a spent secondary limit also blocks the primary one
 
     static let sharedSSOHosts = [
@@ -81,7 +81,26 @@ struct UsageProvider: Identifiable {
         weeklyBlocksPrimary: false
     )
 
-    static let all: [UsageProvider] = [.claude, .codex, .cursor]
+    // Grok Bot is Cursor's bot product ("Sand" on the wire): its weekly pool is
+    // metered on the Cursor account, so it shares the Cursor login and session.
+    static let grokBot = UsageProvider(
+        id: "grokbot",
+        displayName: "Grok Bot",
+        menuGlyph: "sparkles",
+        primaryHost: "cursor.com",
+        usageURL: URL(string: "https://cursor.com/dashboard/bot")!,
+        usagePathFragment: "/dashboard/bot",
+        loginPaths: ["/login", "/signin", "/auth"],
+        oauthHostSuffixes: ["cursor.com", "cursor.sh", "workos.com", "github.com"] + sharedSSOHosts,
+        dataRecordTokens: ["cursor"],
+        scrapingScript: GrokBotScrapingScript.script,
+        readsClaudeCodeLogin: false,
+        primaryLabel: "Weekly",
+        secondaryLabel: nil,
+        weeklyBlocksPrimary: false
+    )
+
+    static let all: [UsageProvider] = [.claude, .codex, .cursor, .grokBot]
 }
 
 // MARK: - Reset Details JavaScript
@@ -490,6 +509,126 @@ enum CursorScrapingScript {
         result.success = result.percentage !== null || result.weeklyPercentage !== null || result.sonnetWeeklyPercentage !== null;
         if (!result.success && !result.error) {
             result.error = 'No Cursor usage parsed yet. See bodyTextSnippet in debug.';
+        }
+    } catch (e) {
+        result.error = 'Script error: ' + e.message;
+        result.debug += '\\nException: ' + e.stack;
+    }
+
+    return result;
+    """
+}
+
+// MARK: - Grok Bot JavaScript Scraping Script
+
+// Grok Bot ("Sand") usage is metered on the Cursor account. The dashboard's
+// POST /api/dashboard/get-sand-usage-status reports the weekly included pool:
+// usagePercent used, nextResetTimestampUtc, and flags that say whether the
+// plan includes a pool at all — an account without one also answers 0%, so
+// hasNonZeroIncludedLimit must be checked before trusting the percentage.
+// Keys arrive camelCase; the proto (snake_case) spellings are accepted too.
+enum GrokBotScrapingScript {
+    static let script = """
+    const result = {
+        success: false,
+        percentage: null,
+        resetTime: null,
+        weeklyPercentage: null,
+        weeklyResetTime: null,
+        sonnetWeeklyPercentage: null,
+        sonnetWeeklyResetTime: null,
+        designWeeklyPercentage: null,
+        designWeeklyResetTime: null,
+        sonnetWeeklyLabel: null,
+        designWeeklyLabel: null,
+        email: null,
+        orgName: null,
+        planName: null,
+        availableResets: null,
+        resets: [],
+        creditsUsed: null,
+        creditsLimit: null,
+        error: null,
+        debug: ''
+    };
+
+    const logs = [];
+    const normalizeText = (v) => (v || '').replace(/\\s+/g, ' ').trim();
+    const pick = (obj, camel, snake) => obj?.[camel] ?? obj?.[snake];
+    const roundPct = (v) => {
+        const n = Number(v);
+        return v === null || v === undefined || !Number.isFinite(n) ? null : Math.round(n);
+    };
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const formatReset = (value) => {
+        if (value === null || value === undefined || value === '') return null;
+        const date = new Date(typeof value === 'string' && /^\\d+$/.test(value) ? Number(value) : value);
+        if (isNaN(date.getTime())) return null;
+        let hour = date.getHours();
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        hour = hour % 12 || 12;
+        const minute = String(date.getMinutes()).padStart(2, '0');
+        return `Resets ${monthNames[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} ${hour}:${minute} ${ampm}`;
+    };
+
+    const readSandUsageStatus = async () => {
+        try {
+            const response = await fetch('/api/dashboard/get-sand-usage-status', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: '{}'
+            });
+            if (response.status === 401 || response.status === 403) return { status: 'unauthenticated' };
+            if (!response.ok) return { status: `HTTP ${response.status}` };
+            return { status: 'ok', data: await response.json() };
+        } catch (e) {
+            return { status: 'error: ' + e.message };
+        }
+    };
+
+    try {
+        const sand = await readSandUsageStatus();
+        logs.push(`get-sand-usage-status: ${sand.status}`);
+
+        if (sand.status === 'unauthenticated') {
+            result.error = 'Click the person icon next to Grok Bot to log in.';
+        } else if (sand.data) {
+            const data = sand.data;
+            const usagePercent = roundPct(pick(data, 'usagePercent', 'usage_percent'));
+            const hasLimit = pick(data, 'hasNonZeroIncludedLimit', 'has_non_zero_included_limit');
+            const limitZero = pick(data, 'includedLimitZero', 'included_limit_zero');
+            if (hasLimit === false || limitZero === true) {
+                result.error = 'Your plan does not include Grok Bot usage.';
+            } else if (usagePercent !== null) {
+                result.percentage = usagePercent;
+                result.resetTime = formatReset(pick(data, 'nextResetTimestampUtc', 'next_reset_timestamp_utc'));
+                result.planName = pick(data, 'cursorPlanName', 'cursor_plan_name')
+                    ?? pick(data, 'grokPlanLabel', 'grok_plan_label')
+                    ?? null;
+            }
+            logs.push(`usagePercent=${usagePercent}, hasNonZeroIncludedLimit=${hasLimit}, includedLimitZero=${limitZero}`);
+        }
+
+        const bodyText = normalizeText(document.body?.innerText || document.body?.textContent || '');
+        const emailMatch = bodyText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/i);
+        if (emailMatch) result.email = emailMatch[0];
+
+        result.debug = JSON.stringify({
+            percentage: result.percentage,
+            resetTime: result.resetTime,
+            planName: result.planName,
+            email: result.email,
+            sandStatus: sand.status,
+            logs,
+            bodyTextSnippet: bodyText.substring(0, 2000),
+            url: location.href
+        }, null, 2);
+
+        result.success = result.percentage !== null;
+        if (!result.success && !result.error) {
+            result.error = 'No Grok Bot usage parsed yet. See bodyTextSnippet in debug.';
         }
     } catch (e) {
         result.error = 'Script error: ' + e.message;
