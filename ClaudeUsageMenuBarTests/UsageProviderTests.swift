@@ -113,6 +113,54 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testGrokBotIsAMenuBarMetricButHasNoTopSelector() {
+        let container = UsageProviders(providers: [.claude, .cursor, .grokBot], defaults: makeSuiteDefaults().defaults)
+        let cursor = container.services.first { $0.provider.id == "cursor" }!
+        let grok = container.services.first { $0.provider.id == "grokbot" }!
+        cursor.usageData.percentage = 10
+        grok.usageData.percentage = 55
+
+        // No Grok Bot chip at the top, and no separate section while Cursor shows.
+        XCTAssertEqual(container.selectorServices.map { $0.provider.id }, ["claude", "cursor"])
+        XCTAssertEqual(container.sectionServices.map { $0.provider.id }, ["claude", "cursor"])
+
+        container.setCursorMenuBarMetric("grokbot")
+        XCTAssertEqual(container.menuBarDisplay(for: cursor), "55%")
+        XCTAssertEqual(container.selectedMenuBarProviderID, "cursor")
+    }
+
+    @MainActor
+    func testGrokBotSectionStandsAloneWhenCursorIsHidden() {
+        let container = UsageProviders(providers: [.claude, .cursor, .grokBot], defaults: makeSuiteDefaults().defaults)
+        container.setProviderVisible(false, providerID: "cursor")
+        XCTAssertEqual(container.sectionServices.map { $0.provider.id }, ["claude", "grokbot"])
+    }
+
+    @MainActor
+    func testSavedGrokBotSelectionBecomesCursor() {
+        let (defaults, suite) = makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("grokbot", forKey: "menuBarProviderID")
+
+        let container = UsageProviders(providers: [.claude, .cursor, .grokBot], defaults: defaults)
+        XCTAssertEqual(container.selectedMenuBarProviderID, "cursor")
+        XCTAssertEqual(container.selectedService?.provider.id, "cursor")
+    }
+
+    @MainActor
+    func testHidingGrokBotFallsMenuBarMetricBackToIncluded() {
+        let container = UsageProviders(providers: [.claude, .cursor, .grokBot], defaults: makeSuiteDefaults().defaults)
+        let cursor = container.services.first { $0.provider.id == "cursor" }!
+        cursor.usageData.percentage = 10
+        container.setCursorMenuBarMetric("grokbot")
+
+        container.setProviderVisible(false, providerID: "grokbot")
+
+        XCTAssertEqual(container.cursorMenuBarMetricID, "included")
+        XCTAssertEqual(container.menuBarDisplay(for: cursor), "10%")
+    }
+
+    @MainActor
     func testMenuBarDisplayIgnoresCursorMetricForOtherProviders() {
         let container = UsageProviders(providers: [.claude, .cursor], defaults: makeSuiteDefaults().defaults)
         let claude = container.services.first { $0.provider.id == "claude" }!

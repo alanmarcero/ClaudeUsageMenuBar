@@ -31,7 +31,7 @@ Grok Bot shows its weekly included usage and when it resets. Grok Bot is metered
 
 Click a provider button at the top of the dropdown to show that provider's percentage in the menu bar.
 
-In the Cursor section, the square **Menu** button between the metrics chooses which Cursor metric (Included, Other Models, Cursor Models, or On-demand) the menu bar shows; picking one also switches the menu bar to Cursor.
+In the Cursor section, the square **Menu** button between the metrics chooses which Cursor metric (Included, Other Models, Cursor Models, On-demand, or Grok Bot) the menu bar shows; picking one also switches the menu bar to Cursor. Grok Bot is part of Cursor overall: its weekly usage is a row in the Cursor section, and it has no separate button at the top.
 
 To hide a platform you do not use, open the **…** menu in the dropdown and turn it off under **Platforms**. Hidden platforms leave the dropdown and pause refreshing, but keep their login, so turning one back on picks up right where it left off. At least one platform always stays on.
 

@@ -8,9 +8,13 @@ struct MenuBarView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            ForEach(providers.visibleServices, id: \.provider.id) { service in
+            ForEach(providers.sectionServices, id: \.provider.id) { service in
                 Divider().padding(.horizontal, 16)
-                ProviderSection(service: service)
+                ProviderSection(
+                    service: service,
+                    grokBotService: service.provider.id == UsageProvider.cursor.id && providers.isVisible(UsageProvider.grokBot.id)
+                        ? providers.grokBotService : nil
+                )
             }
             Divider()
             footer
@@ -30,7 +34,7 @@ struct MenuBarView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
             Spacer()
-            ForEach(providers.visibleServices, id: \.provider.id) { service in
+            ForEach(providers.selectorServices, id: \.provider.id) { service in
                 let isSelected = providers.selectedMenuBarProviderID == service.provider.id
                 Button {
                     providers.selectedMenuBarProviderID = service.provider.id
@@ -126,6 +130,7 @@ struct MenuBarView: View {
 
 struct ProviderSection: View {
     @ObservedObject var service: UsageService
+    var grokBotService: UsageService? = nil
     @EnvironmentObject var providers: UsageProviders
     @EnvironmentObject var windowManager: WindowManager
 
@@ -147,6 +152,9 @@ struct ProviderSection: View {
             }
             if service.usageData.designWeeklyPercentage != nil {
                 usageRow(service.usageData.designWeeklyLabel ?? "Weekly (Design)", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
+            }
+            if let grokBotService {
+                GrokBotMetricRow(service: grokBotService)
             }
             if let resets = service.usageData.availableResets {
                 resetsRow(resets)
@@ -189,7 +197,7 @@ struct ProviderSection: View {
         HStack {
             Spacer()
             Menu {
-                ForEach(UsageProviders.cursorMetricOptions, id: \.id) { option in
+                ForEach(UsageProviders.cursorMetricOptions.filter { $0.id != "grokbot" || providers.isVisible(UsageProvider.grokBot.id) }, id: \.id) { option in
                     Button {
                         providers.setCursorMenuBarMetric(option.id)
                     } label: {
@@ -351,6 +359,51 @@ struct ProviderSection: View {
             if resets > 0 {
                 Button("Open Reset UI", action: openUsageWindow)
                     .controlSize(.small)
+            }
+        }
+    }
+}
+
+// Grok Bot has no section of its own while Cursor is visible: it is one of
+// Cursor's metrics, shown as a row inside the Cursor section.
+struct GrokBotMetricRow: View {
+    @ObservedObject var service: UsageService
+
+    var body: some View {
+        if let percentage = service.usageData.percentage {
+            VStack(spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("Grok Bot")
+                        .font(.subheadline)
+                    if let reset = service.dailyResetCountdown {
+                        Text("resets in \(reset)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    if percentage >= AppConfig.shared.redThreshold {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .help("Usage is high")
+                    }
+                    Text("\(percentage)%")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundColor(AppConfig.shared.colorForPercentage(percentage))
+                }
+                UsageProgressBar(percentage: percentage, colors: AppConfig.shared.gradientColors(for: percentage))
+            }
+        } else if let error = service.usageData.errorMessage {
+            HStack(alignment: .top, spacing: 6) {
+                Text("Grok Bot")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
             }
         }
     }

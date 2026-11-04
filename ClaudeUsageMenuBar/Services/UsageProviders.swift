@@ -19,7 +19,8 @@ final class UsageProviders: ObservableObject {
         ("included", "Included"),
         ("other", "Other Models"),
         ("cursor", "Cursor Models"),
-        ("ondemand", "On-demand")
+        ("ondemand", "On-demand"),
+        ("grokbot", "Grok Bot")
     ]
 
     // Which provider's percentage is shown in the menu bar. Persisted so it sticks
@@ -58,6 +59,13 @@ final class UsageProviders: ObservableObject {
             ? (savedMetric ?? "included") : "included"
 
         services.forEach { $0.isRefreshPaused = hidden.contains($0.provider.id) }
+        // Grok Bot is combined into Cursor overall: it is no longer a top-level
+        // menu-bar selection, so a saved Grok Bot selection becomes Cursor.
+        if selectedMenuBarProviderID == UsageProvider.grokBot.id,
+           providers.contains(where: { $0.id == UsageProvider.cursor.id }) {
+            selectedMenuBarProviderID = UsageProvider.cursor.id
+            defaults.set(selectedMenuBarProviderID, forKey: Self.selectionKey)
+        }
         if hidden.contains(selectedMenuBarProviderID),
            let firstVisible = services.first(where: { !hidden.contains($0.provider.id) }) {
             selectedMenuBarProviderID = firstVisible.provider.id
@@ -73,6 +81,25 @@ final class UsageProviders: ObservableObject {
 
     var visibleServices: [UsageService] {
         services.filter { !hiddenProviderIDs.contains($0.provider.id) }
+    }
+
+    // Top-of-menu selector chips. Grok Bot has no chip: it is part of Cursor.
+    var selectorServices: [UsageService] {
+        visibleServices.filter { $0.provider.id != UsageProvider.grokBot.id }
+    }
+
+    // Sections the popover renders. While Cursor is visible, Grok Bot folds
+    // into its section instead of getting its own; if Cursor is hidden, the
+    // Grok Bot section stands alone so its data stays reachable.
+    var sectionServices: [UsageService] {
+        let grokFoldedIntoCursor = isVisible(UsageProvider.cursor.id)
+        return visibleServices.filter {
+            !($0.provider.id == UsageProvider.grokBot.id && grokFoldedIntoCursor)
+        }
+    }
+
+    var grokBotService: UsageService? {
+        services.first { $0.provider.id == UsageProvider.grokBot.id }
     }
 
     func isVisible(_ providerID: String) -> Bool {
@@ -95,6 +122,10 @@ final class UsageProviders: ObservableObject {
         hiddenProviderIDs.insert(providerID)
         persistHidden()
         service.isRefreshPaused = true
+        if providerID == UsageProvider.grokBot.id && cursorMenuBarMetricID == "grokbot" {
+            cursorMenuBarMetricID = "included"
+            defaults.set(cursorMenuBarMetricID, forKey: Self.cursorMetricKey)
+        }
         if selectedMenuBarProviderID == providerID {
             selectedMenuBarProviderID = visibleServices.first?.provider.id ?? providerID
         }
@@ -123,6 +154,10 @@ final class UsageProviders: ObservableObject {
             return data.sonnetWeeklyPercentage.map { "\($0)%" } ?? "--"
         case "ondemand":
             return data.onDemandUsedDollars.map(OnDemandUsage.format) ?? "--"
+        case "grokbot":
+            guard isVisible(UsageProvider.grokBot.id),
+                  let grok = grokBotService?.usageData.percentage else { return data.displayPercentage }
+            return "\(grok)%"
         default:
             return data.displayPercentage
         }
