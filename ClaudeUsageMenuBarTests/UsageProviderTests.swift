@@ -6,11 +6,11 @@ final class UsageProviderTests: XCTestCase {
 
     func testRegistryContainsClaudeAndCodex() {
         let ids = UsageProvider.all.map { $0.id }
-        XCTAssertEqual(ids, ["claude", "codex"])
+        XCTAssertEqual(ids, ["claude", "codex", "cursor"])
     }
 
     func testEachProviderHasNonEmptyScriptAndValidURL() {
-        XCTAssertEqual(UsageProvider.all.count, 2)
+        XCTAssertEqual(UsageProvider.all.count, 3)
         UsageProvider.all.forEach { provider in
             XCTAssertFalse(provider.scrapingScript.isEmpty, "\(provider.id) script empty")
             XCTAssertFalse(provider.usageURL.absoluteString.isEmpty, "\(provider.id) url empty")
@@ -34,6 +34,93 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertTrue(hosts.contains("chatgpt.com"))
         XCTAssertTrue(hosts.contains("openai.com"))
         XCTAssertTrue(hosts.contains("apple.com"))
+    }
+
+    func testCursorOAuthHostsIncludeCursorAuthAndSharedSSO() {
+        let hosts = UsageProvider.cursor.oauthHostSuffixes
+        XCTAssertTrue(hosts.contains("cursor.com"))
+        XCTAssertTrue(hosts.contains("cursor.sh"))
+        XCTAssertTrue(hosts.contains("workos.com"))
+        XCTAssertTrue(hosts.contains("github.com"))
+        XCTAssertTrue(hosts.contains("google.com"))
+    }
+
+    func testCursorRowLabelsAndIndependentPools() {
+        XCTAssertEqual(UsageProvider.cursor.primaryLabel, "Included")
+        XCTAssertEqual(UsageProvider.cursor.secondaryLabel, "Other Models")
+        XCTAssertFalse(UsageProvider.cursor.weeklyBlocksPrimary)
+        XCTAssertTrue(UsageProvider.claude.weeklyBlocksPrimary)
+        XCTAssertTrue(UsageProvider.codex.weeklyBlocksPrimary)
+    }
+
+    func testCursorSpentSecondaryPoolDoesNotBlockPrimary() {
+        var data = UsageData()
+        data.percentage = 40
+        data.weeklyPercentage = 100
+        data.weeklyBlocksPrimary = false
+        XCTAssertEqual(data.dailyPercentage, 40)
+
+        data.weeklyBlocksPrimary = true
+        XCTAssertEqual(data.dailyPercentage, 100)
+    }
+
+    @MainActor
+    func testCursorReadsPoolsFromUsageSummaryAPI() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>Cursor dashboard</div>
+        """, beforeScrape: """
+        window.fetch = async () => ({
+            ok: true, status: 200,
+            json: async () => ({
+                billingCycleStart: '2026-08-18T08:09:13.000Z',
+                billingCycleEnd: '2026-09-18T08:09:13.000Z',
+                membershipType: 'pro',
+                individualUsage: { plan: {
+                    enabled: true, used: 1516, limit: 2000, remaining: 484,
+                    autoPercentUsed: 3.2977, apiPercentUsed: 0.7111, totalPercentUsed: 3.0626
+                }, onDemand: { enabled: false, used: 0, limit: null } }
+            })
+        })
+        """, script: CursorScrapingScript.script)
+
+        XCTAssertEqual(result["percentage"] as? Int, 76)
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 1)
+        XCTAssertEqual(result["sonnetWeeklyPercentage"] as? Int, 3)
+        XCTAssertEqual(result["sonnetWeeklyLabel"] as? String, "Cursor Models")
+        XCTAssertEqual(result["planName"] as? String, "Pro")
+        let reset = try XCTUnwrap(result["resetTime"] as? String)
+        XCTAssertTrue(reset.hasPrefix("Resets Sep "), reset)
+        XCTAssertTrue(reset.contains("2026"), reset)
+        XCTAssertEqual(result["weeklyResetTime"] as? String, reset)
+        XCTAssertEqual(result["sonnetWeeklyResetTime"] as? String, reset)
+        XCTAssertEqual(result["success"] as? Bool, true)
+    }
+
+    @MainActor
+    func testCursorFallsBackToSpendingPagePoolsWhenAPIHasNoPlan() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div><span>Cursor Models</span><span>16% used</span></div>
+        <div><span>Other Models</span><span>2% used</span></div>
+        """, beforeScrape: """
+        window.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) })
+        """, script: CursorScrapingScript.script)
+
+        XCTAssertEqual(result["sonnetWeeklyPercentage"] as? Int, 16)
+        XCTAssertEqual(result["sonnetWeeklyLabel"] as? String, "Cursor Models")
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 2)
+        XCTAssertEqual(result["success"] as? Bool, true)
+    }
+
+    @MainActor
+    func testCursorUnauthenticatedSummaryAsksForLogin() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>Cursor dashboard</div>
+        """, beforeScrape: """
+        window.fetch = async () => ({ ok: false, status: 401, json: async () => ({ error: 'not_authenticated' }) })
+        """, script: CursorScrapingScript.script)
+
+        XCTAssertEqual(result["success"] as? Bool, false)
+        XCTAssertEqual(result["error"] as? String, "Click the person icon next to Cursor to log in.")
     }
 
     @MainActor

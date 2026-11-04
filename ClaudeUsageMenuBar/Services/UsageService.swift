@@ -47,6 +47,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     init(provider: UsageProvider = .claude) {
         self.provider = provider
         super.init()
+        usageData.weeklyBlocksPrimary = provider.weeklyBlocksPrimary
         restoreCachedUsage()
         setupBackgroundWebView()
         startAutoRefresh()
@@ -200,6 +201,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
     private func resetToLoggedOut() {
         usageData = UsageData()
+        usageData.weeklyBlocksPrimary = provider.weeklyBlocksPrimary
         dailyResetCountdown = nil
         weeklyResetCountdown = nil
         sonnetWeeklyResetCountdown = nil
@@ -538,6 +540,12 @@ enum CacheMaintenance {
 enum DailyCountdownCalculator {
     static func calculate(from resetString: String?, currentDate: Date = Date()) -> String? {
         guard let resetString = resetString else { return nil }
+
+        // A reset that names a full date (Cursor's monthly billing-cycle end)
+        // counts down to that date, not to the next day at that clock time.
+        if WeeklyCountdownCalculator.extractAbsoluteDate(from: resetString) != nil {
+            return WeeklyCountdownCalculator.calculate(from: resetString, currentDate: currentDate)
+        }
 
         guard let (hour, minute) = WeeklyCountdownCalculator.extractTime(from: resetString) else {
             return stripResetPrefix(resetString)

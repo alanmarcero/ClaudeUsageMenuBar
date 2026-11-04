@@ -9,6 +9,10 @@ When Claude Code is signed in on the Mac, the Claude provider skips the web page
 - The `security` tool is used instead of `SecItemCopyMatching`: the item's access list trusts that tool, so no prompt shows, even after an update of this ad hoc signed app.
 - With no Claude Code login, the provider falls back to the web scraping described below.
 
+## Cursor Provider
+
+The Cursor provider (added in 2.0.0) loads `https://cursor.com/dashboard/spending` and its script (`CursorScrapingScript` in Models/UsageProvider.swift) calls `GET /api/usage-summary` same-origin from the signed-in page — the endpoint the dashboard itself uses. It maps `individualUsage.plan`: `used/limit` → Included (`percentage`), `apiPercentUsed` → Other Models (`weeklyPercentage`), `autoPercentUsed` → Cursor Models (`sonnetWeeklyPercentage`, full row title in `sonnetWeeklyLabel`). All three reset at `billingCycleEnd`, formatted as an absolute "Resets …" string that the weekly countdown parses; `DailyCountdownCalculator` delegates absolute dates to the weekly calculator for the primary row. Cursor's pools are independent, so the provider sets `weeklyBlocksPrimary: false` (see `UsageData.weeklyBlocksPrimary`). A 401 from the API shows the log-in prompt; if the API stops answering, the script falls back to scraping the Spending page's pool labels. `membershipType` becomes the plan name.
+
 ## Maintenance & Scraping Strategy
 
 The Claude.ai usage page is highly dynamic and frequently changes its DOM structure (tag names, class names, etc.). To handle this, the app uses a **label-centric** approach rather than a selector-centric one.

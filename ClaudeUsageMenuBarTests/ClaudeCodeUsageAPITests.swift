@@ -56,7 +56,7 @@ final class ClaudeCodeUsageAPITests: XCTestCase {
         XCTAssertEqual(result["weeklyPercentage"] as? Int, 14)
         XCTAssertEqual(result["weeklyResetTime"] as? String, "Resets Oct 25, 2026 3:00 AM")
         XCTAssertEqual(result["sonnetWeeklyPercentage"] as? Int, 30)
-        XCTAssertEqual(result["sonnetWeeklyLabel"] as? String, "Sonnet")
+        XCTAssertEqual(result["sonnetWeeklyLabel"] as? String, "Weekly (Sonnet)")
         XCTAssertEqual(result["planName"] as? String, "Team")
     }
 

@@ -46,6 +46,13 @@ final class DailyCountdownCalculatorTests: XCTestCase {
         XCTAssertEqual(DailyCountdownCalculator.calculate(from: "Resets 5 days", currentDate: now), "5 days")
     }
 
+    func testAbsoluteDateCountsDownToThatDateNotTomorrow() {
+        // Cursor's reset names the monthly billing-cycle end. Counting to the
+        // next day at that clock time would understate it by weeks.
+        let now = createTestDate(hour: 14, minute: 0)
+        XCTAssertEqual(DailyCountdownCalculator.calculate(from: "Resets Feb 2, 2025 9:55 PM", currentDate: now), "31d 7hr 55min")
+    }
+
     func testJustPastResetRollsToTomorrow() {
         let now = createTestDate(hour: 21, minute: 56)
         XCTAssertEqual(DailyCountdownCalculator.calculate(from: "Resets 9:55 PM", currentDate: now), "23hr 59min")

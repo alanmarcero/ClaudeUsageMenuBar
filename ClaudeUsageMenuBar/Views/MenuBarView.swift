@@ -119,14 +119,14 @@ struct ProviderSection: View {
             providerHeader
 
             if service.provider.id != UsageProvider.codex.id || service.usageData.hasDailyLimit {
-                usageRow("Daily", service.usageData.dailyPercentage, service.usageData.isWeeklyLimitReached ? nil : service.dailyResetCountdown)
+                usageRow(service.provider.primaryLabel, service.usageData.dailyPercentage, service.usageData.isWeeklyLimitReached && service.usageData.weeklyBlocksPrimary ? nil : service.dailyResetCountdown)
             }
-            usageRow("Weekly", service.usageData.weeklyPercentage, service.weeklyResetCountdown)
+            usageRow(service.provider.secondaryLabel, service.usageData.weeklyPercentage, service.weeklyResetCountdown)
             if service.usageData.sonnetWeeklyPercentage != nil {
-                usageRow("Weekly (\(service.usageData.sonnetWeeklyLabel ?? "Sonnet"))", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
+                usageRow(service.usageData.sonnetWeeklyLabel ?? "Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
             }
             if service.usageData.designWeeklyPercentage != nil {
-                usageRow("Weekly (\(service.usageData.designWeeklyLabel ?? "Design"))", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
+                usageRow(service.usageData.designWeeklyLabel ?? "Weekly (Design)", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
             }
             if let resets = service.usageData.availableResets {
                 resetsRow(resets)
@@ -477,7 +477,7 @@ struct AboutView: View {
                     .foregroundColor(.secondary)
             }
 
-            Text("A macOS menu bar app that shows your Claude and OpenAI Codex usage limits, reset countdowns and plan.")
+            Text("A macOS menu bar app that shows your Claude, OpenAI Codex and Cursor usage limits, reset countdowns and plan.")
                 .font(.callout)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

@@ -1,6 +1,6 @@
 # Claude Usage Menu Bar
 
-A macOS menu bar app that shows your **Claude** (claude.ai) and **OpenAI Codex** (chatgpt.com) usage limits.
+A macOS menu bar app that shows your **Claude** (claude.ai), **OpenAI Codex** (chatgpt.com) and **Cursor** (cursor.com) usage limits.
 
 ## What it shows
 
@@ -23,7 +23,9 @@ The first time you open it, macOS may warn that it's from an unidentified develo
 
 If Claude Code is signed in on your Mac, the app reads Claude usage with that login, and you do not need to sign in to Claude in the app.
 
-Otherwise, click the menu bar icon, then click the person icon next to Claude or Codex. Sign in to each site once. The two logins are separate, so signing out of one does not sign out the other.
+Otherwise, click the menu bar icon, then click the person icon next to Claude, Codex or Cursor. Sign in to each site once. The logins are separate, so signing out of one does not sign out the others.
+
+For Cursor it shows your included usage for the billing cycle, the Other Models and Cursor Models pools, and when the cycle resets.
 
 Click a provider button at the top of the dropdown to show that provider's percentage in the menu bar.
 

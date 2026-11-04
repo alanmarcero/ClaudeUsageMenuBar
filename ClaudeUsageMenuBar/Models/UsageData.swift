@@ -37,13 +37,17 @@ struct UsageData {
     var isLoggedIn: Bool = false
     var errorMessage: String?
 
+    // Providers whose pools are independent (Cursor) set this false: a spent
+    // secondary limit must not make the primary one read as full.
+    var weeklyBlocksPrimary: Bool = true
+
     var isWeeklyLimitReached: Bool {
         (weeklyPercentage ?? 0) >= 100
     }
 
     // The daily limit cannot be used once the weekly limit is spent, so it reads as full.
     var dailyPercentage: Int? {
-        isWeeklyLimitReached ? 100 : percentage
+        weeklyBlocksPrimary && isWeeklyLimitReached ? 100 : percentage
     }
 
     var displayPercentage: String {
@@ -96,10 +100,10 @@ enum UsageCache {
 // Builds the menu-bar icon's hover tooltip line for one provider, e.g.
 // "Claude: 47% daily, 82% weekly".
 enum UsageTooltip {
-    static func line(provider: String, daily: Int?, weekly: Int?) -> String {
+    static func line(provider: String, daily: Int?, weekly: Int?, primaryWord: String = "daily", secondaryWord: String = "weekly") -> String {
         var parts: [String] = []
-        if let daily { parts.append("\(daily)% daily") }
-        if let weekly { parts.append("\(weekly)% weekly") }
+        if let daily { parts.append("\(daily)% \(primaryWord)") }
+        if let weekly { parts.append("\(weekly)% \(secondaryWord)") }
         return parts.isEmpty ? "\(provider): no data yet" : "\(provider): \(parts.joined(separator: ", "))"
     }
 }

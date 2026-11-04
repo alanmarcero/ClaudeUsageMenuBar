@@ -119,10 +119,12 @@ enum ClaudeCodeUsageAPI {
             "weeklyResetTime": reset(weekly) as Any,
             "sonnetWeeklyPercentage": percent(firstScoped) as Any,
             "sonnetWeeklyResetTime": reset(firstScoped) as Any,
-            "sonnetWeeklyLabel": scopeName(firstScoped) as Any,
+            // Scoped labels are full row titles, e.g. "Weekly (Sonnet)", so other
+            // providers can reuse these rows with titles of their own.
+            "sonnetWeeklyLabel": scopeName(firstScoped).map { "Weekly (\($0))" } as Any,
             "designWeeklyPercentage": percent(secondScoped) as Any,
             "designWeeklyResetTime": reset(secondScoped) as Any,
-            "designWeeklyLabel": scopeName(secondScoped) as Any,
+            "designWeeklyLabel": scopeName(secondScoped).map { "Weekly (\($0))" } as Any,
             "planName": planName as Any
         ]
         return result(fields, debug: debug)

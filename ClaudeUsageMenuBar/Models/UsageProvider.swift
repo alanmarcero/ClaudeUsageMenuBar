@@ -15,6 +15,9 @@ struct UsageProvider: Identifiable {
     let dataRecordTokens: [String] // WKWebsiteDataStore display-name tokens cleared on logout
     let scrapingScript: String
     let readsClaudeCodeLogin: Bool // prefer Claude Code's saved login over the web page
+    let primaryLabel: String       // row title for the primary (percentage) limit
+    let secondaryLabel: String     // row title for the secondary (weeklyPercentage) limit
+    let weeklyBlocksPrimary: Bool  // a spent secondary limit also blocks the primary one
 
     static let sharedSSOHosts = [
         "google.com", "googleapis.com", "gstatic.com",
@@ -35,7 +38,10 @@ struct UsageProvider: Identifiable {
         oauthHostSuffixes: ["claude.ai", "anthropic.com"] + sharedSSOHosts,
         dataRecordTokens: ["claude", "anthropic"],
         scrapingScript: UsageScrapingScript.script,
-        readsClaudeCodeLogin: true
+        readsClaudeCodeLogin: true,
+        primaryLabel: "Daily",
+        secondaryLabel: "Weekly",
+        weeklyBlocksPrimary: true
     )
 
     static let codex = UsageProvider(
@@ -50,10 +56,32 @@ struct UsageProvider: Identifiable {
         oauthHostSuffixes: ["chatgpt.com", "openai.com", "oaistatic.com", "oaiusercontent.com"] + sharedSSOHosts,
         dataRecordTokens: ["openai", "chatgpt", "oaistatic"],
         scrapingScript: CodexScrapingScript.script,
-        readsClaudeCodeLogin: false
+        readsClaudeCodeLogin: false,
+        primaryLabel: "Daily",
+        secondaryLabel: "Weekly",
+        weeklyBlocksPrimary: true
     )
 
-    static let all: [UsageProvider] = [.claude, .codex]
+    static let cursor = UsageProvider(
+        id: "cursor",
+        displayName: "Cursor",
+        menuGlyph: "cursorarrow.rays",
+        primaryHost: "cursor.com",
+        usageURL: URL(string: "https://cursor.com/dashboard/spending")!,
+        usagePathFragment: "/dashboard/spending",
+        loginPaths: ["/login", "/signin", "/auth"],
+        oauthHostSuffixes: ["cursor.com", "cursor.sh", "workos.com", "github.com"] + sharedSSOHosts,
+        dataRecordTokens: ["cursor"],
+        scrapingScript: CursorScrapingScript.script,
+        readsClaudeCodeLogin: false,
+        primaryLabel: "Included",
+        secondaryLabel: "Other Models",
+        // Cursor's pools are independent: a spent Other Models pool does not
+        // block Cursor Models, so neither pool reads as the other one.
+        weeklyBlocksPrimary: false
+    )
+
+    static let all: [UsageProvider] = [.claude, .codex, .cursor]
 }
 
 // MARK: - Reset Details JavaScript
@@ -306,6 +334,162 @@ enum CodexScrapingScript {
             result.error = sawLoadError
                 ? 'Codex reported it could not load usage right now. Will retry automatically.'
                 : 'No Codex usage parsed yet. See valueTokens/bodyTextSnippet in debug.';
+        }
+    } catch (e) {
+        result.error = 'Script error: ' + e.message;
+        result.debug += '\\nException: ' + e.stack;
+    }
+
+    return result;
+    """
+}
+
+// MARK: - Cursor JavaScript Scraping Script
+
+// Cursor's dashboard is fed by GET /api/usage-summary, which the signed-in page
+// can call same-origin (its session cookie is httpOnly but rides along). That
+// response carries both pools: autoPercentUsed is the Cursor Models pool and
+// apiPercentUsed the Other Models pool, while used/limit is the included total.
+// Field mapping onto the shared model: included total -> percentage,
+// Other Models -> weeklyPercentage, Cursor Models -> sonnetWeeklyPercentage
+// with the full row title in sonnetWeeklyLabel. All three reset when the
+// billing cycle ends. If the API ever stops answering, the Spending page's
+// pool labels are scraped as a fallback.
+enum CursorScrapingScript {
+    static let script = """
+    const result = {
+        success: false,
+        percentage: null,
+        resetTime: null,
+        weeklyPercentage: null,
+        weeklyResetTime: null,
+        sonnetWeeklyPercentage: null,
+        sonnetWeeklyResetTime: null,
+        designWeeklyPercentage: null,
+        designWeeklyResetTime: null,
+        sonnetWeeklyLabel: null,
+        designWeeklyLabel: null,
+        email: null,
+        orgName: null,
+        planName: null,
+        availableResets: null,
+        resets: [],
+        creditsUsed: null,
+        creditsLimit: null,
+        error: null,
+        debug: ''
+    };
+
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const logs = [];
+    const normalizeText = (v) => (v || '').replace(/\\s+/g, ' ').trim();
+    const roundPct = (v) => {
+        const n = Number(v);
+        return v === null || v === undefined || !Number.isFinite(n) ? null : Math.round(n);
+    };
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const formatReset = (value) => {
+        if (value === null || value === undefined || value === '') return null;
+        const date = new Date(typeof value === 'string' && /^\\d+$/.test(value) ? Number(value) : value);
+        if (isNaN(date.getTime())) return null;
+        let hour = date.getHours();
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        hour = hour % 12 || 12;
+        const minute = String(date.getMinutes()).padStart(2, '0');
+        return `Resets ${monthNames[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} ${hour}:${minute} ${ampm}`;
+    };
+
+    const planDisplayName = (membershipType) => {
+        if (!membershipType) return null;
+        return String(membershipType).replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());
+    };
+
+    const readUsageSummary = async () => {
+        try {
+            const response = await fetch('/api/usage-summary', { credentials: 'include', headers: { Accept: 'application/json' } });
+            if (response.status === 401 || response.status === 403) return { status: 'unauthenticated' };
+            if (!response.ok) return { status: `HTTP ${response.status}` };
+            return { status: 'ok', data: await response.json() };
+        } catch (e) {
+            return { status: 'error: ' + e.message };
+        }
+    };
+
+    const applySummary = (data) => {
+        const plan = data?.individualUsage?.plan;
+        if (!plan) return false;
+        const reset = formatReset(data.billingCycleEnd);
+        const used = Number(plan.used);
+        const limit = Number(plan.limit);
+        result.percentage = limit > 0 && Number.isFinite(used)
+            ? Math.round(used / limit * 100)
+            : roundPct(plan.totalPercentUsed);
+        result.resetTime = reset;
+        result.weeklyPercentage = roundPct(plan.apiPercentUsed);
+        result.weeklyResetTime = reset;
+        result.sonnetWeeklyPercentage = roundPct(plan.autoPercentUsed);
+        result.sonnetWeeklyResetTime = reset;
+        if (result.sonnetWeeklyPercentage !== null) result.sonnetWeeklyLabel = 'Cursor Models';
+        result.planName = planDisplayName(data.membershipType);
+        return result.percentage !== null || result.weeklyPercentage !== null || result.sonnetWeeklyPercentage !== null;
+    };
+
+    const findPoolPercentage = (labelPattern) => {
+        const labels = Array.from(document.querySelectorAll('span,p,div,h1,h2,h3,h4'))
+            .filter(el => labelPattern.test(normalizeText(el.textContent)));
+        for (const label of labels) {
+            for (let container = label.parentElement; container && container !== document.body; container = container.parentElement) {
+                const text = normalizeText(container.textContent);
+                if (text.length > 300) break;
+                const match = text.match(/(\\d+(?:\\.\\d+)?)\\s*%\\s*used/i) || text.match(/(\\d+(?:\\.\\d+)?)\\s*%/);
+                if (match) return Math.round(Number(match[1]));
+            }
+        }
+        return null;
+    };
+
+    try {
+        const summary = await readUsageSummary();
+        logs.push(`usage-summary: ${summary.status}`);
+
+        if (summary.status === 'unauthenticated') {
+            result.error = 'Click the person icon next to Cursor to log in.';
+        } else if (!(summary.data && applySummary(summary.data))) {
+            for (let i = 0; i < 40; i++) {        // up to 10s for the pools to render
+                result.sonnetWeeklyPercentage = findPoolPercentage(/cursor models/i);
+                result.weeklyPercentage = findPoolPercentage(/other models/i);
+                if (result.sonnetWeeklyPercentage !== null || result.weeklyPercentage !== null) break;
+                await sleep(250);
+            }
+            if (result.sonnetWeeklyPercentage !== null) result.sonnetWeeklyLabel = 'Cursor Models';
+            logs.push(`DOM fallback: Cursor Models=${result.sonnetWeeklyPercentage}, Other Models=${result.weeklyPercentage}`);
+        }
+
+        const bodyText = normalizeText(document.body?.innerText || document.body?.textContent || '');
+        const emailMatch = bodyText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/i);
+        if (emailMatch) result.email = emailMatch[0];
+        if (!result.planName) {
+            const planMatch = bodyText.match(/\\b(Pro Plus|Pro\\+|Ultra|Enterprise|Teams|Pro|Hobby|Free)\\b/);
+            if (planMatch) result.planName = planMatch[1];
+        }
+
+        result.debug = JSON.stringify({
+            percentage: result.percentage,
+            weeklyPercentage: result.weeklyPercentage,
+            sonnetWeeklyPercentage: result.sonnetWeeklyPercentage,
+            resetTime: result.resetTime,
+            planName: result.planName,
+            email: result.email,
+            summaryStatus: summary.status,
+            logs,
+            bodyTextSnippet: bodyText.substring(0, 2000),
+            url: location.href
+        }, null, 2);
+
+        result.success = result.percentage !== null || result.weeklyPercentage !== null || result.sonnetWeeklyPercentage !== null;
+        if (!result.success && !result.error) {
+            result.error = 'No Cursor usage parsed yet. See bodyTextSnippet in debug.';
         }
     } catch (e) {
         result.error = 'Script error: ' + e.message;
