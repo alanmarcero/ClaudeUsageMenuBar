@@ -144,9 +144,6 @@ struct ProviderSection: View {
             if let secondaryLabel = service.provider.secondaryLabel {
                 usageRow(secondaryLabel, service.usageData.weeklyPercentage, service.weeklyResetCountdown)
             }
-            if service.provider.id == UsageProvider.cursor.id {
-                cursorMenuMetricButton
-            }
             if service.usageData.sonnetWeeklyPercentage != nil {
                 usageRow(service.usageData.sonnetWeeklyLabel ?? "Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
             }
@@ -167,6 +164,9 @@ struct ProviderSection: View {
             }
             if service.usageData.onDemandUsedDollars != nil {
                 onDemandRow
+            }
+            if service.provider.id == UsageProvider.cursor.id {
+                cursorMenuMetricRow
             }
 
             if let error = service.usageData.errorMessage {
@@ -191,10 +191,13 @@ struct ProviderSection: View {
         windowManager.openUsageWindow(provider: service.provider, service: service)
     }
 
-    // Square button between Cursor's metrics: picks which one the menu bar
-    // shows while Cursor is the selected platform.
-    private var cursorMenuMetricButton: some View {
-        HStack {
+    // Closing row of the Cursor section: which Cursor metric the menu bar
+    // shows. A labeled row with a bordered button showing the current pick,
+    // so it reads as a control rather than another metric.
+    private var cursorMenuMetricRow: some View {
+        HStack(spacing: 6) {
+            Text("Menu bar")
+                .font(.subheadline)
             Spacer()
             Menu {
                 ForEach(UsageProviders.cursorMetricOptions.filter { $0.id != "grokbot" || providers.isVisible(UsageProvider.grokBot.id) }, id: \.id) { option in
@@ -209,23 +212,28 @@ struct ProviderSection: View {
                     }
                 }
             } label: {
-                Text("Menu")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .frame(width: 44, height: 44)
-                    .background(Color.primary.opacity(0.06))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.primary.opacity(0.15), lineWidth: 1)
-                    )
-                    .cornerRadius(8)
-                    .contentShape(Rectangle())
+                HStack(spacing: 4) {
+                    Text(UsageProviders.cursorMetricOptions.first { $0.id == providers.cursorMenuBarMetricID }?.label ?? "Included")
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                }
+                .font(.caption)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 10)
+                .frame(height: 26)
+                .background(Color(NSColor.controlBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.primary.opacity(0.25), lineWidth: 1)
+                )
+                .cornerRadius(6)
+                .shadow(color: .black.opacity(0.08), radius: 1, y: 1)
+                .contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
             .help("Choose which Cursor metric shows in the menu bar")
-            Spacer()
         }
     }
 
