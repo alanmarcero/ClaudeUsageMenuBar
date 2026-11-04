@@ -86,7 +86,7 @@ final class StatusItemController: NSObject {
             .map { UsageTooltip.line(provider: $0.provider.displayName, daily: $0.usageData.dailyPercentage, weekly: $0.usageData.weeklyPercentage, primaryWord: $0.provider.primaryLabel.lowercased(), secondaryWord: $0.provider.secondaryLabel?.lowercased() ?? "weekly") }
             .joined(separator: "\n")
         let glyph = providers.selectedService?.provider.menuGlyph ?? "cpu"
-        let percentage = providers.selectedService?.usageData.displayPercentage ?? "--"
+        let percentage = providers.selectedService.map { providers.menuBarDisplay(for: $0) } ?? "--"
         // Skip redundant mutations (this fires ~once/sec via the countdown). Recreating
         // the NSImage and resetting the title only when something changed avoids needless
         // status-bar relayout.

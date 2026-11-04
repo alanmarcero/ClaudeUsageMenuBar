@@ -37,7 +37,7 @@ struct MenuBarView: View {
                 } label: {
                     HStack(spacing: 3) {
                         Image(systemName: service.provider.menuGlyph)
-                        Text(service.usageData.displayPercentage)
+                        Text(providers.menuBarDisplay(for: service))
                             .monospacedDigit()
                     }
                     .font(.caption)
@@ -126,6 +126,7 @@ struct MenuBarView: View {
 
 struct ProviderSection: View {
     @ObservedObject var service: UsageService
+    @EnvironmentObject var providers: UsageProviders
     @EnvironmentObject var windowManager: WindowManager
 
     var body: some View {
@@ -137,6 +138,9 @@ struct ProviderSection: View {
             }
             if let secondaryLabel = service.provider.secondaryLabel {
                 usageRow(secondaryLabel, service.usageData.weeklyPercentage, service.weeklyResetCountdown)
+            }
+            if service.provider.id == UsageProvider.cursor.id {
+                cursorMenuMetricButton
             }
             if service.usageData.sonnetWeeklyPercentage != nil {
                 usageRow(service.usageData.sonnetWeeklyLabel ?? "Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
@@ -177,6 +181,44 @@ struct ProviderSection: View {
 
     private func openUsageWindow() {
         windowManager.openUsageWindow(provider: service.provider, service: service)
+    }
+
+    // Square button between Cursor's metrics: picks which one the menu bar
+    // shows while Cursor is the selected platform.
+    private var cursorMenuMetricButton: some View {
+        HStack {
+            Spacer()
+            Menu {
+                ForEach(UsageProviders.cursorMetricOptions, id: \.id) { option in
+                    Button {
+                        providers.setCursorMenuBarMetric(option.id)
+                    } label: {
+                        if providers.cursorMenuBarMetricID == option.id {
+                            Label(option.label, systemImage: "checkmark")
+                        } else {
+                            Text(option.label)
+                        }
+                    }
+                }
+            } label: {
+                Text("Menu")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .frame(width: 44, height: 44)
+                    .background(Color.primary.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                    )
+                    .cornerRadius(8)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Choose which Cursor metric shows in the menu bar")
+            Spacer()
+        }
     }
 
     private var providerHeader: some View {

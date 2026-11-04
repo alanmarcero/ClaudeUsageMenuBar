@@ -73,6 +73,54 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(container.visibleServices.map { $0.provider.id }, ["claude"])
     }
 
+    @MainActor
+    func testCursorMenuBarMetricDefaultsToIncluded() {
+        let container = UsageProviders(providers: [.cursor], defaults: makeSuiteDefaults().defaults)
+        let service = container.services[0]
+        service.usageData.percentage = 10
+        service.usageData.weeklyPercentage = 70
+        XCTAssertEqual(container.cursorMenuBarMetricID, "included")
+        XCTAssertEqual(container.menuBarDisplay(for: service), "10%")
+    }
+
+    @MainActor
+    func testCursorMenuBarMetricSelectsDisplaysAndPersists() {
+        let (defaults, suite) = makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let container = UsageProviders(providers: [.claude, .cursor], defaults: defaults)
+        let cursor = container.services.first { $0.provider.id == "cursor" }!
+        cursor.usageData.percentage = 10
+        cursor.usageData.weeklyPercentage = 70
+        cursor.usageData.sonnetWeeklyPercentage = 30
+        cursor.usageData.onDemandUsedDollars = 12.34
+
+        container.setCursorMenuBarMetric("other")
+        XCTAssertEqual(container.menuBarDisplay(for: cursor), "70%")
+        // Picking a metric also selects Cursor for the menu bar.
+        XCTAssertEqual(container.selectedMenuBarProviderID, "cursor")
+
+        container.setCursorMenuBarMetric("cursor")
+        XCTAssertEqual(container.menuBarDisplay(for: cursor), "30%")
+
+        container.setCursorMenuBarMetric("ondemand")
+        XCTAssertEqual(container.menuBarDisplay(for: cursor), "$12.34")
+
+        container.setCursorMenuBarMetric("bogus")
+        XCTAssertEqual(container.cursorMenuBarMetricID, "ondemand")
+
+        let restored = UsageProviders(providers: [.claude, .cursor], defaults: defaults)
+        XCTAssertEqual(restored.cursorMenuBarMetricID, "ondemand")
+    }
+
+    @MainActor
+    func testMenuBarDisplayIgnoresCursorMetricForOtherProviders() {
+        let container = UsageProviders(providers: [.claude, .cursor], defaults: makeSuiteDefaults().defaults)
+        let claude = container.services.first { $0.provider.id == "claude" }!
+        claude.usageData.percentage = 45
+        container.setCursorMenuBarMetric("other")
+        XCTAssertEqual(container.menuBarDisplay(for: claude), "45%")
+    }
+
     private func makeSuiteDefaults() -> (defaults: UserDefaults, suite: String) {
         let suite = "test-usageproviders-\(UUID().uuidString)"
         return (UserDefaults(suiteName: suite)!, suite)

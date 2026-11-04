@@ -12,6 +12,15 @@ final class UsageProviders: ObservableObject {
 
     private static let selectionKey = "menuBarProviderID"
     private static let hiddenKey = "hiddenProviderIDs"
+    private static let cursorMetricKey = "cursorMenuBarMetricID"
+
+    // Cursor reports several metrics; the menu bar can show any one of them.
+    static let cursorMetricOptions: [(id: String, label: String)] = [
+        ("included", "Included"),
+        ("other", "Other Models"),
+        ("cursor", "Cursor Models"),
+        ("ondemand", "On-demand")
+    ]
 
     // Which provider's percentage is shown in the menu bar. Persisted so it sticks
     // across launches. The dropdown picker scales to however many providers exist.
@@ -24,6 +33,10 @@ final class UsageProviders: ObservableObject {
     // header chips, and the tooltip, and its service pauses refreshing until it
     // is shown again. At least one provider always stays visible.
     @Published private(set) var hiddenProviderIDs: Set<String>
+
+    // Which Cursor metric the menu bar shows while Cursor is the selected
+    // provider. Chosen from the Cursor section's Menu button; persisted.
+    @Published private(set) var cursorMenuBarMetricID: String
 
     init(providers: [UsageProvider] = UsageProvider.all, defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -39,6 +52,11 @@ final class UsageProviders: ObservableObject {
             hidden.remove(providers[0].id)  // never launch with every provider hidden
         }
         hiddenProviderIDs = hidden
+
+        let savedMetric = defaults.string(forKey: Self.cursorMetricKey)
+        cursorMenuBarMetricID = Self.cursorMetricOptions.contains { $0.id == savedMetric }
+            ? (savedMetric ?? "included") : "included"
+
         services.forEach { $0.isRefreshPaused = hidden.contains($0.provider.id) }
         if hidden.contains(selectedMenuBarProviderID),
            let firstVisible = services.first(where: { !hidden.contains($0.provider.id) }) {
@@ -79,6 +97,34 @@ final class UsageProviders: ObservableObject {
         service.isRefreshPaused = true
         if selectedMenuBarProviderID == providerID {
             selectedMenuBarProviderID = visibleServices.first?.provider.id ?? providerID
+        }
+    }
+
+    // Picking a Cursor metric also selects Cursor for the menu bar, so the
+    // choice is visible right away instead of waiting for a chip tap.
+    func setCursorMenuBarMetric(_ metricID: String) {
+        guard Self.cursorMetricOptions.contains(where: { $0.id == metricID }) else { return }
+        cursorMenuBarMetricID = metricID
+        defaults.set(metricID, forKey: Self.cursorMetricKey)
+        selectedMenuBarProviderID = UsageProvider.cursor.id
+    }
+
+    // The string the menu bar (and the provider's header chip) shows. Only
+    // Cursor has a metric choice; every other provider uses its headline %.
+    func menuBarDisplay(for service: UsageService) -> String {
+        guard service.provider.id == UsageProvider.cursor.id else {
+            return service.usageData.displayPercentage
+        }
+        let data = service.usageData
+        switch cursorMenuBarMetricID {
+        case "other":
+            return data.weeklyPercentage.map { "\($0)%" } ?? "--"
+        case "cursor":
+            return data.sonnetWeeklyPercentage.map { "\($0)%" } ?? "--"
+        case "ondemand":
+            return data.onDemandUsedDollars.map(OnDemandUsage.format) ?? "--"
+        default:
+            return data.displayPercentage
         }
     }
 
