@@ -15,8 +15,9 @@ final class UsageProviders: ObservableObject {
     private static let cursorMetricKey = "cursorMenuBarMetricID"
 
     // Cursor reports several metrics; the menu bar can show any one of them.
+    // There is no Included option: that total is just the two pools combined,
+    // so it gets no bar and no menu-bar slot of its own.
     static let cursorMetricOptions: [(id: String, label: String)] = [
-        ("included", "Included"),
         ("other", "Other Models"),
         ("cursor", "Cursor Models"),
         ("ondemand", "On-demand"),
@@ -54,9 +55,10 @@ final class UsageProviders: ObservableObject {
         }
         hiddenProviderIDs = hidden
 
+        // A saved "included" pick predates its removal and lands here too.
         let savedMetric = defaults.string(forKey: Self.cursorMetricKey)
         cursorMenuBarMetricID = Self.cursorMetricOptions.contains { $0.id == savedMetric }
-            ? (savedMetric ?? "included") : "included"
+            ? (savedMetric ?? "other") : "other"
 
         services.forEach { $0.isRefreshPaused = hidden.contains($0.provider.id) }
         // Grok Bot is combined into Cursor overall: it is no longer a top-level
@@ -123,7 +125,7 @@ final class UsageProviders: ObservableObject {
         persistHidden()
         service.isRefreshPaused = true
         if providerID == UsageProvider.grokBot.id && cursorMenuBarMetricID == "grokbot" {
-            cursorMenuBarMetricID = "included"
+            cursorMenuBarMetricID = "other"
             defaults.set(cursorMenuBarMetricID, forKey: Self.cursorMetricKey)
         }
         if selectedMenuBarProviderID == providerID {
@@ -156,10 +158,12 @@ final class UsageProviders: ObservableObject {
             return data.onDemandUsedDollars.map(OnDemandUsage.format) ?? "--"
         case "grokbot":
             guard isVisible(UsageProvider.grokBot.id),
-                  let grok = grokBotService?.usageData.percentage else { return data.displayPercentage }
+                  let grok = grokBotService?.usageData.percentage else {
+                return data.weeklyPercentage.map { "\($0)%" } ?? "--"
+            }
             return "\(grok)%"
-        default:
-            return data.displayPercentage
+        default: // "other"
+            return data.weeklyPercentage.map { "\($0)%" } ?? "--"
         }
     }
 

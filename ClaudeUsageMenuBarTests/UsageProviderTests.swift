@@ -74,13 +74,25 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
-    func testCursorMenuBarMetricDefaultsToIncluded() {
+    func testCursorMenuBarMetricDefaultsToOtherModels() {
         let container = UsageProviders(providers: [.cursor], defaults: makeSuiteDefaults().defaults)
         let service = container.services[0]
         service.usageData.percentage = 10
         service.usageData.weeklyPercentage = 70
-        XCTAssertEqual(container.cursorMenuBarMetricID, "included")
-        XCTAssertEqual(container.menuBarDisplay(for: service), "10%")
+        // No Included metric: the default is the Other Models pool.
+        XCTAssertEqual(container.cursorMenuBarMetricID, "other")
+        XCTAssertEqual(container.menuBarDisplay(for: service), "70%")
+        XCTAssertFalse(UsageProviders.cursorMetricOptions.contains { $0.id == "included" })
+    }
+
+    @MainActor
+    func testSavedIncludedMetricMigratesToOtherModels() {
+        let (defaults, suite) = makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("included", forKey: "cursorMenuBarMetricID")
+
+        let container = UsageProviders(providers: [.cursor], defaults: defaults)
+        XCTAssertEqual(container.cursorMenuBarMetricID, "other")
     }
 
     @MainActor
@@ -148,16 +160,17 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
-    func testHidingGrokBotFallsMenuBarMetricBackToIncluded() {
+    func testHidingGrokBotFallsMenuBarMetricBackToOtherModels() {
         let container = UsageProviders(providers: [.claude, .cursor, .grokBot], defaults: makeSuiteDefaults().defaults)
         let cursor = container.services.first { $0.provider.id == "cursor" }!
         cursor.usageData.percentage = 10
+        cursor.usageData.weeklyPercentage = 70
         container.setCursorMenuBarMetric("grokbot")
 
         container.setProviderVisible(false, providerID: "grokbot")
 
-        XCTAssertEqual(container.cursorMenuBarMetricID, "included")
-        XCTAssertEqual(container.menuBarDisplay(for: cursor), "10%")
+        XCTAssertEqual(container.cursorMenuBarMetricID, "other")
+        XCTAssertEqual(container.menuBarDisplay(for: cursor), "70%")
     }
 
     @MainActor

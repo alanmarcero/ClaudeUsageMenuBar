@@ -158,7 +158,10 @@ struct ProviderSection: View {
             if service.provider.id == UsageProvider.cursor.id {
                 cursorMenuMetricRow
             }
-            if service.provider.id != UsageProvider.codex.id || service.usageData.hasDailyLimit {
+            // Cursor has no primary bar: its Included total is just the two
+            // pools below combined, so only those pools get rows.
+            if service.provider.id != UsageProvider.cursor.id,
+               service.provider.id != UsageProvider.codex.id || service.usageData.hasDailyLimit {
                 usageRow(service.provider.primaryLabel, service.usageData.dailyPercentage, service.usageData.isWeeklyLimitReached && service.usageData.weeklyBlocksPrimary ? nil : service.dailyResetCountdown)
             }
             if let secondaryLabel = service.provider.secondaryLabel {
@@ -230,7 +233,7 @@ struct ProviderSection: View {
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Text(UsageProviders.cursorMetricOptions.first { $0.id == providers.cursorMenuBarMetricID }?.label ?? "Included")
+                    Text(UsageProviders.cursorMetricOptions.first { $0.id == providers.cursorMenuBarMetricID }?.label ?? "Other Models")
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.caption2)
                 }

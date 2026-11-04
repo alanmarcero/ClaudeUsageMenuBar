@@ -25,13 +25,13 @@ If Claude Code is signed in on your Mac, the app reads Claude usage with that lo
 
 Otherwise, click the menu bar icon, then click the person icon next to Claude, Codex or Cursor. Sign in to each site once. The logins are separate, so signing out of one does not sign out the others.
 
-For Cursor it shows your included usage for the billing cycle, the Other Models and Cursor Models pools, when the cycle resets, and your on-demand spend past the included pools. Cursor has no reset credits to redeem — its pools refill on the cycle date.
+For Cursor it shows the Other Models and Cursor Models pools, when the cycle resets, and your on-demand spend past the included pools. Cursor has no reset credits to redeem — its pools refill on the cycle date.
 
 Grok Bot shows its weekly included usage and when it resets. Grok Bot is metered on your Cursor account, so it shares the Cursor login: sign in to Cursor and Grok Bot is signed in too.
 
 Click a provider button at the top of the dropdown to show that provider's percentage in the menu bar.
 
-At the top of the Cursor section, right under the Cursor header, the **Menu bar** row chooses which Cursor metric (Included, Other Models, Cursor Models, On-demand, or Grok Bot) the menu bar shows; picking one also switches the menu bar to Cursor. Grok Bot is part of Cursor overall: its weekly usage is a row in the Cursor section, and it has no separate button at the top.
+At the top of the Cursor section, right under the Cursor header, the **Menu bar** row chooses which Cursor metric (Other Models, Cursor Models, On-demand, or Grok Bot) the menu bar shows; picking one also switches the menu bar to Cursor. Grok Bot is part of Cursor overall: its weekly usage is a row in the Cursor section, and it has no separate button at the top.
 
 To hide a platform you do not use, turn it off in the **Platforms** dropdown at the bottom of the popover, next to the **…** menu. Hidden platforms leave the dropdown and pause refreshing, but keep their login, so turning one back on picks up right where it left off. At least one platform always stays on.
 
