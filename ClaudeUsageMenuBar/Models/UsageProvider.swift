@@ -368,7 +368,9 @@ enum CodexScrapingScript {
 // Cursor's dashboard is fed by GET /api/usage-summary, which the signed-in page
 // can call same-origin (its session cookie is httpOnly but rides along). That
 // response carries both pools: autoPercentUsed is the Cursor Models pool and
-// apiPercentUsed the Other Models pool, while used/limit is the included total.
+// apiPercentUsed the Other Models pool, while totalPercentUsed is the overall
+// included-usage percentage. (The used/limit cents are not that percentage:
+// they read 2000/2000 on two-pool plans whose pools are only partly used.)
 // Field mapping onto the shared model: included total -> percentage,
 // Other Models -> weeklyPercentage, Cursor Models -> sonnetWeeklyPercentage
 // with the full row title in sonnetWeeklyLabel. All three reset when the
@@ -448,11 +450,16 @@ enum CursorScrapingScript {
         const plan = data?.individualUsage?.plan;
         if (!plan) return false;
         const reset = formatReset(data.billingCycleEnd);
-        const used = Number(plan.used);
-        const limit = Number(plan.limit);
-        result.percentage = limit > 0 && Number.isFinite(used)
-            ? Math.round(used / limit * 100)
-            : roundPct(plan.totalPercentUsed);
+        // totalPercentUsed is the overall included-usage percentage the site
+        // draws. The used/limit cents are stale on two-pool plans (they can
+        // read 2000/2000 while the pools sit at 22%/3%), so they are only a
+        // fallback for older responses that carry no percentage fields.
+        result.percentage = roundPct(plan.totalPercentUsed);
+        if (result.percentage === null) {
+            const used = Number(plan.used);
+            const limit = Number(plan.limit);
+            if (limit > 0 && Number.isFinite(used)) result.percentage = Math.round(used / limit * 100);
+        }
         result.resetTime = reset;
         result.weeklyPercentage = roundPct(plan.apiPercentUsed);
         result.weeklyResetTime = reset;

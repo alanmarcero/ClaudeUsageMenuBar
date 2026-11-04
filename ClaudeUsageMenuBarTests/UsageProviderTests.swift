@@ -167,7 +167,9 @@ final class UsageProviderTests: XCTestCase {
         })
         """, script: CursorScrapingScript.script)
 
-        XCTAssertEqual(result["percentage"] as? Int, 76)
+        // Included is totalPercentUsed, not used/limit cents (1516/2000 = 76%):
+        // those cents are stale on two-pool plans and match nothing on the site.
+        XCTAssertEqual(result["percentage"] as? Int, 3)
         XCTAssertEqual(result["weeklyPercentage"] as? Int, 1)
         XCTAssertEqual(result["sonnetWeeklyPercentage"] as? Int, 3)
         XCTAssertEqual(result["sonnetWeeklyLabel"] as? String, "Cursor Models")
@@ -178,6 +180,47 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(result["weeklyResetTime"] as? String, reset)
         XCTAssertEqual(result["sonnetWeeklyResetTime"] as? String, reset)
         XCTAssertEqual(result["success"] as? Bool, true)
+    }
+
+    @MainActor
+    func testCursorIncludedIsTotalPercentNotStaleCentsRatio() async throws {
+        // Live trap from two-pool plans: the cents read 2000/2000 (100%) while
+        // the pools the site draws are only partly used.
+        let result = try await scrapeCodexFixture("""
+        <div>Cursor dashboard</div>
+        """, beforeScrape: """
+        window.fetch = async () => ({
+            ok: true, status: 200,
+            json: async () => ({
+                membershipType: 'pro',
+                individualUsage: { plan: {
+                    enabled: true, used: 2000, limit: 2000, remaining: 0,
+                    autoPercentUsed: 22, apiPercentUsed: 3, totalPercentUsed: 15.4
+                } }
+            })
+        })
+        """, script: CursorScrapingScript.script)
+
+        XCTAssertEqual(result["percentage"] as? Int, 15)
+        XCTAssertEqual(result["sonnetWeeklyPercentage"] as? Int, 22)
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 3)
+    }
+
+    @MainActor
+    func testCursorIncludedFallsBackToCentsWithoutTotalPercent() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>Cursor dashboard</div>
+        """, beforeScrape: """
+        window.fetch = async () => ({
+            ok: true, status: 200,
+            json: async () => ({
+                membershipType: 'pro',
+                individualUsage: { plan: { enabled: true, used: 500, limit: 2000 } }
+            })
+        })
+        """, script: CursorScrapingScript.script)
+
+        XCTAssertEqual(result["percentage"] as? Int, 25)
     }
 
     @MainActor
