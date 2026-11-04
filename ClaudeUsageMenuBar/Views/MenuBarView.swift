@@ -138,6 +138,9 @@ struct ProviderSection: View {
         VStack(spacing: 10) {
             providerHeader
 
+            if service.provider.id == UsageProvider.cursor.id {
+                cursorMenuMetricRow
+            }
             if service.provider.id != UsageProvider.codex.id || service.usageData.hasDailyLimit {
                 usageRow(service.provider.primaryLabel, service.usageData.dailyPercentage, service.usageData.isWeeklyLimitReached && service.usageData.weeklyBlocksPrimary ? nil : service.dailyResetCountdown)
             }
@@ -165,9 +168,6 @@ struct ProviderSection: View {
             if service.usageData.onDemandUsedDollars != nil {
                 onDemandRow
             }
-            if service.provider.id == UsageProvider.cursor.id {
-                cursorMenuMetricRow
-            }
 
             if let error = service.usageData.errorMessage {
                 HStack(alignment: .top, spacing: 6) {
@@ -191,9 +191,9 @@ struct ProviderSection: View {
         windowManager.openUsageWindow(provider: service.provider, service: service)
     }
 
-    // Closing row of the Cursor section: which Cursor metric the menu bar
-    // shows. A labeled row with a bordered button showing the current pick,
-    // so it reads as a control rather than another metric.
+    // Row directly under the Cursor header, above its metrics: which Cursor
+    // metric the menu bar shows. A labeled row with a bordered button showing
+    // the current pick, so it reads as a control rather than another metric.
     private var cursorMenuMetricRow: some View {
         HStack(spacing: 6) {
             Text("Menu bar")
