@@ -8,7 +8,7 @@ struct MenuBarView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            ForEach(providers.services, id: \.provider.id) { service in
+            ForEach(providers.visibleServices, id: \.provider.id) { service in
                 Divider().padding(.horizontal, 16)
                 ProviderSection(service: service)
             }
@@ -30,7 +30,7 @@ struct MenuBarView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
             Spacer()
-            ForEach(providers.services, id: \.provider.id) { service in
+            ForEach(providers.visibleServices, id: \.provider.id) { service in
                 let isSelected = providers.selectedMenuBarProviderID == service.provider.id
                 Button {
                     providers.selectedMenuBarProviderID = service.provider.id
@@ -83,8 +83,22 @@ struct MenuBarView: View {
         .padding(.vertical, 6)
     }
 
+    private func platformVisibilityBinding(for providerID: String) -> Binding<Bool> {
+        Binding(
+            get: { providers.isVisible(providerID) },
+            set: { providers.setProviderVisible($0, providerID: providerID) }
+        )
+    }
+
     private var moreMenu: some View {
         Menu {
+            Menu("Platforms") {
+                ForEach(providers.services, id: \.provider.id) { service in
+                    Toggle(service.provider.displayName, isOn: platformVisibilityBinding(for: service.provider.id))
+                        .disabled(providers.isVisible(service.provider.id) && providers.visibleServices.count == 1)
+                }
+            }
+            Divider()
             Button("Settings…") { SettingsWindow.show() }
             Button("Check for Updates…") { updateService.checkForUpdates() }
                 .disabled(!updateService.canCheckForUpdates)

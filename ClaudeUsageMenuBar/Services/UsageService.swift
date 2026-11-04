@@ -41,6 +41,9 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private var isCheckingClaudeResets = false
     var refreshStartTime: Date?  // internal for @testable import
     var completedRefreshes = 0  // internal for @testable import
+    // Set by UsageProviders while the provider is hidden from the menu: the
+    // service keeps its state but stops polling until it is shown again.
+    var isRefreshPaused = false
 
     let provider: UsageProvider
 
@@ -91,7 +94,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     // MARK: - Public Methods
 
     func triggerRefresh() {
-        guard !isRefreshing else { return }
+        guard !isRefreshPaused, !isRefreshing else { return }
         isRefreshing = true
         refreshStartTime = Date()
         usageData.errorMessage = nil
@@ -290,6 +293,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     private func handleTimerTick() {
+        guard !isRefreshPaused else { return }
         updateResetCountdowns()
 
         if isRefreshing {

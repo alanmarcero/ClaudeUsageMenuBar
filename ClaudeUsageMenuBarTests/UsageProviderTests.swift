@@ -9,6 +9,75 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(ids, ["claude", "codex", "cursor", "grokbot"])
     }
 
+    @MainActor
+    func testProvidersStartAllVisible() {
+        let container = UsageProviders(providers: [.claude, .codex], defaults: makeSuiteDefaults().defaults)
+        XCTAssertEqual(container.visibleServices.map { $0.provider.id }, ["claude", "codex"])
+        XCTAssertTrue(container.hiddenProviderIDs.isEmpty)
+    }
+
+    @MainActor
+    func testHidingProviderRemovesItPausesItAndPersists() {
+        let (defaults, suite) = makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let container = UsageProviders(providers: [.claude, .codex], defaults: defaults)
+
+        container.setProviderVisible(false, providerID: "codex")
+
+        XCTAssertEqual(container.visibleServices.map { $0.provider.id }, ["claude"])
+        XCTAssertFalse(container.isVisible("codex"))
+        XCTAssertEqual(Set(defaults.stringArray(forKey: "hiddenProviderIDs") ?? []), ["codex"])
+        XCTAssertTrue(container.services.first { $0.provider.id == "codex" }!.isRefreshPaused)
+
+        // A fresh container on the same defaults restores the hidden set.
+        let restored = UsageProviders(providers: [.claude, .codex], defaults: defaults)
+        XCTAssertEqual(restored.visibleServices.map { $0.provider.id }, ["claude"])
+    }
+
+    @MainActor
+    func testLastVisibleProviderCannotBeHidden() {
+        let container = UsageProviders(providers: [.claude, .codex], defaults: makeSuiteDefaults().defaults)
+        container.setProviderVisible(false, providerID: "codex")
+        container.setProviderVisible(false, providerID: "claude")
+        XCTAssertEqual(container.visibleServices.map { $0.provider.id }, ["claude"])
+    }
+
+    @MainActor
+    func testHidingSelectedProviderMovesSelectionToAVisibleOne() {
+        let container = UsageProviders(providers: [.claude, .codex], defaults: makeSuiteDefaults().defaults)
+        XCTAssertEqual(container.selectedMenuBarProviderID, "claude")
+
+        container.setProviderVisible(false, providerID: "claude")
+
+        XCTAssertEqual(container.selectedMenuBarProviderID, "codex")
+        XCTAssertEqual(container.selectedService?.provider.id, "codex")
+    }
+
+    @MainActor
+    func testShowingProviderAgainUnpausesIt() {
+        let container = UsageProviders(providers: [.claude, .codex], defaults: makeSuiteDefaults().defaults)
+        container.setProviderVisible(false, providerID: "codex")
+        container.setProviderVisible(true, providerID: "codex")
+
+        XCTAssertEqual(container.visibleServices.map { $0.provider.id }, ["claude", "codex"])
+        XCTAssertFalse(container.services.first { $0.provider.id == "codex" }!.isRefreshPaused)
+    }
+
+    @MainActor
+    func testAllHiddenInDefaultsKeepsFirstProviderVisible() {
+        let (defaults, suite) = makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(["claude", "codex"], forKey: "hiddenProviderIDs")
+
+        let container = UsageProviders(providers: [.claude, .codex], defaults: defaults)
+        XCTAssertEqual(container.visibleServices.map { $0.provider.id }, ["claude"])
+    }
+
+    private func makeSuiteDefaults() -> (defaults: UserDefaults, suite: String) {
+        let suite = "test-usageproviders-\(UUID().uuidString)"
+        return (UserDefaults(suiteName: suite)!, suite)
+    }
+
     func testEachProviderHasNonEmptyScriptAndValidURL() {
         XCTAssertEqual(UsageProvider.all.count, 4)
         UsageProvider.all.forEach { provider in
