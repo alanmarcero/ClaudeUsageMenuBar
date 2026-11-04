@@ -207,4 +207,18 @@ final class UsageDataTests: XCTestCase {
         XCTAssertEqual(CreditUsage.percentage(used: 533.5, limit: 5000), 11)
         XCTAssertNil(CreditUsage.percentage(used: 10, limit: 0))
     }
+
+    func testOnDemandUsageFormatsDollarsWithGrouping() {
+        XCTAssertEqual(OnDemandUsage.format(10000), "$10,000.00")
+        XCTAssertEqual(OnDemandUsage.format(12.34), "$12.34")
+        XCTAssertEqual(OnDemandUsage.format(0), "$0.00")
+    }
+
+    func testSnapshotRoundTripsOnDemandSpend() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let snapshot = UsageSnapshot(onDemandUsedDollars: 12.34, teamOnDemandUsedDollars: 860, teamOnDemandLimitDollars: 10000)
+        UsageCache.save(snapshot, for: "cursor", defaults: defaults)
+        XCTAssertEqual(UsageCache.load(for: "cursor", defaults: defaults), snapshot)
+    }
 }

@@ -181,6 +181,54 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testCursorReadsOnDemandAndTeamBudgetInDollars() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>Cursor dashboard</div>
+        """, beforeScrape: """
+        window.fetch = async () => ({
+            ok: true, status: 200,
+            json: async () => ({
+                billingCycleEnd: '2026-09-18T08:09:13.000Z',
+                membershipType: 'enterprise',
+                individualUsage: {
+                    plan: { enabled: true, used: 2000, limit: 2000, autoPercentUsed: 10, apiPercentUsed: 90 },
+                    onDemand: { enabled: true, used: 1234, limit: null, remaining: null }
+                },
+                teamUsage: { onDemand: { enabled: true, used: 86000, limit: 1000000, remaining: 914000 } }
+            })
+        })
+        """, script: CursorScrapingScript.script)
+
+        XCTAssertEqual(result["onDemandUsed"] as? Double, 12.34)
+        XCTAssertEqual(result["teamOnDemandUsed"] as? Double, 860)
+        XCTAssertEqual(result["teamOnDemandLimit"] as? Double, 10000)
+        XCTAssertEqual(result["success"] as? Bool, true)
+    }
+
+    @MainActor
+    func testCursorLeavesTeamBudgetUnsetWithoutTeamUsage() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>Cursor dashboard</div>
+        """, beforeScrape: """
+        window.fetch = async () => ({
+            ok: true, status: 200,
+            json: async () => ({
+                membershipType: 'pro',
+                individualUsage: {
+                    plan: { enabled: true, used: 0, limit: 2000, autoPercentUsed: 0, apiPercentUsed: 0 },
+                    onDemand: { enabled: false, used: 0, limit: null }
+                },
+                teamUsage: {}
+            })
+        })
+        """, script: CursorScrapingScript.script)
+
+        XCTAssertEqual(result["onDemandUsed"] as? Double, 0)
+        XCTAssertTrue(result["teamOnDemandUsed"] is NSNull)
+        XCTAssertTrue(result["teamOnDemandLimit"] is NSNull)
+    }
+
+    @MainActor
     func testCursorFallsBackToSpendingPagePoolsWhenAPIHasNoPlan() async throws {
         let result = try await scrapeCodexFixture("""
         <div><span>Cursor Models</span><span>16% used</span></div>

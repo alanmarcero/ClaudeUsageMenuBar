@@ -395,6 +395,9 @@ enum CursorScrapingScript {
         resets: [],
         creditsUsed: null,
         creditsLimit: null,
+        onDemandUsed: null,
+        teamOnDemandUsed: null,
+        teamOnDemandLimit: null,
         error: null,
         debug: ''
     };
@@ -405,6 +408,12 @@ enum CursorScrapingScript {
     const roundPct = (v) => {
         const n = Number(v);
         return v === null || v === undefined || !Number.isFinite(n) ? null : Math.round(n);
+    };
+    // The summary reports money in cents.
+    const centsToDollars = (v) => {
+        if (v === null || v === undefined) return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n / 100 : null;
     };
 
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -451,6 +460,11 @@ enum CursorScrapingScript {
         result.sonnetWeeklyResetTime = reset;
         if (result.sonnetWeeklyPercentage !== null) result.sonnetWeeklyLabel = 'Cursor Models';
         result.planName = planDisplayName(data.membershipType);
+        // On-demand spend draws on the team budget once included usage is gone.
+        result.onDemandUsed = centsToDollars(data?.individualUsage?.onDemand?.used);
+        result.teamOnDemandUsed = centsToDollars(data?.teamUsage?.onDemand?.used);
+        const teamLimit = centsToDollars(data?.teamUsage?.onDemand?.limit);
+        result.teamOnDemandLimit = teamLimit !== null && teamLimit > 0 ? teamLimit : null;
         return result.percentage !== null || result.weeklyPercentage !== null || result.sonnetWeeklyPercentage !== null;
     };
 
@@ -500,6 +514,9 @@ enum CursorScrapingScript {
             resetTime: result.resetTime,
             planName: result.planName,
             email: result.email,
+            onDemandUsed: result.onDemandUsed,
+            teamOnDemandUsed: result.teamOnDemandUsed,
+            teamOnDemandLimit: result.teamOnDemandLimit,
             summaryStatus: summary.status,
             logs,
             bodyTextSnippet: bodyText.substring(0, 2000),

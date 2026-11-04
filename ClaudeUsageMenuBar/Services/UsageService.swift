@@ -72,6 +72,9 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.designWeeklyLabel = snapshot.designWeeklyLabel
         usageData.creditsUsed = snapshot.creditsUsed
         usageData.creditsLimit = snapshot.creditsLimit
+        usageData.onDemandUsedDollars = snapshot.onDemandUsedDollars
+        usageData.teamOnDemandUsedDollars = snapshot.teamOnDemandUsedDollars
+        usageData.teamOnDemandLimitDollars = snapshot.teamOnDemandLimitDollars
         usageData.lastUpdated = snapshot.lastUpdated
         rawDailyResetTime = snapshot.resetTime
         rawWeeklyResetTime = snapshot.weeklyResetTime
@@ -231,6 +234,9 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.planName = data.planName
         usageData.creditsUsed = data.creditsUsed
         usageData.creditsLimit = data.creditsLimit
+        usageData.onDemandUsedDollars = data.onDemandUsed
+        usageData.teamOnDemandUsedDollars = data.teamOnDemandUsed
+        usageData.teamOnDemandLimitDollars = data.teamOnDemandLimit
         // With the Claude Code login, checkClaudeResets sets the count.
         if !isUsingClaudeCodeLogin {
             usageData.availableResets = data.availableResets
@@ -254,6 +260,9 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
                 designWeeklyLabel: data.designWeeklyLabel,
                 creditsUsed: data.creditsUsed,
                 creditsLimit: data.creditsLimit,
+                onDemandUsedDollars: data.onDemandUsed,
+                teamOnDemandUsedDollars: data.teamOnDemandUsed,
+                teamOnDemandLimitDollars: data.teamOnDemandLimit,
                 lastUpdated: usageData.lastUpdated
             ),
             for: provider.id
@@ -463,7 +472,10 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             availableResets: dict["availableResets"] as? Int,
             resets: UsageReset.list(from: dict["resets"]),
             creditsUsed: dict["creditsUsed"] as? Double,
-            creditsLimit: dict["creditsLimit"] as? Double
+            creditsLimit: dict["creditsLimit"] as? Double,
+            onDemandUsed: dict["onDemandUsed"] as? Double,
+            teamOnDemandUsed: dict["teamOnDemandUsed"] as? Double,
+            teamOnDemandLimit: dict["teamOnDemandLimit"] as? Double
         )
         applyScrapedData(data)
     }
@@ -489,6 +501,9 @@ private struct ScrapedUsageData {
     let resets: [UsageReset]
     let creditsUsed: Double?
     let creditsLimit: Double?
+    let onDemandUsed: Double?
+    let teamOnDemandUsed: Double?
+    let teamOnDemandLimit: Double?
 }
 
 // MARK: - Cache Maintenance
