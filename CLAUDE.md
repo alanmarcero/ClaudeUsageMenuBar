@@ -19,7 +19,7 @@ Cursor's section starts with a "Menu bar" row (2.1.1 as a floating square button
 
 ## Hiding Providers
 
-The "Platforms" submenu of the popover's More menu toggles providers on and off (2.1.0). `UsageProviders.hiddenProviderIDs` persists to UserDefaults (`hiddenProviderIDs`); hidden providers disappear from the sections, header chips, and tooltip, and their `UsageService.isRefreshPaused` stops polling (login and cached snapshot are kept; re-showing refreshes immediately). At least one provider must stay visible, and hiding the menu-bar-selected provider moves the selection to the first visible one.
+The "Platforms" dropdown at the bottom of the popover — next to the More (…) menu since 2.1.5; it started as a submenu inside it in 2.1.0 — toggles providers on and off. `UsageProviders.hiddenProviderIDs` persists to UserDefaults (`hiddenProviderIDs`); hidden providers disappear from the sections, header chips, and tooltip, and their `UsageService.isRefreshPaused` stops polling (login and cached snapshot are kept; re-showing refreshes immediately). At least one provider must stay visible, and hiding the menu-bar-selected provider moves the selection to the first visible one.
 
 ## Grok Bot Provider
 

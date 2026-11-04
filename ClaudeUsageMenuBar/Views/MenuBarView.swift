@@ -78,6 +78,7 @@ struct MenuBarView: View {
                 .foregroundColor(.secondary)
                 .monospacedDigit()
             Spacer()
+            platformsMenu
             moreMenu
             IconButton(systemImage: "power", help: "Quit") {
                 NSApplication.shared.terminate(nil)
@@ -94,15 +95,31 @@ struct MenuBarView: View {
         )
     }
 
+    // Standalone dropdown next to the More menu: which platforms are shown.
+    private var platformsMenu: some View {
+        Menu {
+            ForEach(providers.services, id: \.provider.id) { service in
+                Toggle(service.provider.displayName, isOn: platformVisibilityBinding(for: service.provider.id))
+                    .disabled(providers.isVisible(service.provider.id) && providers.visibleServices.count == 1)
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text("Platforms")
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+            }
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Choose which platforms are shown")
+    }
+
     private var moreMenu: some View {
         Menu {
-            Menu("Platforms") {
-                ForEach(providers.services, id: \.provider.id) { service in
-                    Toggle(service.provider.displayName, isOn: platformVisibilityBinding(for: service.provider.id))
-                        .disabled(providers.isVisible(service.provider.id) && providers.visibleServices.count == 1)
-                }
-            }
-            Divider()
             Button("Settings…") { SettingsWindow.show() }
             Button("Check for Updates…") { updateService.checkForUpdates() }
                 .disabled(!updateService.canCheckForUpdates)
