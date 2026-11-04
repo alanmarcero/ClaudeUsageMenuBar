@@ -33,11 +33,8 @@ struct UsageData {
     var resets: [UsageReset] = []
     var creditsUsed: Double?
     var creditsLimit: Double?
-    // Cursor on-demand spend (dollars): the user's own, and the team's total
-    // against its budget, once included usage runs out.
+    // Cursor on-demand spend (dollars): the user's own, once included usage runs out.
     var onDemandUsedDollars: Double?
-    var teamOnDemandUsedDollars: Double?
-    var teamOnDemandLimitDollars: Double?
     var lastUpdated: Date?
     var isLoggedIn: Bool = false
     var errorMessage: String?
@@ -81,8 +78,6 @@ struct UsageSnapshot: Codable, Equatable {
     var creditsUsed: Double?
     var creditsLimit: Double?
     var onDemandUsedDollars: Double?
-    var teamOnDemandUsedDollars: Double?
-    var teamOnDemandLimitDollars: Double?
     var lastUpdated: Date?
 }
 
@@ -140,8 +135,8 @@ enum CreditUsage {
     }
 }
 
-// Cursor on-demand spend is money past the included pools, drawn on the team
-// budget. The usage summary reports it in cents; scripts convert to dollars.
+// Cursor on-demand spend is money past the included pools. The usage summary
+// reports it in cents; scripts convert to dollars.
 enum OnDemandUsage {
     static func format(_ dollars: Double) -> String {
         dollars.formatted(.currency(code: "USD"))

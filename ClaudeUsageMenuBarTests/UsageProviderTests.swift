@@ -224,7 +224,7 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
-    func testCursorReadsOnDemandAndTeamBudgetInDollars() async throws {
+    func testCursorReadsOnDemandInDollars() async throws {
         let result = try await scrapeCodexFixture("""
         <div>Cursor dashboard</div>
         """, beforeScrape: """
@@ -243,32 +243,7 @@ final class UsageProviderTests: XCTestCase {
         """, script: CursorScrapingScript.script)
 
         XCTAssertEqual(result["onDemandUsed"] as? Double, 12.34)
-        XCTAssertEqual(result["teamOnDemandUsed"] as? Double, 860)
-        XCTAssertEqual(result["teamOnDemandLimit"] as? Double, 10000)
         XCTAssertEqual(result["success"] as? Bool, true)
-    }
-
-    @MainActor
-    func testCursorLeavesTeamBudgetUnsetWithoutTeamUsage() async throws {
-        let result = try await scrapeCodexFixture("""
-        <div>Cursor dashboard</div>
-        """, beforeScrape: """
-        window.fetch = async () => ({
-            ok: true, status: 200,
-            json: async () => ({
-                membershipType: 'pro',
-                individualUsage: {
-                    plan: { enabled: true, used: 0, limit: 2000, autoPercentUsed: 0, apiPercentUsed: 0 },
-                    onDemand: { enabled: false, used: 0, limit: null }
-                },
-                teamUsage: {}
-            })
-        })
-        """, script: CursorScrapingScript.script)
-
-        XCTAssertEqual(result["onDemandUsed"] as? Double, 0)
-        XCTAssertTrue(result["teamOnDemandUsed"] is NSNull)
-        XCTAssertTrue(result["teamOnDemandLimit"] is NSNull)
     }
 
     @MainActor

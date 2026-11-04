@@ -139,7 +139,7 @@ struct ProviderSection: View {
             if let used = service.usageData.creditsUsed, let limit = service.usageData.creditsLimit {
                 creditsRow(used: used, limit: limit)
             }
-            if service.usageData.onDemandUsedDollars != nil || service.usageData.teamOnDemandLimitDollars != nil {
+            if service.usageData.onDemandUsedDollars != nil {
                 onDemandRow
             }
 
@@ -260,42 +260,17 @@ struct ProviderSection: View {
         .font(.caption)
     }
 
-    // On-demand spend past the included pools: the user's own draw, and the
-    // team's total against its shared budget when the account reports one.
+    // The user's own on-demand spend past the included pools.
     private var onDemandRow: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
-                Text("On-demand")
-                    .font(.subheadline)
-                Spacer()
-                if let used = service.usageData.onDemandUsedDollars {
-                    Text(OnDemandUsage.format(used))
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                }
+        HStack(spacing: 6) {
+            Text("On-demand")
+                .font(.subheadline)
+            Spacer()
+            if let used = service.usageData.onDemandUsedDollars {
+                Text(OnDemandUsage.format(used))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
             }
-            if service.usageData.teamOnDemandUsedDollars != nil || service.usageData.teamOnDemandLimitDollars != nil {
-                HStack(spacing: 6) {
-                    Text("Team budget")
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(teamBudgetText)
-                        .monospacedDigit()
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .font(.caption)
-    }
-
-    private var teamBudgetText: String {
-        let used = service.usageData.teamOnDemandUsedDollars
-        let limit = service.usageData.teamOnDemandLimitDollars
-        switch (used, limit) {
-        case let (used?, limit?): return "\(OnDemandUsage.format(used)) of \(OnDemandUsage.format(limit))"
-        case let (used?, nil): return "\(OnDemandUsage.format(used)) spent"
-        case let (nil, limit?): return "of \(OnDemandUsage.format(limit))"
-        case (nil, nil): return ""
         }
     }
 

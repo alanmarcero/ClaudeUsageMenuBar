@@ -217,7 +217,7 @@ final class UsageDataTests: XCTestCase {
     func testSnapshotRoundTripsOnDemandSpend() {
         let (defaults, suite) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
-        let snapshot = UsageSnapshot(onDemandUsedDollars: 12.34, teamOnDemandUsedDollars: 860, teamOnDemandLimitDollars: 10000)
+        let snapshot = UsageSnapshot(onDemandUsedDollars: 12.34)
         UsageCache.save(snapshot, for: "cursor", defaults: defaults)
         XCTAssertEqual(UsageCache.load(for: "cursor", defaults: defaults), snapshot)
     }
