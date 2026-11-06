@@ -16,7 +16,7 @@ When the Gemini / Antigravity CLI (`gemini` / `agy`) is signed in on the Mac, th
 - Maps `gemini-5h` to `Session (Flash & Pro)` (`dailyPercentage`), `gemini-weekly` to `Weekly (Flash & Pro)` (`weeklyPercentage`), `gemini-argon-wtu-weekly` to `Weekly (Argon)` (`sonnetWeeklyPercentage`), `3p-5h` to `Session (Claude & GPT)` (`designDailyPercentage`), and `3p-weekly` to `Weekly (Claude & GPT)` (`designWeeklyPercentage`).
 - Like Claude Code, the app only reads the saved login and never refreshes it; an expired token shows an error until the CLI renews it on the next `gemini` invocation.
 - Gemini's section starts with a "Menu bar" row (same control as Cursor's, shared `ProviderSection.menuMetricRow`) that picks Argon, Opus (Claude & GPT), or Flash (Flash & Pro) for the menu bar. `UsageProviders.geminiMenuBarMetricID` persists it (`geminiMenuBarMetricID`, default `argon`); picking one also selects Gemini. For Opus and Flash, if the 5-hour session is capped or higher than weekly, the menu bar reflects that constraint so you know when quota is reached.
-- The popover header drops the wrapping "Usage" title label and centers the platform selector chips.
+- The popover header drops the wrapping "Usage" title label, shows the version in the top left, and places the platform selector chips on the right.
 
 ## Cursor Provider
 

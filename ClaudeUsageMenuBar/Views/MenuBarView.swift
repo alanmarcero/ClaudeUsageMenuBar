@@ -28,6 +28,10 @@ struct MenuBarView: View {
     // The glyph chips select which provider's percentage shows in the menu bar.
     private var header: some View {
         HStack(spacing: 6) {
+            Text(appVersionLabel)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .fixedSize()
             Spacer()
             ForEach(providers.selectorServices, id: \.provider.id) { service in
                 let isSelected = providers.selectedMenuBarProviderID == service.provider.id
@@ -54,7 +58,6 @@ struct MenuBarView: View {
                 .buttonStyle(.plain)
                 .help("Show \(service.provider.displayName) in the menu bar")
             }
-            Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
