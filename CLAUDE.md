@@ -144,7 +144,7 @@ ClaudeUsageMenuBar/
 
 ### UsageService (Services/UsageService.swift)
 The central service that handles all data fetching and state management:
-- Auto-refreshes every 30 seconds via background WKWebView
+- Auto-refreshes every 2 minutes (120 seconds) via background WKWebView or CLI OAuth APIs
 - JavaScript injection extracts usage data from DOM and Next.js streaming data (`__next_f`)
 - Extracts: daily/weekly usage, percentages, reset times, email, org, plan
 - Published properties trigger UI updates reactively
@@ -194,7 +194,7 @@ xcodebuild -project ClaudeUsageMenuBar.xcodeproj \
 ### UsageService.swift Constants
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `refreshInterval` | 30s | Time between auto-refreshes |
+| `refreshInterval` | 120s | Time between auto-refreshes (all providers) |
 | `timerInterval` | 1.0s | Countdown tick interval |
 | `initialRefreshDelay` | 2.0s | Delay before first refresh on launch |
 | `scrapeDelay` | 2.0s | Delay after page load before scraping |
@@ -203,7 +203,7 @@ xcodebuild -project ClaudeUsageMenuBar.xcodeproj \
 ### CacheMaintenance Constants (UsageService.swift)
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `purgeEveryNRefreshes` | 120 | Successful refreshes between WebKit cache purges (~1 hour); also purges once on the first refresh after launch |
+| `purgeEveryNRefreshes` | 30 | Successful refreshes between WebKit cache purges (~1 hour); also purges once on the first refresh after launch |
 | `httpCacheDataTypes` | disk/memory/fetch cache | Data types purged — deliberately excludes cookies and storage |
 
 ### WebViewCoordinator.swift Constants
@@ -308,7 +308,7 @@ Run tests: Cmd+U in Xcode or `xcodebuild test -project ClaudeUsageMenuBar.xcodep
 Edit `AppConfig.swift` - change `yellowThreshold` and `redThreshold` values
 
 ### Change refresh interval
-In `UsageService.swift`, modify `refreshInterval` (default: 30 seconds)
+In `UsageService.swift`, modify `refreshInterval` (default: 120 seconds)
 
 ### Add new scraped data fields
 1. Add property to `UsageData.swift`

@@ -8,9 +8,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     // MARK: - Constants
 
     enum Constants {
-        static let refreshInterval: TimeInterval = 30
-        // Anthropic's usage endpoint sends HTTP 429 when the app calls it every 30 seconds.
-        static let claudeCodeRefreshInterval: TimeInterval = 300
+        static let refreshInterval: TimeInterval = 120
+        static let claudeCodeRefreshInterval: TimeInterval = 120
         static let timerInterval: TimeInterval = 1.0
         static let initialRefreshDelay: TimeInterval = 2.0
         static let scrapeDelay: TimeInterval = 2.0
@@ -550,7 +549,7 @@ private struct ScrapedUsageData {
 // so the hourly interval trades one asset refetch per hour for a cache an order of
 // magnitude smaller.
 enum CacheMaintenance {
-    static let purgeEveryNRefreshes = 120  // ~1 hour at a 30-second refresh interval
+    static let purgeEveryNRefreshes = 30  // ~1 hour at a 2-minute refresh interval
 
     // Response caches only. Cookies and local/session storage hold the signed-in session,
     // so purging them would log the user out on a timer.

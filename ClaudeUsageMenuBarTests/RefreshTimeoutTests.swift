@@ -24,16 +24,16 @@ final class RefreshTimeoutTests: XCTestCase {
     }
 
     func testRefreshIntervalConstantValue() {
-        XCTAssertEqual(UsageService.Constants.refreshInterval, 30)
+        XCTAssertEqual(UsageService.Constants.refreshInterval, 120)
     }
 
     @MainActor
-    func testClaudeCodeLoginRefreshesEveryFiveMinutes() {
+    func testClaudeCodeLoginRefreshesEveryTwoMinutes() {
         let service = UsageService(provider: .claude)
         service.isUsingClaudeCodeLogin = true
-        XCTAssertEqual(service.currentRefreshInterval, 300)
+        XCTAssertEqual(service.currentRefreshInterval, 120)
         service.isUsingClaudeCodeLogin = false
-        XCTAssertEqual(service.currentRefreshInterval, 30)
+        XCTAssertEqual(service.currentRefreshInterval, 120)
     }
 
     // MARK: - checkForRefreshTimeout Tests

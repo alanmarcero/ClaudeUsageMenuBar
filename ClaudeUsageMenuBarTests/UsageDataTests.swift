@@ -166,6 +166,7 @@ final class UsageDataTests: XCTestCase {
     func testIsStaleFreshData() {
         let now = Date()
         XCTAssertFalse(RelativeTime.isStale(now.addingTimeInterval(-30), now: now))
+        XCTAssertFalse(RelativeTime.isStale(now.addingTimeInterval(-120), now: now))
     }
 
     func testIsStaleOldData() {

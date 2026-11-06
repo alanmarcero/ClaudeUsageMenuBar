@@ -165,7 +165,7 @@ enum RelativeTime {
 
     // Data older than `threshold` means refreshes have been missing (logged out, error,
     // or a snapshot restored from a previous session) — worth flagging visually.
-    static func isStale(_ date: Date, now: Date = Date(), threshold: TimeInterval = 120) -> Bool {
+    static func isStale(_ date: Date, now: Date = Date(), threshold: TimeInterval = 240) -> Bool {
         now.timeIntervalSince(date) > threshold
     }
 }
