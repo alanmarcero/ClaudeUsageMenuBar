@@ -15,9 +15,44 @@ struct UsageProvider: Identifiable {
     let dataRecordTokens: [String] // WKWebsiteDataStore display-name tokens cleared on logout
     let scrapingScript: String
     let readsClaudeCodeLogin: Bool // prefer Claude Code's saved login over the web page
+    let readsGeminiLogin: Bool     // prefer Gemini CLI's saved login over the web page
     let primaryLabel: String       // row title for the primary (percentage) limit
     let secondaryLabel: String?    // row title for the secondary limit; nil hides that row
     let weeklyBlocksPrimary: Bool  // a spent secondary limit also blocks the primary one
+
+    init(
+        id: String,
+        displayName: String,
+        menuGlyph: String,
+        primaryHost: String,
+        usageURL: URL,
+        usagePathFragment: String,
+        loginPaths: [String],
+        oauthHostSuffixes: [String],
+        dataRecordTokens: [String],
+        scrapingScript: String,
+        readsClaudeCodeLogin: Bool,
+        readsGeminiLogin: Bool = false,
+        primaryLabel: String,
+        secondaryLabel: String?,
+        weeklyBlocksPrimary: Bool
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.menuGlyph = menuGlyph
+        self.primaryHost = primaryHost
+        self.usageURL = usageURL
+        self.usagePathFragment = usagePathFragment
+        self.loginPaths = loginPaths
+        self.oauthHostSuffixes = oauthHostSuffixes
+        self.dataRecordTokens = dataRecordTokens
+        self.scrapingScript = scrapingScript
+        self.readsClaudeCodeLogin = readsClaudeCodeLogin
+        self.readsGeminiLogin = readsGeminiLogin
+        self.primaryLabel = primaryLabel
+        self.secondaryLabel = secondaryLabel
+        self.weeklyBlocksPrimary = weeklyBlocksPrimary
+    }
 
     static let sharedSSOHosts = [
         "google.com", "googleapis.com", "gstatic.com",
@@ -100,7 +135,25 @@ struct UsageProvider: Identifiable {
         weeklyBlocksPrimary: false
     )
 
-    static let all: [UsageProvider] = [.claude, .codex, .cursor, .grokBot]
+    static let gemini = UsageProvider(
+        id: "gemini",
+        displayName: "Gemini",
+        menuGlyph: "sparkle",
+        primaryHost: "aistudio.google.com",
+        usageURL: URL(string: "https://aistudio.google.com/spend")!,
+        usagePathFragment: "/spend",
+        loginPaths: ["/login", "/signin", "accounts.google.com"],
+        oauthHostSuffixes: ["aistudio.google.com", "gemini.google.com"] + sharedSSOHosts,
+        dataRecordTokens: ["google", "aistudio", "gemini"],
+        scrapingScript: GeminiScrapingScript.script,
+        readsClaudeCodeLogin: false,
+        readsGeminiLogin: true,
+        primaryLabel: "Daily (Gemini)",
+        secondaryLabel: "Weekly (Gemini)",
+        weeklyBlocksPrimary: false
+    )
+
+    static let all: [UsageProvider] = [.claude, .codex, .cursor, .grokBot, .gemini]
 }
 
 // MARK: - Reset Details JavaScript
@@ -652,6 +705,36 @@ enum GrokBotScrapingScript {
         result.debug += '\\nException: ' + e.stack;
     }
 
+    return result;
+    """
+}
+
+// MARK: - Gemini JavaScript Scraping Script
+
+enum GeminiScrapingScript {
+    static let script = """
+    const result = {
+        success: false,
+        percentage: null,
+        resetTime: null,
+        weeklyPercentage: null,
+        weeklyResetTime: null,
+        sonnetWeeklyPercentage: null,
+        sonnetWeeklyResetTime: null,
+        designWeeklyPercentage: null,
+        designWeeklyResetTime: null,
+        sonnetWeeklyLabel: null,
+        designWeeklyLabel: null,
+        email: null,
+        orgName: null,
+        planName: null,
+        availableResets: null,
+        resets: [],
+        creditsUsed: null,
+        creditsLimit: null,
+        error: 'Run gemini in Terminal to sign in.',
+        debug: JSON.stringify({ source: 'geminiWebFallback', url: location.href })
+    };
     return result;
     """
 }

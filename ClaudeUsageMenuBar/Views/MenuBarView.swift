@@ -28,11 +28,6 @@ struct MenuBarView: View {
     // The glyph chips select which provider's percentage shows in the menu bar.
     private var header: some View {
         HStack(spacing: 6) {
-            Text("Usage")
-                .font(.headline)
-            Text(appVersionLabel)
-                .font(.caption2)
-                .foregroundColor(.secondary)
             Spacer()
             ForEach(providers.selectorServices, id: \.provider.id) { service in
                 let isSelected = providers.selectedMenuBarProviderID == service.provider.id
@@ -59,6 +54,7 @@ struct MenuBarView: View {
                 .buttonStyle(.plain)
                 .help("Show \(service.provider.displayName) in the menu bar")
             }
+            Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -158,17 +154,25 @@ struct ProviderSection: View {
             if service.provider.id == UsageProvider.cursor.id {
                 cursorMenuMetricRow
             }
-            // Cursor has no primary bar: its Included total is just the two
-            // pools below combined, so only those pools get rows.
-            if service.provider.id != UsageProvider.cursor.id,
+            if service.provider.id == UsageProvider.gemini.id {
+                geminiMenuMetricRow
+            }
+            // Cursor and Gemini skip primary/secondary bars: Cursor's Included
+            // is just the two pools combined, and Gemini's generic Flash/Pro
+            // chat bars are single-digit and not useful for agent coding (only
+            // Argon and Claude & GPT coding pools matter).
+            if service.provider.id != UsageProvider.cursor.id && service.provider.id != UsageProvider.gemini.id,
                service.provider.id != UsageProvider.codex.id || service.usageData.hasDailyLimit {
                 usageRow(service.provider.primaryLabel, service.usageData.dailyPercentage, service.usageData.isWeeklyLimitReached && service.usageData.weeklyBlocksPrimary ? nil : service.dailyResetCountdown)
             }
-            if let secondaryLabel = service.provider.secondaryLabel {
+            if let secondaryLabel = service.provider.secondaryLabel, service.provider.id != UsageProvider.gemini.id {
                 usageRow(secondaryLabel, service.usageData.weeklyPercentage, service.weeklyResetCountdown)
             }
             if service.usageData.sonnetWeeklyPercentage != nil {
                 usageRow(service.usageData.sonnetWeeklyLabel ?? "Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
+            }
+            if service.usageData.designDailyPercentage != nil {
+                usageRow(service.usageData.designDailyLabel ?? "Session (Claude & GPT)", service.usageData.designDailyPercentage, service.designDailyResetCountdown)
             }
             if service.usageData.designWeeklyPercentage != nil {
                 usageRow(service.usageData.designWeeklyLabel ?? "Weekly (Design)", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
@@ -212,19 +216,47 @@ struct ProviderSection: View {
     }
 
     // Row directly under the Cursor header, above its metrics: which Cursor
-    // metric the menu bar shows. A labeled row with a bordered button showing
-    // the current pick, so it reads as a control rather than another metric.
+    // metric the menu bar shows.
     private var cursorMenuMetricRow: some View {
+        menuMetricRow(
+            options: UsageProviders.cursorMetricOptions.filter { $0.id != "grokbot" || providers.isVisible(UsageProvider.grokBot.id) },
+            selectedID: providers.cursorMenuBarMetricID,
+            fallbackLabel: "Other Models",
+            help: "Choose which Cursor metric shows in the menu bar",
+            select: providers.setCursorMenuBarMetric
+        )
+    }
+
+    // Same control for Gemini: Argon or Opus (Claude & GPT) weekly pool.
+    private var geminiMenuMetricRow: some View {
+        menuMetricRow(
+            options: UsageProviders.geminiMetricOptions,
+            selectedID: providers.geminiMenuBarMetricID,
+            fallbackLabel: "Argon",
+            help: "Choose which Gemini usage shows in the menu bar",
+            select: providers.setGeminiMenuBarMetric
+        )
+    }
+
+    // A labeled row with a bordered button showing the current pick, so it
+    // reads as a control rather than another metric.
+    private func menuMetricRow(
+        options: [(id: String, label: String)],
+        selectedID: String,
+        fallbackLabel: String,
+        help: String,
+        select: @escaping (String) -> Void
+    ) -> some View {
         HStack(spacing: 6) {
             Text("Menu bar")
                 .font(.subheadline)
             Spacer()
             Menu {
-                ForEach(UsageProviders.cursorMetricOptions.filter { $0.id != "grokbot" || providers.isVisible(UsageProvider.grokBot.id) }, id: \.id) { option in
+                ForEach(options, id: \.id) { option in
                     Button {
-                        providers.setCursorMenuBarMetric(option.id)
+                        select(option.id)
                     } label: {
-                        if providers.cursorMenuBarMetricID == option.id {
+                        if selectedID == option.id {
                             Label(option.label, systemImage: "checkmark")
                         } else {
                             Text(option.label)
@@ -233,7 +265,7 @@ struct ProviderSection: View {
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Text(UsageProviders.cursorMetricOptions.first { $0.id == providers.cursorMenuBarMetricID }?.label ?? "Other Models")
+                    Text(options.first { $0.id == selectedID }?.label ?? fallbackLabel)
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.caption2)
                 }
@@ -253,7 +285,7 @@ struct ProviderSection: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Choose which Cursor metric shows in the menu bar")
+            .help(help)
         }
     }
 
@@ -633,7 +665,7 @@ struct AboutView: View {
                     .foregroundColor(.secondary)
             }
 
-            Text("A macOS menu bar app that shows your Claude, OpenAI Codex, Cursor and Grok Bot usage limits, reset countdowns and plan.")
+            Text("A macOS menu bar app that shows your Claude, OpenAI Codex, Cursor, Grok Bot and Gemini usage limits, reset countdowns and plan.")
                 .font(.callout)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

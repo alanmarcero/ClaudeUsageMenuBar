@@ -26,6 +26,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     @Published var dailyResetCountdown: String?
     @Published var weeklyResetCountdown: String?
     @Published var sonnetWeeklyResetCountdown: String?
+    @Published var designDailyResetCountdown: String?
     @Published var designWeeklyResetCountdown: String?
     @Published var debugInfo: String = ""
     @Published var isUsingClaudeCodeLogin = false
@@ -37,6 +38,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private var rawDailyResetTime: String?
     private var rawWeeklyResetTime: String?
     private var rawSonnetWeeklyResetTime: String?
+    private var rawDesignDailyResetTime: String?
     private var rawDesignWeeklyResetTime: String?
     private var isCheckingClaudeResets = false
     var refreshStartTime: Date?  // internal for @testable import
@@ -98,6 +100,19 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         isRefreshing = true
         refreshStartTime = Date()
         usageData.errorMessage = nil
+
+        if provider.readsGeminiLogin {
+            Task {
+                let login = await Task.detached { GeminiUsageAPI.readLogin() }.value
+                isUsingClaudeCodeLogin = login != nil
+                guard let login else {
+                    loadUsagePage()
+                    return
+                }
+                handleScrapingResult(await GeminiUsageAPI.fetchResult(login: login), error: nil)
+            }
+            return
+        }
 
         guard provider.readsClaudeCodeLogin else {
             loadUsagePage()
@@ -209,9 +224,13 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         dailyResetCountdown = nil
         weeklyResetCountdown = nil
         sonnetWeeklyResetCountdown = nil
+        designDailyResetCountdown = nil
+        designWeeklyResetCountdown = nil
         rawDailyResetTime = nil
         rawWeeklyResetTime = nil
         rawSonnetWeeklyResetTime = nil
+        rawDesignDailyResetTime = nil
+        rawDesignWeeklyResetTime = nil
         // Drop the persisted snapshot so a later launch doesn't restore stale usage
         // after an explicit logout / cache clear.
         UsageCache.clear(for: provider.id)
@@ -226,9 +245,12 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.weeklyResetTime = data.weeklyResetTime
         usageData.sonnetWeeklyPercentage = data.sonnetWeeklyPercentage
         usageData.sonnetWeeklyResetTime = data.sonnetWeeklyResetTime
+        usageData.designDailyPercentage = data.designDailyPercentage
+        usageData.designDailyResetTime = data.designDailyResetTime
         usageData.designWeeklyPercentage = data.designWeeklyPercentage
         usageData.designWeeklyResetTime = data.designWeeklyResetTime
         usageData.sonnetWeeklyLabel = data.sonnetWeeklyLabel
+        usageData.designDailyLabel = data.designDailyLabel
         usageData.designWeeklyLabel = data.designWeeklyLabel
         usageData.email = data.email
         usageData.organizationName = data.organizationName
@@ -253,9 +275,12 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
                 weeklyResetTime: data.weeklyResetTime,
                 sonnetWeeklyPercentage: data.sonnetWeeklyPercentage,
                 sonnetWeeklyResetTime: data.sonnetWeeklyResetTime,
+                designDailyPercentage: data.designDailyPercentage,
+                designDailyResetTime: data.designDailyResetTime,
                 designWeeklyPercentage: data.designWeeklyPercentage,
                 designWeeklyResetTime: data.designWeeklyResetTime,
                 sonnetWeeklyLabel: data.sonnetWeeklyLabel,
+                designDailyLabel: data.designDailyLabel,
                 designWeeklyLabel: data.designWeeklyLabel,
                 creditsUsed: data.creditsUsed,
                 creditsLimit: data.creditsLimit,
@@ -268,6 +293,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         rawDailyResetTime = data.resetTime
         rawWeeklyResetTime = data.weeklyResetTime
         rawSonnetWeeklyResetTime = data.sonnetWeeklyResetTime
+        rawDesignDailyResetTime = data.designDailyResetTime
         rawDesignWeeklyResetTime = data.designWeeklyResetTime
         updateResetCountdowns()
 
@@ -336,6 +362,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         dailyResetCountdown = DailyCountdownCalculator.calculate(from: rawDailyResetTime)
         weeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawWeeklyResetTime)
         sonnetWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawSonnetWeeklyResetTime)
+        designDailyResetCountdown = DailyCountdownCalculator.calculate(from: rawDesignDailyResetTime)
         designWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawDesignWeeklyResetTime)
     }
 
@@ -460,9 +487,12 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             weeklyResetTime: dict["weeklyResetTime"] as? String,
             sonnetWeeklyPercentage: dict["sonnetWeeklyPercentage"] as? Int,
             sonnetWeeklyResetTime: dict["sonnetWeeklyResetTime"] as? String,
+            designDailyPercentage: dict["designDailyPercentage"] as? Int,
+            designDailyResetTime: dict["designDailyResetTime"] as? String,
             designWeeklyPercentage: dict["designWeeklyPercentage"] as? Int,
             designWeeklyResetTime: dict["designWeeklyResetTime"] as? String,
             sonnetWeeklyLabel: dict["sonnetWeeklyLabel"] as? String,
+            designDailyLabel: dict["designDailyLabel"] as? String,
             designWeeklyLabel: dict["designWeeklyLabel"] as? String,
             email: dict["email"] as? String,
             organizationName: dict["orgName"] as? String,
@@ -486,9 +516,12 @@ private struct ScrapedUsageData {
     let weeklyResetTime: String?
     let sonnetWeeklyPercentage: Int?
     let sonnetWeeklyResetTime: String?
+    let designDailyPercentage: Int?
+    let designDailyResetTime: String?
     let designWeeklyPercentage: Int?
     let designWeeklyResetTime: String?
     let sonnetWeeklyLabel: String?
+    let designDailyLabel: String?
     let designWeeklyLabel: String?
     let email: String?
     let organizationName: String?

@@ -22,6 +22,10 @@ struct UsageData {
     var sonnetWeeklyResetTime: String?
     var sonnetWeeklyLabel: String?
 
+    var designDailyPercentage: Int?
+    var designDailyResetTime: String?
+    var designDailyLabel: String?
+
     var designWeeklyPercentage: Int?
     var designWeeklyResetTime: String?
     var designWeeklyLabel: String?
@@ -71,9 +75,12 @@ struct UsageSnapshot: Codable, Equatable {
     var weeklyResetTime: String?
     var sonnetWeeklyPercentage: Int?
     var sonnetWeeklyResetTime: String?
+    var designDailyPercentage: Int?
+    var designDailyResetTime: String?
     var designWeeklyPercentage: Int?
     var designWeeklyResetTime: String?
     var sonnetWeeklyLabel: String?
+    var designDailyLabel: String?
     var designWeeklyLabel: String?
     var creditsUsed: Double?
     var creditsLimit: Double?

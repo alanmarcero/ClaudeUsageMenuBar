@@ -6,7 +6,7 @@ final class UsageProviderTests: XCTestCase {
 
     func testRegistryContainsClaudeAndCodex() {
         let ids = UsageProvider.all.map { $0.id }
-        XCTAssertEqual(ids, ["claude", "codex", "cursor", "grokbot"])
+        XCTAssertEqual(ids, ["claude", "codex", "cursor", "grokbot", "gemini"])
     }
 
     @MainActor
@@ -182,18 +182,75 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(container.menuBarDisplay(for: claude), "45%")
     }
 
+    @MainActor
+    func testGeminiMenuBarMetricDefaultsToArgonAndSwitchesToOpus() {
+        let (defaults, suite) = makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let container = UsageProviders(providers: [.claude, .gemini], defaults: defaults)
+        let gemini = container.services.first { $0.provider.id == "gemini" }!
+        gemini.usageData.percentage = 5
+        gemini.usageData.sonnetWeeklyPercentage = 40
+        gemini.usageData.sonnetWeeklyLabel = "Weekly (Argon)"
+        gemini.usageData.designWeeklyPercentage = 80
+        gemini.usageData.designWeeklyLabel = "Weekly (Claude & GPT)"
+
+        XCTAssertEqual(container.geminiMenuBarMetricID, "argon")
+        XCTAssertEqual(container.menuBarDisplay(for: gemini), "40%")
+
+        container.setGeminiMenuBarMetric("opus")
+        XCTAssertEqual(container.menuBarDisplay(for: gemini), "80%")
+        XCTAssertEqual(container.selectedMenuBarProviderID, "gemini")
+
+        container.setGeminiMenuBarMetric("bogus")
+        XCTAssertEqual(container.geminiMenuBarMetricID, "opus")
+
+        let restored = UsageProviders(providers: [.claude, .gemini], defaults: defaults)
+        XCTAssertEqual(restored.geminiMenuBarMetricID, "opus")
+    }
+
+    func testGeminiMenuBarDisplayShowsSessionLimitWhenCapped() {
+        var data = UsageData()
+        data.designDailyPercentage = 100
+        data.designDailyLabel = "Session (Claude & GPT)"
+        data.designWeeklyPercentage = 42
+        data.designWeeklyLabel = "Weekly (Claude & GPT)"
+
+        // When the 5-hour session is capped at 100%, Opus displays 100% instead of 42%.
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "opus"), "100%")
+    }
+
+    func testGeminiMenuBarDisplayMatchesPoolByLabelNotSlot() {
+        var data = UsageData()
+        // No Argon pool: Claude & GPT shifts into the first scoped slot.
+        data.sonnetWeeklyPercentage = 25
+        data.sonnetWeeklyLabel = "Weekly (Claude & GPT)"
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "opus"), "25%")
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "argon"), "--")
+    }
+
     private func makeSuiteDefaults() -> (defaults: UserDefaults, suite: String) {
         let suite = "test-usageproviders-\(UUID().uuidString)"
         return (UserDefaults(suiteName: suite)!, suite)
     }
 
     func testEachProviderHasNonEmptyScriptAndValidURL() {
-        XCTAssertEqual(UsageProvider.all.count, 4)
+        XCTAssertEqual(UsageProvider.all.count, 5)
         UsageProvider.all.forEach { provider in
             XCTAssertFalse(provider.scrapingScript.isEmpty, "\(provider.id) script empty")
             XCTAssertFalse(provider.usageURL.absoluteString.isEmpty, "\(provider.id) url empty")
             XCTAssertTrue(provider.usageURL.absoluteString.contains(provider.usagePathFragment), "\(provider.id) fragment")
         }
+    }
+
+    func testGeminiProviderReadsGeminiLoginAndHasDailyAndWeeklyLabels() {
+        XCTAssertEqual(UsageProvider.gemini.displayName, "Gemini")
+        XCTAssertTrue(UsageProvider.gemini.readsGeminiLogin)
+        XCTAssertFalse(UsageProvider.gemini.readsClaudeCodeLogin)
+        XCTAssertEqual(UsageProvider.gemini.primaryLabel, "Daily (Gemini)")
+        XCTAssertEqual(UsageProvider.gemini.secondaryLabel, "Weekly (Gemini)")
+        XCTAssertFalse(UsageProvider.gemini.weeklyBlocksPrimary)
+        XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("aistudio.google.com"))
+        XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("google.com"))
     }
 
     func testCodexFragmentMatchesHashRedirect() {

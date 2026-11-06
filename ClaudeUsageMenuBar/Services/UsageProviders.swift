@@ -24,6 +24,15 @@ final class UsageProviders: ObservableObject {
         ("grokbot", "Grok Bot")
     ]
 
+    private static let geminiMetricKey = "geminiMenuBarMetricID"
+
+    // Gemini reports separate pools for Argon and Claude & GPT (Opus); the
+    // menu bar can show either one.
+    static let geminiMetricOptions: [(id: String, label: String)] = [
+        ("argon", "Argon"),
+        ("opus", "Opus")
+    ]
+
     // Which provider's percentage is shown in the menu bar. Persisted so it sticks
     // across launches. The dropdown picker scales to however many providers exist.
     @Published var selectedMenuBarProviderID: String {
@@ -39,6 +48,10 @@ final class UsageProviders: ObservableObject {
     // Which Cursor metric the menu bar shows while Cursor is the selected
     // provider. Chosen from the Cursor section's Menu button; persisted.
     @Published private(set) var cursorMenuBarMetricID: String
+
+    // Which Gemini weekly pool the menu bar shows while Gemini is the selected
+    // provider. Chosen from the Gemini section's Menu bar row; persisted.
+    @Published private(set) var geminiMenuBarMetricID: String
 
     init(providers: [UsageProvider] = UsageProvider.all, defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -59,6 +72,10 @@ final class UsageProviders: ObservableObject {
         let savedMetric = defaults.string(forKey: Self.cursorMetricKey)
         cursorMenuBarMetricID = Self.cursorMetricOptions.contains { $0.id == savedMetric }
             ? (savedMetric ?? "other") : "other"
+
+        let savedGeminiMetric = defaults.string(forKey: Self.geminiMetricKey)
+        geminiMenuBarMetricID = Self.geminiMetricOptions.contains { $0.id == savedGeminiMetric }
+            ? (savedGeminiMetric ?? "argon") : "argon"
 
         services.forEach { $0.isRefreshPaused = hidden.contains($0.provider.id) }
         // Grok Bot is combined into Cursor overall: it is no longer a top-level
@@ -142,13 +159,62 @@ final class UsageProviders: ObservableObject {
         selectedMenuBarProviderID = UsageProvider.cursor.id
     }
 
-    // The string the menu bar (and the provider's header chip) shows. Only
-    // Cursor has a metric choice; every other provider uses its headline %.
+    // Picking a Gemini pool also selects Gemini for the menu bar.
+    func setGeminiMenuBarMetric(_ metricID: String) {
+        guard Self.geminiMetricOptions.contains(where: { $0.id == metricID }) else { return }
+        geminiMenuBarMetricID = metricID
+        defaults.set(metricID, forKey: Self.geminiMetricKey)
+        selectedMenuBarProviderID = UsageProvider.gemini.id
+    }
+
+    // The string the menu bar (and the provider's header chip) shows. Cursor
+    // and Gemini have a metric choice; every other provider uses its headline %.
     func menuBarDisplay(for service: UsageService) -> String {
-        guard service.provider.id == UsageProvider.cursor.id else {
+        switch service.provider.id {
+        case UsageProvider.cursor.id:
+            return cursorMenuBarDisplay(for: service.usageData)
+        case UsageProvider.gemini.id:
+            return Self.geminiMenuBarDisplay(for: service.usageData, metricID: geminiMenuBarMetricID)
+        default:
             return service.usageData.displayPercentage
         }
-        let data = service.usageData
+    }
+
+    // Gemini's scoped pools land in the sonnet/design slots in priority order
+    // (Argon first), but a missing Argon pool shifts Claude & GPT into the
+    // first slot, so the pool is matched by its label rather than its slot.
+    // For Opus (Claude & GPT), if the 5-hour session is capped or higher than
+    // weekly, it reflects that constraint so the user isn't misled by a low weekly %.
+    nonisolated static func geminiMenuBarDisplay(for data: UsageData, metricID: String) -> String {
+        switch metricID {
+        case "opus":
+            if let session = data.designDailyPercentage, let weekly = data.designWeeklyPercentage {
+                return "\(max(session, weekly))%"
+            }
+            if let pct = data.designDailyPercentage ?? data.designWeeklyPercentage {
+                return "\(pct)%"
+            }
+            let pools: [(label: String?, percentage: Int?)] = [
+                (data.sonnetWeeklyLabel, data.sonnetWeeklyPercentage),
+                (data.designWeeklyLabel, data.designWeeklyPercentage)
+            ]
+            let match = pools.first { $0.label?.lowercased().contains("claude") == true }
+            guard let percentage = match?.percentage else { return "--" }
+            return "\(percentage)%"
+        default: // "argon"
+            let pools: [(label: String?, percentage: Int?)] = [
+                (data.sonnetWeeklyLabel, data.sonnetWeeklyPercentage),
+                (data.designWeeklyLabel, data.designWeeklyPercentage)
+            ]
+            let match = pools.first { $0.label?.lowercased().contains("argon") == true }
+            guard let percentage = match?.percentage else {
+                return data.dailyPercentage.map { "\($0)%" } ?? "--"
+            }
+            return "\(percentage)%"
+        }
+    }
+
+    private func cursorMenuBarDisplay(for data: UsageData) -> String {
         switch cursorMenuBarMetricID {
         case "other":
             return data.weeklyPercentage.map { "\($0)%" } ?? "--"

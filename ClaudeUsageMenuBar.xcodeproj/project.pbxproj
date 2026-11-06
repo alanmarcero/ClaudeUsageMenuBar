@@ -19,7 +19,9 @@
 		001A00080 /* UsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A00081; };
 		001A00082 /* UsageProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A00083; };
 		001A00084 /* ClaudeCodeUsageAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A00085; };
+		001A00086 /* GeminiUsageAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A00087; };
 		002A00092 /* ClaudeCodeUsageAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00093; };
+		002A00094 /* GeminiUsageAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00095; };
 		002A00080 /* UsageProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00081; };
 		002A00082 /* DailyCountdownCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002A00083; };
 		001A00017 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 001A00018 /* Sparkle */; };
@@ -60,7 +62,9 @@
 		001A00081 /* UsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProvider.swift; sourceTree = "<group>"; };
 		001A00083 /* UsageProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProviders.swift; sourceTree = "<group>"; };
 		001A00085 /* ClaudeCodeUsageAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeUsageAPI.swift; sourceTree = "<group>"; };
+		001A00087 /* GeminiUsageAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiUsageAPI.swift; sourceTree = "<group>"; };
 		002A00093 /* ClaudeCodeUsageAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeUsageAPITests.swift; sourceTree = "<group>"; };
+		002A00095 /* GeminiUsageAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiUsageAPITests.swift; sourceTree = "<group>"; };
 		002A00081 /* UsageProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProviderTests.swift; sourceTree = "<group>"; };
 		002A00083 /* DailyCountdownCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyCountdownCalculatorTests.swift; sourceTree = "<group>"; };
 		002A00002 /* UsageDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageDataTests.swift; sourceTree = "<group>"; };
@@ -143,6 +147,7 @@
 				001A00006 /* UsageService.swift */,
 				001A00083 /* UsageProviders.swift */,
 				001A00085 /* ClaudeCodeUsageAPI.swift */,
+				001A00087 /* GeminiUsageAPI.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -180,6 +185,7 @@
 				002A00083 /* DailyCountdownCalculatorTests.swift */,
 				002A00091 /* DiskPressureTests.swift */,
 				002A00093 /* ClaudeCodeUsageAPITests.swift */,
+				002A00095 /* GeminiUsageAPITests.swift */,
 			);
 			path = ClaudeUsageMenuBarTests;
 			sourceTree = "<group>";
@@ -292,6 +298,7 @@
 				001A00080 /* UsageProvider.swift in Sources */,
 				001A00082 /* UsageProviders.swift in Sources */,
 				001A00084 /* ClaudeCodeUsageAPI.swift in Sources */,
+				001A00086 /* GeminiUsageAPI.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -311,6 +318,7 @@
 				002A00082 /* DailyCountdownCalculatorTests.swift in Sources */,
 				002A00090 /* DiskPressureTests.swift in Sources */,
 				002A00092 /* ClaudeCodeUsageAPITests.swift in Sources */,
+				002A00094 /* GeminiUsageAPITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -449,7 +457,7 @@
 				CODE_SIGN_ENTITLEMENTS = ClaudeUsageMenuBar/ClaudeUsageMenuBar.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 41;
+				CURRENT_PROJECT_VERSION = 42;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -460,7 +468,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.1.6;
+				MARKETING_VERSION = 2.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alanmarcero.claudeusagemenubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -477,7 +485,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 41;
+				CURRENT_PROJECT_VERSION = 42;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -488,7 +496,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.1.6;
+				MARKETING_VERSION = 2.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alanmarcero.claudeusagemenubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -501,10 +509,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 41;
+				CURRENT_PROJECT_VERSION = 42;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.1.6;
+				MARKETING_VERSION = 2.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.claude.usage.menubar.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -518,10 +526,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 41;
+				CURRENT_PROJECT_VERSION = 42;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.1.6;
+				MARKETING_VERSION = 2.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.claude.usage.menubar.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
