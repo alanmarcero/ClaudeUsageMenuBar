@@ -157,15 +157,13 @@ struct ProviderSection: View {
             if service.provider.id == UsageProvider.gemini.id {
                 geminiMenuMetricRow
             }
-            // Cursor and Gemini skip primary/secondary bars: Cursor's Included
-            // is just the two pools combined, and Gemini's generic Flash/Pro
-            // chat bars are single-digit and not useful for agent coding (only
-            // Argon and Claude & GPT coding pools matter).
-            if service.provider.id != UsageProvider.cursor.id && service.provider.id != UsageProvider.gemini.id,
+            // Cursor has no primary bar: its Included total is just the two
+            // pools below combined, so only those pools get rows.
+            if service.provider.id != UsageProvider.cursor.id,
                service.provider.id != UsageProvider.codex.id || service.usageData.hasDailyLimit {
                 usageRow(service.provider.primaryLabel, service.usageData.dailyPercentage, service.usageData.isWeeklyLimitReached && service.usageData.weeklyBlocksPrimary ? nil : service.dailyResetCountdown)
             }
-            if let secondaryLabel = service.provider.secondaryLabel, service.provider.id != UsageProvider.gemini.id {
+            if let secondaryLabel = service.provider.secondaryLabel {
                 usageRow(secondaryLabel, service.usageData.weeklyPercentage, service.weeklyResetCountdown)
             }
             if service.usageData.sonnetWeeklyPercentage != nil {

@@ -189,6 +189,7 @@ final class UsageProviderTests: XCTestCase {
         let container = UsageProviders(providers: [.claude, .gemini], defaults: defaults)
         let gemini = container.services.first { $0.provider.id == "gemini" }!
         gemini.usageData.percentage = 5
+        gemini.usageData.weeklyPercentage = 3
         gemini.usageData.sonnetWeeklyPercentage = 40
         gemini.usageData.sonnetWeeklyLabel = "Weekly (Argon)"
         gemini.usageData.designWeeklyPercentage = 80
@@ -201,11 +202,14 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(container.menuBarDisplay(for: gemini), "80%")
         XCTAssertEqual(container.selectedMenuBarProviderID, "gemini")
 
+        container.setGeminiMenuBarMetric("flash")
+        XCTAssertEqual(container.menuBarDisplay(for: gemini), "5%")
+
         container.setGeminiMenuBarMetric("bogus")
-        XCTAssertEqual(container.geminiMenuBarMetricID, "opus")
+        XCTAssertEqual(container.geminiMenuBarMetricID, "flash")
 
         let restored = UsageProviders(providers: [.claude, .gemini], defaults: defaults)
-        XCTAssertEqual(restored.geminiMenuBarMetricID, "opus")
+        XCTAssertEqual(restored.geminiMenuBarMetricID, "flash")
     }
 
     func testGeminiMenuBarDisplayShowsSessionLimitWhenCapped() {
@@ -246,8 +250,8 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(UsageProvider.gemini.displayName, "Gemini")
         XCTAssertTrue(UsageProvider.gemini.readsGeminiLogin)
         XCTAssertFalse(UsageProvider.gemini.readsClaudeCodeLogin)
-        XCTAssertEqual(UsageProvider.gemini.primaryLabel, "Daily (Gemini)")
-        XCTAssertEqual(UsageProvider.gemini.secondaryLabel, "Weekly (Gemini)")
+        XCTAssertEqual(UsageProvider.gemini.primaryLabel, "Session (Flash & Pro)")
+        XCTAssertEqual(UsageProvider.gemini.secondaryLabel, "Weekly (Flash & Pro)")
         XCTAssertFalse(UsageProvider.gemini.weeklyBlocksPrimary)
         XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("aistudio.google.com"))
         XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("google.com"))

@@ -26,11 +26,12 @@ final class UsageProviders: ObservableObject {
 
     private static let geminiMetricKey = "geminiMenuBarMetricID"
 
-    // Gemini reports separate pools for Argon and Claude & GPT (Opus); the
-    // menu bar can show either one.
+    // Gemini reports separate pools for Argon, Claude & GPT (Opus), and Gemini
+    // Flash & Pro; the menu bar can show any of them.
     static let geminiMetricOptions: [(id: String, label: String)] = [
         ("argon", "Argon"),
-        ("opus", "Opus")
+        ("opus", "Opus"),
+        ("flash", "Flash")
     ]
 
     // Which provider's percentage is shown in the menu bar. Persisted so it sticks
@@ -187,6 +188,12 @@ final class UsageProviders: ObservableObject {
     // weekly, it reflects that constraint so the user isn't misled by a low weekly %.
     nonisolated static func geminiMenuBarDisplay(for data: UsageData, metricID: String) -> String {
         switch metricID {
+        case "flash":
+            if let session = data.dailyPercentage, let weekly = data.weeklyPercentage {
+                return "\(max(session, weekly))%"
+            }
+            guard let pct = data.dailyPercentage ?? data.weeklyPercentage else { return "--" }
+            return "\(pct)%"
         case "opus":
             if let session = data.designDailyPercentage, let weekly = data.designWeeklyPercentage {
                 return "\(max(session, weekly))%"
