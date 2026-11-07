@@ -49,6 +49,41 @@ final class UsageDataTests: XCTestCase {
         XCTAssertEqual(data.dailyPercentage, 20)
     }
 
+    func testDesignWeeklyLimitReached() {
+        var data = UsageData()
+        XCTAssertFalse(data.isDesignWeeklyLimitReached)
+        XCTAssertFalse(data.isDesignSessionUnavailable)
+
+        data.designWeeklyPercentage = 99
+        data.designDailyPercentage = 15
+        XCTAssertFalse(data.isDesignWeeklyLimitReached)
+        XCTAssertFalse(data.isDesignSessionUnavailable)
+
+        data.designWeeklyPercentage = 100
+        XCTAssertTrue(data.isDesignWeeklyLimitReached)
+        XCTAssertTrue(data.isDesignSessionUnavailable)
+
+        data.designWeeklyPercentage = 105
+        XCTAssertTrue(data.isDesignWeeklyLimitReached)
+        XCTAssertTrue(data.isDesignSessionUnavailable)
+    }
+
+    func testPrimarySessionUnavailableWhenWeeklyReached() {
+        var data = UsageData()
+        data.percentage = 10
+        data.weeklyPercentage = 100
+
+        XCTAssertTrue(data.isPrimarySessionUnavailable(for: .claude))
+        XCTAssertTrue(data.isPrimarySessionUnavailable(for: .codex))
+        XCTAssertTrue(data.isPrimarySessionUnavailable(for: .gemini))
+        XCTAssertFalse(data.isPrimarySessionUnavailable(for: .cursor))
+        XCTAssertFalse(data.isPrimarySessionUnavailable(for: .grokBot))
+
+        data.weeklyPercentage = 99
+        XCTAssertFalse(data.isPrimarySessionUnavailable(for: .gemini))
+        XCTAssertFalse(data.isPrimarySessionUnavailable(for: .claude))
+    }
+
     func testDefaultValues() {
         let data = UsageData()
         XCTAssertNil(data.percentage)

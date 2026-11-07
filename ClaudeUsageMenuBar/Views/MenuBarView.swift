@@ -164,7 +164,13 @@ struct ProviderSection: View {
             // pools below combined, so only those pools get rows.
             if service.provider.id != UsageProvider.cursor.id,
                service.provider.id != UsageProvider.codex.id || service.usageData.hasDailyLimit {
-                usageRow(service.provider.primaryLabel, service.usageData.dailyPercentage, service.usageData.isWeeklyLimitReached && service.usageData.weeklyBlocksPrimary ? nil : service.dailyResetCountdown)
+                let isUnavailable = service.usageData.isPrimarySessionUnavailable(for: service.provider)
+                usageRow(
+                    service.provider.primaryLabel,
+                    service.usageData.percentage,
+                    service.dailyResetCountdown,
+                    isUnavailable: isUnavailable
+                )
             }
             if let secondaryLabel = service.provider.secondaryLabel {
                 usageRow(secondaryLabel, service.usageData.weeklyPercentage, service.weeklyResetCountdown)
@@ -173,7 +179,13 @@ struct ProviderSection: View {
                 usageRow(service.usageData.sonnetWeeklyLabel ?? "Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
             }
             if service.usageData.designDailyPercentage != nil {
-                usageRow(service.usageData.designDailyLabel ?? "Session (Claude & GPT)", service.usageData.designDailyPercentage, service.designDailyResetCountdown)
+                let isUnavailable = service.usageData.isDesignSessionUnavailable
+                usageRow(
+                    service.usageData.designDailyLabel ?? "Session (Claude & GPT)",
+                    service.usageData.designDailyPercentage,
+                    service.designDailyResetCountdown,
+                    isUnavailable: isUnavailable
+                )
             }
             if service.usageData.designWeeklyPercentage != nil {
                 usageRow(service.usageData.designWeeklyLabel ?? "Weekly (Design)", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
@@ -344,18 +356,24 @@ struct ProviderSection: View {
         }
     }
 
-    private func usageRow(_ title: String, _ percentage: Int?, _ resetTime: String?) -> some View {
+    private func usageRow(
+        _ title: String,
+        _ percentage: Int?,
+        _ resetTime: String?,
+        isUnavailable: Bool = false
+    ) -> some View {
         VStack(spacing: 5) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(title)
                     .font(.subheadline)
+                    .foregroundColor(isUnavailable ? .secondary : .primary)
                 if let reset = resetTime {
                     Text("resets in \(reset)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                if let pct = percentage, pct >= AppConfig.shared.redThreshold {
+                if !isUnavailable, let pct = percentage, pct >= AppConfig.shared.redThreshold {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundColor(.red)
@@ -364,13 +382,20 @@ struct ProviderSection: View {
                 Text(percentage.map { "\($0)%" } ?? "--")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundColor(percentage != nil ? AppConfig.shared.colorForPercentage(percentage) : .secondary)
+                    .foregroundColor(isUnavailable ? .secondary : (percentage != nil ? AppConfig.shared.colorForPercentage(percentage) : .secondary))
             }
 
             if let pct = percentage {
-                UsageProgressBar(percentage: pct, colors: AppConfig.shared.gradientColors(for: pct))
+                UsageProgressBar(
+                    percentage: pct,
+                    colors: isUnavailable
+                        ? [Color.secondary.opacity(0.45), Color.secondary.opacity(0.3)]
+                        : AppConfig.shared.gradientColors(for: pct)
+                )
             }
         }
+        .opacity(isUnavailable ? 0.55 : 1.0)
+        .help(isUnavailable ? "Unavailable: weekly limit reached" : "")
     }
 
     private func resetDetailRow(_ reset: UsageReset) -> some View {

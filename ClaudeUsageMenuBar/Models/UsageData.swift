@@ -51,9 +51,24 @@ struct UsageData {
         (weeklyPercentage ?? 0) >= 100
     }
 
+    var isDesignWeeklyLimitReached: Bool {
+        (designWeeklyPercentage ?? 0) >= 100
+    }
+
     // The daily limit cannot be used once the weekly limit is spent, so it reads as full.
     var dailyPercentage: Int? {
         weeklyBlocksPrimary && isWeeklyLimitReached ? 100 : percentage
+    }
+
+    /// Whether the primary session (e.g. Daily / Session (Flash)) is unavailable because its linked weekly limit reached 100%.
+    func isPrimarySessionUnavailable(for provider: UsageProvider) -> Bool {
+        guard provider.id != UsageProvider.cursor.id, provider.secondaryLabel != nil else { return false }
+        return isWeeklyLimitReached
+    }
+
+    /// Whether the secondary/scoped session (e.g. Session (Claude & GPT)) is unavailable because its linked weekly limit reached 100%.
+    var isDesignSessionUnavailable: Bool {
+        isDesignWeeklyLimitReached
     }
 
     var displayPercentage: String {

@@ -189,7 +189,7 @@ final class UsageProviders: ObservableObject {
     nonisolated static func geminiMenuBarDisplay(for data: UsageData, metricID: String) -> String {
         switch metricID {
         case "flash":
-            guard let session = data.dailyPercentage else { return "--" }
+            guard let session = data.percentage ?? data.dailyPercentage else { return "--" }
             return "\(session)%"
         case "opus":
             guard let session = data.designDailyPercentage else { return "--" }
