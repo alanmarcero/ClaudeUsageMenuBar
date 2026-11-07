@@ -362,6 +362,42 @@ final class GeminiUsageAPITests: XCTestCase {
         XCTAssertEqual(quotaCallCount, 2)
     }
 
+    func testFetchResultFallsBackWhenDailyEndpointFails() async {
+        let session = makeMockSession()
+        let now = Date(timeIntervalSince1970: 1_000_000)
+
+        MockURLProtocol.requestHandler = { [weak self] request in
+            guard let self else { throw URLError(.cancelled) }
+            if request.url == GeminiUsageAPI.quotaURL {
+                let response = HTTPURLResponse(url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil)!
+                return (response, Data(#"{"error": "unavailable"}"#.utf8))
+            }
+            if request.url == GeminiUsageAPI.fallbackQuotaURL {
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (response, Data(self.quotaBody.utf8))
+            }
+            if request.url == GeminiUsageAPI.loadCodeAssistURL || request.url == GeminiUsageAPI.fallbackLoadCodeAssistURL {
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                let body = #"{"paidTier": {"name": "Google AI Pro"}}"#
+                return (response, Data(body.utf8))
+            }
+            throw URLError(.badURL)
+        }
+
+        let login = GeminiUsageAPI.Login(
+            accessToken: "ya29.valid-token",
+            refreshToken: "rt-valid",
+            expiresAt: now.addingTimeInterval(3000),
+            authMethod: "consumer",
+            email: "alan@example.com",
+            userTier: "g1-pro-tier"
+        )
+
+        let result = await GeminiUsageAPI.fetchResult(login: login, now: now, session: session)
+        XCTAssertEqual(result["success"] as? Bool, true)
+        XCTAssertEqual(result["percentage"] as? Int, 3)
+    }
+
     private func makeMockSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]

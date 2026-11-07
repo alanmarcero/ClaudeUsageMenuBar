@@ -6,8 +6,10 @@ import Foundation
 // When the access token expires or nears expiration, it automatically invokes the CLI
 // in the background to renew the token and reloads the fresh credentials from Keychain.
 enum GeminiUsageAPI {
-    static let quotaURL = URL(string: "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary")!
-    static let loadCodeAssistURL = URL(string: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist")!
+    static let quotaURL = URL(string: "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary")!
+    static let loadCodeAssistURL = URL(string: "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist")!
+    static let fallbackQuotaURL = URL(string: "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary")!
+    static let fallbackLoadCodeAssistURL = URL(string: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist")!
     static let keychainService = "gemini"
     static let proactiveRefreshWindow: TimeInterval = 300 // 5 minutes
     static let requestTimeout: TimeInterval = 20
@@ -175,9 +177,22 @@ enum GeminiUsageAPI {
                 httpStatus = retryResult.1
             }
 
+            if httpStatus != 200 && httpStatus != 401 {
+                if let fallbackResult = try? await postJSON(url: fallbackQuotaURL, body: Data("{}".utf8), accessToken: currentLogin.accessToken, session: session),
+                   fallbackResult.1 == 200 {
+                    data = fallbackResult.0
+                    httpStatus = fallbackResult.1
+                }
+            }
+
             let planName = await fetchPlanName(accessToken: currentLogin.accessToken, fallbackTier: currentLogin.userTier, httpStatus: httpStatus, session: session)
             return usageResult(from: data, httpStatus: httpStatus, email: currentLogin.email, planName: planName)
         } catch {
+            if let fallbackResult = try? await postJSON(url: fallbackQuotaURL, body: Data("{}".utf8), accessToken: currentLogin.accessToken, session: session),
+               fallbackResult.1 == 200 {
+                let planName = await fetchPlanName(accessToken: currentLogin.accessToken, fallbackTier: currentLogin.userTier, httpStatus: fallbackResult.1, session: session)
+                return usageResult(from: fallbackResult.0, httpStatus: fallbackResult.1, email: currentLogin.email, planName: planName)
+            }
             return result(
                 ["success": false, "error": "Could not reach Google Cloud Code: \(error.localizedDescription)"],
                 debug: ["source": "geminiLogin"]
@@ -275,11 +290,15 @@ enum GeminiUsageAPI {
     private static func fetchPlanName(accessToken: String, fallbackTier: String?, httpStatus: Int, session: URLSession) async -> String? {
         guard httpStatus == 200 else { return formatTierName(fallbackTier) }
         let body = Data(#"{"metadata":{"ideType":"ANTIGRAVITY"}}"#.utf8)
-        guard let (data, status) = try? await postJSON(url: loadCodeAssistURL, body: body, accessToken: accessToken, session: session),
-              status == 200 else {
-            return formatTierName(fallbackTier)
+        if let (data, status) = try? await postJSON(url: loadCodeAssistURL, body: body, accessToken: accessToken, session: session),
+           status == 200 {
+            return parsePlanName(from: data, fallbackTier: fallbackTier)
         }
-        return parsePlanName(from: data, fallbackTier: fallbackTier)
+        if let (data, status) = try? await postJSON(url: fallbackLoadCodeAssistURL, body: body, accessToken: accessToken, session: session),
+           status == 200 {
+            return parsePlanName(from: data, fallbackTier: fallbackTier)
+        }
+        return formatTierName(fallbackTier)
     }
 
     private static func postJSON(url: URL, body: Data, accessToken: String, session: URLSession) async throws -> (Data, Int) {
