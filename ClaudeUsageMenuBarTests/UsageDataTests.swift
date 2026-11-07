@@ -14,10 +14,10 @@ final class UsageDataTests: XCTestCase {
         XCTAssertEqual(data.displayPercentage, "--")
     }
 
-    func testDisplayPercentageFallsBackToWeekly() {
+    func testDisplayPercentageDoesNotFallBackToWeekly() {
         var data = UsageData()
         data.weeklyPercentage = 78
-        XCTAssertEqual(data.displayPercentage, "78%")
+        XCTAssertEqual(data.displayPercentage, "--")
     }
 
     func testDisplayPercentageWithZero() {

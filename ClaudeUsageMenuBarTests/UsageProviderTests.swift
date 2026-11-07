@@ -189,17 +189,19 @@ final class UsageProviderTests: XCTestCase {
         let container = UsageProviders(providers: [.claude, .gemini], defaults: defaults)
         let gemini = container.services.first { $0.provider.id == "gemini" }!
         gemini.usageData.percentage = 5
-        gemini.usageData.weeklyPercentage = 3
+        gemini.usageData.weeklyPercentage = 30 // weekly is higher than session
         gemini.usageData.sonnetWeeklyPercentage = 40
         gemini.usageData.sonnetWeeklyLabel = "Weekly (Argon)"
-        gemini.usageData.designWeeklyPercentage = 80
+        gemini.usageData.designDailyPercentage = 25
+        gemini.usageData.designDailyLabel = "Session (Claude & GPT)"
+        gemini.usageData.designWeeklyPercentage = 80 // weekly is higher than session
         gemini.usageData.designWeeklyLabel = "Weekly (Claude & GPT)"
 
         XCTAssertEqual(container.geminiMenuBarMetricID, "argon")
         XCTAssertEqual(container.menuBarDisplay(for: gemini), "40%")
 
         container.setGeminiMenuBarMetric("opus")
-        XCTAssertEqual(container.menuBarDisplay(for: gemini), "80%")
+        XCTAssertEqual(container.menuBarDisplay(for: gemini), "25%")
         XCTAssertEqual(container.selectedMenuBarProviderID, "gemini")
 
         container.setGeminiMenuBarMetric("flash")
@@ -219,13 +221,35 @@ final class UsageProviderTests: XCTestCase {
         data.designWeeklyPercentage = 42
         data.designWeeklyLabel = "Weekly (Claude & GPT)"
 
-        // When the 5-hour session is capped at 100%, Opus displays 100% instead of 42%.
+        // When the 5-hour session is capped at 100%, Opus displays 100%.
         XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "opus"), "100%")
+    }
+
+    func testGeminiMenuBarDisplayNeverShowsWeeklyForFlashOrOpus() {
+        var data = UsageData()
+        data.percentage = 4
+        data.weeklyPercentage = 14
+        data.designDailyPercentage = 2
+        data.designWeeklyPercentage = 80
+
+        // Even though weekly (14% and 80%) is higher than session, the menu bar must show session.
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "flash"), "4%")
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "opus"), "2%")
+    }
+
+    func testGeminiMenuBarDisplayReturnsDashWhenSessionLimitIsMissing() {
+        var data = UsageData()
+        data.weeklyPercentage = 14
+        data.designWeeklyPercentage = 80
+        // No session limits: must return "--", never weekly.
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "flash"), "--")
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "opus"), "--")
     }
 
     func testGeminiMenuBarDisplayMatchesPoolByLabelNotSlot() {
         var data = UsageData()
         // No Argon pool: Claude & GPT shifts into the first scoped slot.
+        data.designDailyPercentage = 25
         data.sonnetWeeklyPercentage = 25
         data.sonnetWeeklyLabel = "Weekly (Claude & GPT)"
         XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "opus"), "25%")
@@ -250,8 +274,8 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(UsageProvider.gemini.displayName, "Gemini")
         XCTAssertTrue(UsageProvider.gemini.readsGeminiLogin)
         XCTAssertFalse(UsageProvider.gemini.readsClaudeCodeLogin)
-        XCTAssertEqual(UsageProvider.gemini.primaryLabel, "Session (Flash & Pro)")
-        XCTAssertEqual(UsageProvider.gemini.secondaryLabel, "Weekly (Flash & Pro)")
+        XCTAssertEqual(UsageProvider.gemini.primaryLabel, "Session (Flash)")
+        XCTAssertEqual(UsageProvider.gemini.secondaryLabel, "Weekly (Flash)")
         XCTAssertFalse(UsageProvider.gemini.weeklyBlocksPrimary)
         XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("aistudio.google.com"))
         XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("google.com"))

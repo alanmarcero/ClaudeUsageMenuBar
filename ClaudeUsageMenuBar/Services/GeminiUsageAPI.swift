@@ -3,25 +3,50 @@ import Foundation
 // Reads Gemini usage the same way `agy -p /usage` does: it reads the OAuth token
 // that the Gemini / Antigravity CLI saves in the macOS Keychain under service "gemini"
 // and posts to Cloud Code's retrieveUserQuotaSummary and loadCodeAssist endpoints.
-// Like Claude Code, the app only reads the saved login and never refreshes it; an
-// expired token shows an error until the CLI renews it on the next `gemini` invocation.
+// When the access token expires or nears expiration, it automatically invokes the CLI
+// in the background to renew the token and reloads the fresh credentials from Keychain.
 enum GeminiUsageAPI {
     static let quotaURL = URL(string: "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary")!
     static let loadCodeAssistURL = URL(string: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist")!
     static let keychainService = "gemini"
+    static let proactiveRefreshWindow: TimeInterval = 300 // 5 minutes
     static let requestTimeout: TimeInterval = 20
     static let expiredLoginMessage = "Gemini CLI's login has expired. Run gemini in Terminal to renew it."
     static let userAgent = "antigravity/cli/1.5.1 (aidev_client; os_type=darwin; arch=arm64; cl=1014269460; auth_method=consumer)"
+
+    nonisolated(unsafe) static var onRefreshLogin: ((Login) -> Login?)? = nil
 
     private static let keyringBase64Prefix = "go-keyring-base64:"
     private static let keyringHexPrefix = "go-keyring-encoded:"
 
     struct Login: Equatable {
         let accessToken: String
+        let refreshToken: String?
         let expiresAt: Date?
         let authMethod: String?
         let email: String?
         let userTier: String?
+
+        init(
+            accessToken: String,
+            refreshToken: String? = nil,
+            expiresAt: Date? = nil,
+            authMethod: String? = nil,
+            email: String? = nil,
+            userTier: String? = nil
+        ) {
+            self.accessToken = accessToken
+            self.refreshToken = refreshToken
+            self.expiresAt = expiresAt
+            self.authMethod = authMethod
+            self.email = email
+            self.userTier = userTier
+        }
+
+        func isExpiredOrExpiringSoon(now: Date = Date(), window: TimeInterval = proactiveRefreshWindow) -> Bool {
+            guard let expiresAt else { return false }
+            return expiresAt.timeIntervalSince(now) <= window
+        }
     }
 
     // Reads through /usr/bin/security so the item's ACL (written by go-keyring via
@@ -48,14 +73,65 @@ enum GeminiUsageAPI {
         }
         let accessToken = (token["access_token"] as? String) ?? ""
         guard !accessToken.isEmpty else { return nil }
+        let refreshToken = nonEmpty(token["refresh_token"] as? String)
         let expiresAt = (token["expiry"] as? String).flatMap(parseISODate)
         return Login(
             accessToken: accessToken,
+            refreshToken: refreshToken,
             expiresAt: expiresAt,
             authMethod: nonEmpty(root["auth_method"] as? String),
             email: nonEmpty(root["id_token_email"] as? String),
             userTier: nonEmpty(root["user_tier"] as? String)
         )
+    }
+
+    static func refreshLogin(_ login: Login) -> Login? {
+        if let customHandler = onRefreshLogin {
+            return customHandler(login)
+        }
+        guard let refreshToken = login.refreshToken, !refreshToken.isEmpty else {
+            return nil
+        }
+        guard let cliURL = findCLIExecutable() else { return nil }
+        let process = Process()
+        process.executableURL = cliURL
+        process.arguments = ["-p", "/usage"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        guard let refreshed = readLogin() else { return nil }
+        return refreshed
+    }
+
+    static func findCLIExecutable() -> URL? {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let candidates = [
+            home.appendingPathComponent(".local/bin/agy").path,
+            home.appendingPathComponent(".local/bin/gemini").path,
+            "/usr/local/bin/agy",
+            "/usr/local/bin/gemini",
+            "/opt/homebrew/bin/agy",
+            "/opt/homebrew/bin/gemini"
+        ]
+        for path in candidates {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return URL(fileURLWithPath: path)
+            }
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = ["-l", "-c", "which agy 2>/dev/null || which gemini 2>/dev/null"]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        let resolved = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !resolved.isEmpty, FileManager.default.isExecutableFile(atPath: resolved) else { return nil }
+        return URL(fileURLWithPath: resolved)
     }
 
     static func decodeKeychainPayload(_ data: Data) -> Data? {
@@ -72,15 +148,35 @@ enum GeminiUsageAPI {
         return Data(raw.utf8)
     }
 
-    static func fetchResult(login: Login, now: Date = Date(), session: URLSession = .shared) async -> [String: Any] {
-        if let expiresAt = login.expiresAt, expiresAt <= now {
+    static func fetchResult(
+        login: Login,
+        now: Date = Date(),
+        session: URLSession = .shared
+    ) async -> [String: Any] {
+        var currentLogin = login
+
+        if currentLogin.isExpiredOrExpiringSoon(now: now) {
+            if let refreshed = await Task.detached(operation: { refreshLogin(currentLogin) }).value {
+                currentLogin = refreshed
+            }
+        }
+
+        if let expiresAt = currentLogin.expiresAt, expiresAt <= now {
             return result(["success": false, "error": expiredLoginMessage], debug: ["source": "geminiLogin", "loginExpired": true])
         }
 
         do {
-            let (data, httpStatus) = try await postJSON(url: quotaURL, body: Data("{}".utf8), accessToken: login.accessToken, session: session)
-            let planName = await fetchPlanName(accessToken: login.accessToken, fallbackTier: login.userTier, httpStatus: httpStatus, session: session)
-            return usageResult(from: data, httpStatus: httpStatus, email: login.email, planName: planName)
+            var (data, httpStatus) = try await postJSON(url: quotaURL, body: Data("{}".utf8), accessToken: currentLogin.accessToken, session: session)
+
+            if httpStatus == 401, let refreshed = await Task.detached(operation: { refreshLogin(currentLogin) }).value {
+                currentLogin = refreshed
+                let retryResult = try await postJSON(url: quotaURL, body: Data("{}".utf8), accessToken: currentLogin.accessToken, session: session)
+                data = retryResult.0
+                httpStatus = retryResult.1
+            }
+
+            let planName = await fetchPlanName(accessToken: currentLogin.accessToken, fallbackTier: currentLogin.userTier, httpStatus: httpStatus, session: session)
+            return usageResult(from: data, httpStatus: httpStatus, email: currentLogin.email, planName: planName)
         } catch {
             return result(
                 ["success": false, "error": "Could not reach Google Cloud Code: \(error.localizedDescription)"],

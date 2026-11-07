@@ -57,7 +57,7 @@ struct UsageData {
     }
 
     var displayPercentage: String {
-        guard let percentage = dailyPercentage ?? weeklyPercentage else { return "--" }
+        guard let percentage = dailyPercentage else { return "--" }
         return "\(percentage)%"
     }
 

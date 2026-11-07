@@ -148,8 +148,8 @@ struct UsageProvider: Identifiable {
         scrapingScript: GeminiScrapingScript.script,
         readsClaudeCodeLogin: false,
         readsGeminiLogin: true,
-        primaryLabel: "Session (Flash & Pro)",
-        secondaryLabel: "Weekly (Flash & Pro)",
+        primaryLabel: "Session (Flash)",
+        secondaryLabel: "Weekly (Flash)",
         weeklyBlocksPrimary: false
     )
 

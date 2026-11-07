@@ -27,7 +27,7 @@ final class UsageProviders: ObservableObject {
     private static let geminiMetricKey = "geminiMenuBarMetricID"
 
     // Gemini reports separate pools for Argon, Claude & GPT (Opus), and Gemini
-    // Flash & Pro; the menu bar can show any of them.
+    // Flash; the menu bar can show any of them.
     static let geminiMetricOptions: [(id: String, label: String)] = [
         ("argon", "Argon"),
         ("opus", "Opus"),
@@ -184,30 +184,16 @@ final class UsageProviders: ObservableObject {
     // Gemini's scoped pools land in the sonnet/design slots in priority order
     // (Argon first), but a missing Argon pool shifts Claude & GPT into the
     // first slot, so the pool is matched by its label rather than its slot.
-    // For Opus (Claude & GPT), if the 5-hour session is capped or higher than
-    // weekly, it reflects that constraint so the user isn't misled by a low weekly %.
+    // Weekly usage is never displayed on the menu bar for Flash or Opus; they
+    // always show their 5-hour session limits.
     nonisolated static func geminiMenuBarDisplay(for data: UsageData, metricID: String) -> String {
         switch metricID {
         case "flash":
-            if let session = data.dailyPercentage, let weekly = data.weeklyPercentage {
-                return "\(max(session, weekly))%"
-            }
-            guard let pct = data.dailyPercentage ?? data.weeklyPercentage else { return "--" }
-            return "\(pct)%"
+            guard let session = data.dailyPercentage else { return "--" }
+            return "\(session)%"
         case "opus":
-            if let session = data.designDailyPercentage, let weekly = data.designWeeklyPercentage {
-                return "\(max(session, weekly))%"
-            }
-            if let pct = data.designDailyPercentage ?? data.designWeeklyPercentage {
-                return "\(pct)%"
-            }
-            let pools: [(label: String?, percentage: Int?)] = [
-                (data.sonnetWeeklyLabel, data.sonnetWeeklyPercentage),
-                (data.designWeeklyLabel, data.designWeeklyPercentage)
-            ]
-            let match = pools.first { $0.label?.lowercased().contains("claude") == true }
-            guard let percentage = match?.percentage else { return "--" }
-            return "\(percentage)%"
+            guard let session = data.designDailyPercentage else { return "--" }
+            return "\(session)%"
         default: // "argon"
             let pools: [(label: String?, percentage: Int?)] = [
                 (data.sonnetWeeklyLabel, data.sonnetWeeklyPercentage),

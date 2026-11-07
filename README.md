@@ -33,7 +33,7 @@ Click a provider button at the top of the dropdown to show that provider's perce
 
 At the top of the Cursor section, right under the Cursor header, the **Menu bar** row chooses which Cursor metric (Other Models, Cursor Models, On-demand, or Grok Bot) the menu bar shows; picking one also switches the menu bar to Cursor. Grok Bot is part of Cursor overall: its weekly usage is a row in the Cursor section, and it has no separate button at the top.
 
-For Gemini it shows limits for all three Antigravity model families: Flash & Pro (`Session (Flash & Pro)` and `Weekly (Flash & Pro)`), Argon (`Weekly (Argon)`), and Claude & GPT (`Session (Claude & GPT)` and `Weekly (Claude & GPT)`). At the top of the Gemini section, the **Menu bar** row chooses whether the menu bar shows Argon, Opus (Claude & GPT), or Flash; picking one also switches the menu bar to Gemini. If a 5-hour session is capped, the menu bar reflects that so you know when quota is reached.
+For Gemini it shows limits for all three Antigravity model families: Flash (`Session (Flash)` and `Weekly (Flash)`), Argon (`Weekly (Argon)`), and Claude & GPT (`Session (Claude & GPT)` and `Weekly (Claude & GPT)`). At the top of the Gemini section, the **Menu bar** row chooses whether the menu bar shows Argon, Opus (Claude & GPT), or Flash; picking one also switches the menu bar to Gemini. The menu bar displays session usage; weekly usage is not displayed on the menu bar.
 
 To hide a platform you do not use, turn it off in the **Platforms** dropdown at the bottom of the popover, next to the **…** menu. Hidden platforms leave the dropdown and pause refreshing, but keep their login, so turning one back on picks up right where it left off. At least one platform always stays on.
 

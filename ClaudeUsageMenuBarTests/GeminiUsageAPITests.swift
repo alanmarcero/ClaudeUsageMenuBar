@@ -83,6 +83,7 @@ final class GeminiUsageAPITests: XCTestCase {
 
         XCTAssertEqual(login, GeminiUsageAPI.Login(
             accessToken: "ya29.fake-token",
+            refreshToken: "1//fake-refresh",
             expiresAt: ISO8601DateFormatter().date(from: "2026-10-21T18:10:00Z"),
             authMethod: "consumer",
             email: "alan@example.com",
@@ -246,4 +247,154 @@ final class GeminiUsageAPITests: XCTestCase {
         XCTAssertEqual(result["success"] as? Bool, false)
         XCTAssertEqual(result["error"] as? String, GeminiUsageAPI.expiredLoginMessage)
     }
+
+    // MARK: - Token Refresh & Auto-Renewal
+
+    func testRefreshLoginReturnsNilWhenRefreshTokenIsMissing() {
+        let login = GeminiUsageAPI.Login(accessToken: "ya29.initial")
+        let refreshed = GeminiUsageAPI.refreshLogin(login)
+
+        XCTAssertNil(refreshed)
+    }
+
+    func testFindCLIExecutableReturnsValidURLWhenPresent() {
+        let url = GeminiUsageAPI.findCLIExecutable()
+        if let url {
+            XCTAssertTrue(FileManager.default.isExecutableFile(atPath: url.path))
+        }
+    }
+
+    func testFetchResultAutoRefreshesWhenExpiringSoon() async {
+        let session = makeMockSession()
+        let now = Date(timeIntervalSince1970: 1_000_000)
+
+        GeminiUsageAPI.onRefreshLogin = { login in
+            GeminiUsageAPI.Login(
+                accessToken: "ya29.refreshed-token",
+                refreshToken: login.refreshToken,
+                expiresAt: now.addingTimeInterval(3600),
+                authMethod: login.authMethod,
+                email: login.email,
+                userTier: login.userTier
+            )
+        }
+
+        MockURLProtocol.requestHandler = { [weak self] request in
+            guard let self else { throw URLError(.cancelled) }
+            if request.url == GeminiUsageAPI.quotaURL {
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer ya29.refreshed-token")
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (response, Data(self.quotaBody.utf8))
+            }
+            if request.url == GeminiUsageAPI.loadCodeAssistURL {
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                let body = #"{"paidTier": {"name": "Google AI Pro"}}"#
+                return (response, Data(body.utf8))
+            }
+            throw URLError(.badURL)
+        }
+
+        let expiringLogin = GeminiUsageAPI.Login(
+            accessToken: "ya29.expired-token",
+            refreshToken: "rt-valid",
+            expiresAt: now.addingTimeInterval(-10), // expired 10 seconds ago
+            authMethod: "consumer",
+            email: "alan@example.com",
+            userTier: "g1-pro-tier"
+        )
+
+        let result = await GeminiUsageAPI.fetchResult(login: expiringLogin, now: now, session: session)
+
+        XCTAssertEqual(result["success"] as? Bool, true)
+        XCTAssertEqual(result["percentage"] as? Int, 3)
+        XCTAssertEqual(result["planName"] as? String, "Google AI Pro")
+    }
+
+    func testFetchResultAutoRefreshesOn401Unauthorized() async {
+        let session = makeMockSession()
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        var quotaCallCount = 0
+
+        GeminiUsageAPI.onRefreshLogin = { login in
+            GeminiUsageAPI.Login(
+                accessToken: "ya29.second-token",
+                refreshToken: login.refreshToken,
+                expiresAt: now.addingTimeInterval(3600),
+                authMethod: login.authMethod,
+                email: login.email,
+                userTier: login.userTier
+            )
+        }
+
+        MockURLProtocol.requestHandler = { [weak self] request in
+            guard let self else { throw URLError(.cancelled) }
+            if request.url == GeminiUsageAPI.quotaURL {
+                quotaCallCount += 1
+                if quotaCallCount == 1 {
+                    let response = HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
+                    return (response, Data(#"{"error": "unauthorized"}"#.utf8))
+                } else {
+                    XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer ya29.second-token")
+                    let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                    return (response, Data(self.quotaBody.utf8))
+                }
+            }
+            if request.url == GeminiUsageAPI.loadCodeAssistURL {
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                let body = #"{"paidTier": {"name": "Google AI Pro"}}"#
+                return (response, Data(body.utf8))
+            }
+            throw URLError(.badURL)
+        }
+
+        let login = GeminiUsageAPI.Login(
+            accessToken: "ya29.first-token",
+            refreshToken: "rt-valid",
+            expiresAt: now.addingTimeInterval(3000), // looks valid on clock
+            authMethod: "consumer",
+            email: "alan@example.com",
+            userTier: "g1-pro-tier"
+        )
+
+        let result = await GeminiUsageAPI.fetchResult(login: login, now: now, session: session)
+
+        XCTAssertEqual(result["success"] as? Bool, true)
+        XCTAssertEqual(quotaCallCount, 2)
+    }
+
+    private func makeMockSession() -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        return URLSession(configuration: config)
+    }
+
+    override func tearDown() {
+        MockURLProtocol.requestHandler = nil
+        GeminiUsageAPI.onRefreshLogin = nil
+        super.tearDown()
+    }
+}
+
+private final class MockURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let handler = Self.requestHandler else {
+            XCTFail("No handler provided for request")
+            return
+        }
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }
