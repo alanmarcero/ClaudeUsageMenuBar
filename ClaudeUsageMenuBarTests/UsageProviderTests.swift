@@ -567,6 +567,18 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testCodexPluralHourLimitShowsRemainingUsageInMenuBarPercentage() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div><span>5 hours limit</span><span>Resets in 4h 12m</span><span>10% left</span></div>
+        <div><span>Weekly limit</span><span>Resets in 6d 2h</span><span>22% left</span></div>
+        """)
+
+        XCTAssertEqual(result["percentage"] as? Int, 90)
+        XCTAssertEqual(result["resetTime"] as? String, "Resets in 4h 12m")
+        XCTAssertEqual(result["success"] as? Bool, true)
+    }
+
+    @MainActor
     func testCodexReadsLimitCardsInInactiveOverviewTab() async throws {
         let result = try await scrapeCodexFixture("""
         <div hidden><div><span>Weekly limit</span><span>Resets in 7d 0h</span><span>100% left</span></div></div>

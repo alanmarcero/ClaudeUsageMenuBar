@@ -243,7 +243,7 @@ enum CodexScrapingScript {
 
     const bodyTextNow = () => normalizeText(document.body.innerText || document.body.textContent || '');
 
-    const dailyLabelPattern = /^5\\s*(?:-|–)?\\s*hour (?:usage )?limit$/i;
+    const dailyLabelPattern = /^5\\s*(?:-|–)?\\s*hours? (?:usage )?limit$/i;
     const weeklyLabelPattern = /^weekly (?:usage )?limit$/i;
     const remainingPattern = /(\\d+(?:\\.\\d+)?)\\s*%\\s*(?:remaining|left)\\b/i;
 
