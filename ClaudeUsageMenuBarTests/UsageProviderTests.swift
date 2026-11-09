@@ -183,6 +183,18 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testCodexMenuBarFallsBackToWeeklyUsageWhenSessionCardIsMissing() {
+        let container = UsageProviders(providers: [.codex], defaults: makeSuiteDefaults().defaults)
+        let codex = container.services[0]
+        codex.usageData.weeklyPercentage = 90
+
+        XCTAssertEqual(container.menuBarDisplay(for: codex), "90%")
+
+        codex.usageData.percentage = 25
+        XCTAssertEqual(container.menuBarDisplay(for: codex), "25%")
+    }
+
+    @MainActor
     func testGeminiMenuBarMetricDefaultsToArgonAndSwitchesToOpus() {
         let (defaults, suite) = makeSuiteDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }

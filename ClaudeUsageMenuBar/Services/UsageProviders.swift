@@ -169,13 +169,18 @@ final class UsageProviders: ObservableObject {
     }
 
     // The string the menu bar (and the provider's header chip) shows. Cursor
-    // and Gemini have a metric choice; every other provider uses its headline %.
+    // and Gemini have a metric choice; Codex falls back to weekly when its
+    // session card is absent; other providers use their headline %.
     func menuBarDisplay(for service: UsageService) -> String {
         switch service.provider.id {
         case UsageProvider.cursor.id:
             return cursorMenuBarDisplay(for: service.usageData)
         case UsageProvider.gemini.id:
             return Self.geminiMenuBarDisplay(for: service.usageData, metricID: geminiMenuBarMetricID)
+        case UsageProvider.codex.id:
+            let data = service.usageData
+            guard let percentage = data.dailyPercentage ?? data.weeklyPercentage else { return "--" }
+            return "\(percentage)%"
         default:
             return service.usageData.displayPercentage
         }
