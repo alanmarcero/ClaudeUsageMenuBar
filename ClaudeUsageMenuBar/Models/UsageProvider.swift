@@ -732,7 +732,7 @@ enum GeminiScrapingScript {
         resets: [],
         creditsUsed: null,
         creditsLimit: null,
-        error: 'Run gemini in Terminal to sign in.',
+        error: 'Run agy in Terminal to sign in.',
         debug: JSON.stringify({ source: 'geminiWebFallback', url: location.href })
     };
     return result;
