@@ -257,4 +257,26 @@ final class UsageDataTests: XCTestCase {
         UsageCache.save(snapshot, for: "cursor", defaults: defaults)
         XCTAssertEqual(UsageCache.load(for: "cursor", defaults: defaults), snapshot)
     }
+
+    func testSnapshotRoundTripsCarbonUsage() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let snapshot = UsageSnapshot(
+            carbonWeeklyPercentage: 0,
+            carbonWeeklyResetTime: nil,
+            carbonWeeklyLabel: "Weekly (Carbon)",
+            isCarbonAvailable: false
+        )
+        UsageCache.save(snapshot, for: "gemini", defaults: defaults)
+        XCTAssertEqual(UsageCache.load(for: "gemini", defaults: defaults), snapshot)
+    }
+
+    func testCarbonUnavailableState() {
+        var data = UsageData()
+        XCTAssertFalse(data.isCarbonUnavailable)
+        data.isCarbonAvailable = false
+        data.carbonWeeklyPercentage = 0
+        XCTAssertTrue(data.isCarbonUnavailable)
+        XCTAssertEqual(data.carbonWeeklyPercentage, 0)
+    }
 }

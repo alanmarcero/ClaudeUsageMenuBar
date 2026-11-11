@@ -27,6 +27,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     @Published var sonnetWeeklyResetCountdown: String?
     @Published var designDailyResetCountdown: String?
     @Published var designWeeklyResetCountdown: String?
+    @Published var carbonWeeklyResetCountdown: String?
     @Published var debugInfo: String = ""
     @Published var isUsingClaudeCodeLogin = false
 
@@ -39,6 +40,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private var rawSonnetWeeklyResetTime: String?
     private var rawDesignDailyResetTime: String?
     private var rawDesignWeeklyResetTime: String?
+    private var rawCarbonWeeklyResetTime: String?
     private var isCheckingClaudeResets = false
     var refreshStartTime: Date?  // internal for @testable import
     var completedRefreshes = 0  // internal for @testable import
@@ -74,6 +76,12 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.designWeeklyResetTime = snapshot.designWeeklyResetTime
         usageData.sonnetWeeklyLabel = snapshot.sonnetWeeklyLabel
         usageData.designWeeklyLabel = snapshot.designWeeklyLabel
+        usageData.carbonWeeklyPercentage = snapshot.carbonWeeklyPercentage
+        usageData.carbonWeeklyResetTime = snapshot.carbonWeeklyResetTime
+        usageData.carbonWeeklyLabel = snapshot.carbonWeeklyLabel
+        if let isCarbonAvailable = snapshot.isCarbonAvailable {
+            usageData.isCarbonAvailable = isCarbonAvailable
+        }
         usageData.creditsUsed = snapshot.creditsUsed
         usageData.creditsLimit = snapshot.creditsLimit
         usageData.onDemandUsedDollars = snapshot.onDemandUsedDollars
@@ -82,6 +90,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         rawWeeklyResetTime = snapshot.weeklyResetTime
         rawSonnetWeeklyResetTime = snapshot.sonnetWeeklyResetTime
         rawDesignWeeklyResetTime = snapshot.designWeeklyResetTime
+        rawCarbonWeeklyResetTime = snapshot.carbonWeeklyResetTime
         updateResetCountdowns()
     }
 
@@ -125,12 +134,17 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
                 loadUsagePage()
                 return
             }
-            handleScrapingResult(await ClaudeCodeUsageAPI.fetchResult(login: login), error: nil)
-            checkClaudeResets()
+            let result = await ClaudeCodeUsageAPI.fetchResult(login: login)
+            handleScrapingResult(result, error: nil)
+            if result["availableResets"] != nil {
+                applyClaudeResets(result)
+            } else {
+                checkClaudeResets()
+            }
         }
     }
 
-    // The usage API does not report resets, so read them from the claude.ai usage page.
+    // Reads resets from the claude.ai page when the usage API omits them.
     // The page loads only if the web view has a claude.ai session. With no session,
     // the Resets row stays hidden and no error shows.
     private func checkClaudeResets() {
@@ -141,10 +155,14 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private func finishClaudeResetsCheck(_ result: Any?) {
         isCheckingClaudeResets = false
         let dict = result as? [String: Any]
+        applyClaudeResets(dict)
+        debugInfo += "\n\nclaudeResets: \(dict?["debug"] as? String ?? "no usage page")"
+    }
+
+    private func applyClaudeResets(_ dict: [String: Any]?) {
         let count = dict?["availableResets"] as? Int ?? 0
         usageData.availableResets = count > 0 ? count : nil
         usageData.resets = UsageReset.list(from: dict?["resets"])
-        debugInfo += "\n\nclaudeResets: \(dict?["debug"] as? String ?? "no usage page")"
     }
 
     private func handleResetsCheckNavigation(webView: WKWebView, url: URL) {
@@ -225,11 +243,13 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         sonnetWeeklyResetCountdown = nil
         designDailyResetCountdown = nil
         designWeeklyResetCountdown = nil
+        carbonWeeklyResetCountdown = nil
         rawDailyResetTime = nil
         rawWeeklyResetTime = nil
         rawSonnetWeeklyResetTime = nil
         rawDesignDailyResetTime = nil
         rawDesignWeeklyResetTime = nil
+        rawCarbonWeeklyResetTime = nil
         // Drop the persisted snapshot so a later launch doesn't restore stale usage
         // after an explicit logout / cache clear.
         UsageCache.clear(for: provider.id)
@@ -251,6 +271,10 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.sonnetWeeklyLabel = data.sonnetWeeklyLabel
         usageData.designDailyLabel = data.designDailyLabel
         usageData.designWeeklyLabel = data.designWeeklyLabel
+        usageData.carbonWeeklyPercentage = data.carbonWeeklyPercentage
+        usageData.carbonWeeklyResetTime = data.carbonWeeklyResetTime
+        usageData.carbonWeeklyLabel = data.carbonWeeklyLabel
+        usageData.isCarbonAvailable = data.isCarbonAvailable
         usageData.email = data.email
         usageData.organizationName = data.organizationName
         usageData.planName = data.planName
@@ -284,7 +308,11 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
                 creditsUsed: data.creditsUsed,
                 creditsLimit: data.creditsLimit,
                 onDemandUsedDollars: data.onDemandUsed,
-                lastUpdated: usageData.lastUpdated
+                lastUpdated: usageData.lastUpdated,
+                carbonWeeklyPercentage: data.carbonWeeklyPercentage,
+                carbonWeeklyResetTime: data.carbonWeeklyResetTime,
+                carbonWeeklyLabel: data.carbonWeeklyLabel,
+                isCarbonAvailable: data.isCarbonAvailable
             ),
             for: provider.id
         )
@@ -294,6 +322,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         rawSonnetWeeklyResetTime = data.sonnetWeeklyResetTime
         rawDesignDailyResetTime = data.designDailyResetTime
         rawDesignWeeklyResetTime = data.designWeeklyResetTime
+        rawCarbonWeeklyResetTime = data.carbonWeeklyResetTime
         updateResetCountdowns()
 
         isRefreshing = false
@@ -363,6 +392,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         sonnetWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawSonnetWeeklyResetTime)
         designDailyResetCountdown = DailyCountdownCalculator.calculate(from: rawDesignDailyResetTime)
         designWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawDesignWeeklyResetTime)
+        carbonWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawCarbonWeeklyResetTime)
     }
 
     // MARK: - WKNavigationDelegate
@@ -493,6 +523,10 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             sonnetWeeklyLabel: dict["sonnetWeeklyLabel"] as? String,
             designDailyLabel: dict["designDailyLabel"] as? String,
             designWeeklyLabel: dict["designWeeklyLabel"] as? String,
+            carbonWeeklyPercentage: dict["carbonWeeklyPercentage"] as? Int,
+            carbonWeeklyResetTime: dict["carbonWeeklyResetTime"] as? String,
+            carbonWeeklyLabel: dict["carbonWeeklyLabel"] as? String,
+            isCarbonAvailable: dict["isCarbonAvailable"] as? Bool ?? true,
             email: dict["email"] as? String,
             organizationName: dict["orgName"] as? String,
             planName: dict["planName"] as? String,
@@ -522,6 +556,10 @@ private struct ScrapedUsageData {
     let sonnetWeeklyLabel: String?
     let designDailyLabel: String?
     let designWeeklyLabel: String?
+    let carbonWeeklyPercentage: Int?
+    let carbonWeeklyResetTime: String?
+    let carbonWeeklyLabel: String?
+    let isCarbonAvailable: Bool
     let email: String?
     let organizationName: String?
     let planName: String?

@@ -147,8 +147,53 @@ final class GeminiUsageAPITests: XCTestCase {
         XCTAssertEqual(result["designWeeklyPercentage"] as? Int, 0)
         XCTAssertEqual(result["designWeeklyLabel"] as? String, "Weekly (Claude & GPT)")
         XCTAssertEqual(result["designWeeklyResetTime"] as? String, "Resets Nov 12, 2026 9:28 PM")
+        XCTAssertEqual(result["carbonWeeklyPercentage"] as? Int, 0)
+        XCTAssertEqual(result["carbonWeeklyLabel"] as? String, "Weekly (Carbon)")
+        XCTAssertNil(result["carbonWeeklyResetTime"] as? String)
+        XCTAssertEqual(result["isCarbonAvailable"] as? Bool, false)
         XCTAssertEqual(result["email"] as? String, "alan@example.com")
         XCTAssertEqual(result["planName"] as? String, "Google AI Pro")
+    }
+
+    func testUsageResultWithCarbonAvailableMapsCarbonCorrectly() {
+        let body = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "buckets": [
+                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-06T04:08:12Z", "remainingFraction": 0.8}
+              ]
+            },
+            {
+              "displayName": "Gemini 4 Carbon",
+              "buckets": [
+                {
+                  "bucketId": "gemini-carbon-wtu-weekly",
+                  "displayName": "Gemini 4 Carbon Weekly Limit",
+                  "window": "weekly",
+                  "resetTime": "2026-11-13T10:00:00Z",
+                  "remainingFraction": 0.65
+                }
+              ]
+            }
+          ]
+        }
+        """
+
+        let result = GeminiUsageAPI.usageResult(
+            from: Data(body.utf8),
+            httpStatus: 200,
+            email: "alan@example.com",
+            planName: "Google AI Ultra",
+            timeZone: eastern
+        )
+
+        XCTAssertEqual(result["success"] as? Bool, true)
+        XCTAssertEqual(result["isCarbonAvailable"] as? Bool, true)
+        XCTAssertEqual(result["carbonWeeklyPercentage"] as? Int, 35)
+        XCTAssertEqual(result["carbonWeeklyLabel"] as? String, "Weekly (Carbon)")
+        XCTAssertEqual(result["carbonWeeklyResetTime"] as? String, "Resets Nov 13, 2026 5:00 AM")
     }
 
     func testUsageResultTreatsOmittedRemainingFractionAsHundredPercentUsed() {

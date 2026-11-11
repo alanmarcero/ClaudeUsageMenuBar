@@ -124,4 +124,47 @@ final class ClaudeCodeUsageAPITests: XCTestCase {
     func testResetTextWithInvalidDateReturnsNil() {
         XCTAssertNil(ClaudeCodeUsageAPI.resetText(fromISODate: "soon", timeZone: eastern))
     }
+
+    // MARK: - resetFields
+
+    func testUsageResultListsOneResetPerRedeemableReset() {
+        let body = """
+        {"limits": [{"kind": "session", "percent": 5, "resets_at": null, "scope": null}],
+         "cedar_ember": {"eligible": true, "grants": [
+           {"id": "g1", "label": "Full reset", "resets_left": 2, "ends_at": "2026-11-12T22:12:00Z"},
+           {"id": "g2", "label": "", "resets_left": 1, "ends_at": null},
+           {"id": "g3", "label": "Weekly reset", "resets_left": 0, "ends_at": "2026-11-20T22:12:00Z"}
+         ]}}
+        """
+
+        let result = ClaudeCodeUsageAPI.usageResult(from: Data(body.utf8), httpStatus: 200, planName: nil, timeZone: eastern)
+
+        XCTAssertEqual(result["availableResets"] as? Int, 3)
+        XCTAssertEqual(UsageReset.list(from: result["resets"]), [
+            UsageReset(title: "Full reset", expires: "Nov 12 at 5:12 PM EST"),
+            UsageReset(title: "Full reset", expires: "Nov 12 at 5:12 PM EST"),
+            UsageReset(title: nil, expires: nil)
+        ])
+    }
+
+    func testUsageResultWithoutResetBlockLeavesResetsUnset() {
+        let result = ClaudeCodeUsageAPI.usageResult(from: Data(usageBody.utf8), httpStatus: 200, planName: nil, timeZone: eastern)
+
+        XCTAssertNil(result["availableResets"])
+    }
+
+    func testUsageURLAsksForTheResetBlock() {
+        XCTAssertEqual(ClaudeCodeUsageAPI.usageURL.query, "cedar_ember=1")
+    }
+
+    func testUsageResultWithIneligibleResetBlockLeavesResetsUnset() {
+        let body = """
+        {"limits": [{"kind": "session", "percent": 5, "resets_at": null, "scope": null}],
+         "cedar_ember": {"eligible": false, "ineligible_reason": "surface", "grants": []}}
+        """
+
+        let result = ClaudeCodeUsageAPI.usageResult(from: Data(body.utf8), httpStatus: 200, planName: nil, timeZone: eastern)
+
+        XCTAssertNil(result["availableResets"])
+    }
 }

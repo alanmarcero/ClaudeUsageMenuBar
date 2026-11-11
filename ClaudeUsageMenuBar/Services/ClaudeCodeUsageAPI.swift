@@ -6,7 +6,8 @@ import Foundation
 // The app only reads the login. It never refreshes it, because a refresh replaces the
 // token and signs Claude Code out.
 enum ClaudeCodeUsageAPI {
-    static let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
+    // cedar_ember=1 adds the redeemable resets block.
+    static let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage?cedar_ember=1")!
     static let betaHeader = "oauth-2025-04-20"
     static let keychainService = "Claude Code-credentials"
     static let requestTimeout: TimeInterval = 20
@@ -127,22 +128,45 @@ enum ClaudeCodeUsageAPI {
             "designWeeklyLabel": scopeName(secondScoped).map { "Weekly (\($0))" } as Any,
             "planName": planName as Any
         ]
-        return result(fields, debug: debug)
+        return result(fields.merging(resetFields(from: json["cedar_ember"], timeZone: timeZone)) { _, new in new }, debug: debug)
+    }
+
+    // Lists one row per reset in each cedar_ember grant, as for Codex.
+    static func resetFields(from block: Any?, timeZone: TimeZone) -> [String: Any] {
+        // An ineligible block sets no fields, so the claude.ai page check still runs.
+        guard let block = block as? [String: Any], block["eligible"] as? Bool == true else { return [:] }
+        let grants = block["grants"] as? [[String: Any]] ?? []
+        let resets = grants.flatMap { grant -> [[String: Any]] in
+            let label = (grant["label"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            let expires = (grant["ends_at"] as? String).flatMap { expiryText(fromISODate: $0, timeZone: timeZone) }
+            return Array(repeating: ["title": label as Any, "expires": expires as Any], count: grant["resets_left"] as? Int ?? 0)
+        }
+        return ["availableResets": resets.count, "resets": resets]
     }
 
     // Formats an ISO 8601 reset time as an absolute string the countdown calculators
-    // read, e.g. "Resets Oct 21, 2026 2:10 PM". The fraction is removed first because
-    // ISO8601DateFormatter does not accept the API's 6 fraction digits. The time is
-    // rounded to the nearest minute, because the API can send 06:59:59 for 07:00.
+    // read, e.g. "Resets Oct 21, 2026 2:10 PM".
     static func resetText(fromISODate isoDate: String, timeZone: TimeZone) -> String? {
+        format(isoDate, as: "MMM d, yyyy h:mm a", timeZone: timeZone).map { "Resets \($0)" }
+    }
+
+    // Formats an expiry like the Codex page, e.g. "Oct 22 at 5:12 PM EDT".
+    static func expiryText(fromISODate isoDate: String, timeZone: TimeZone) -> String? {
+        format(isoDate, as: "MMM d 'at' h:mm a zzz", timeZone: timeZone)
+    }
+
+    // The fraction is removed first because ISO8601DateFormatter does not accept the
+    // API's 6 fraction digits. The time is rounded to the nearest minute, because the
+    // API can send 06:59:59 for 07:00.
+    private static func format(_ isoDate: String, as dateFormat: String, timeZone: TimeZone) -> String? {
         let withoutFraction = isoDate.replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression)
         guard let date = ISO8601DateFormatter().date(from: withoutFraction) else { return nil }
         let roundedDate = Date(timeIntervalSince1970: (date.timeIntervalSince1970 / 60).rounded() * 60)
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = timeZone
-        formatter.dateFormat = "MMM d, yyyy h:mm a"
-        return "Resets \(formatter.string(from: roundedDate))"
+        formatter.dateFormat = dateFormat
+        return formatter.string(from: roundedDate)
     }
 
     private static func result(_ fields: [String: Any], debug: [String: Any]) -> [String: Any] {

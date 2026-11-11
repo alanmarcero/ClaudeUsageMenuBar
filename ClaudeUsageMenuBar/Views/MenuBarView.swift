@@ -178,6 +178,15 @@ struct ProviderSection: View {
             if service.usageData.sonnetWeeklyPercentage != nil {
                 usageRow(service.usageData.sonnetWeeklyLabel ?? "Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
             }
+            if service.usageData.carbonWeeklyPercentage != nil {
+                usageRow(
+                    service.usageData.carbonWeeklyLabel ?? "Weekly (Carbon)",
+                    service.usageData.carbonWeeklyPercentage,
+                    service.carbonWeeklyResetCountdown,
+                    isUnavailable: service.usageData.isCarbonUnavailable,
+                    unavailableHelp: service.usageData.isCarbonAvailable ? nil : "Not available on this account"
+                )
+            }
             if service.usageData.designDailyPercentage != nil {
                 let isUnavailable = service.usageData.isDesignSessionUnavailable
                 usageRow(
@@ -360,7 +369,8 @@ struct ProviderSection: View {
         _ title: String,
         _ percentage: Int?,
         _ resetTime: String?,
-        isUnavailable: Bool = false
+        isUnavailable: Bool = false,
+        unavailableHelp: String? = nil
     ) -> some View {
         VStack(spacing: 5) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -395,7 +405,7 @@ struct ProviderSection: View {
             }
         }
         .opacity(isUnavailable ? 0.55 : 1.0)
-        .help(isUnavailable ? "Unavailable: weekly limit reached" : "")
+        .help(isUnavailable ? (unavailableHelp ?? "Unavailable: weekly limit reached") : "")
     }
 
     private func resetDetailRow(_ reset: UsageReset) -> some View {

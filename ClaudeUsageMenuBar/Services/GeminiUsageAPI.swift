@@ -246,7 +246,28 @@ enum GeminiUsageAPI {
             ($0["bucketId"] as? String)?.contains("5h") == true || ($0["window"] as? String) == "5h"
         }
 
-        let hasUsage = session != nil || weekly != nil || firstScoped != nil
+        // Find Carbon bucket if present on the account
+        let carbonGroup = groups.first {
+            let name = ($0["displayName"] as? String ?? "").lowercased()
+            return name.contains("carbon")
+        }
+        let carbonBuckets = carbonGroup?["buckets"] as? [[String: Any]] ?? []
+        let carbonBucket = carbonBuckets.first { ($0["window"] as? String) == "weekly" }
+            ?? carbonBuckets.first
+            ?? allBuckets.first {
+                let id = ($0["bucketId"] as? String ?? "").lowercased()
+                let name = ($0["displayName"] as? String ?? "").lowercased()
+                return id.contains("carbon") || name.contains("carbon")
+            }
+
+        let isCarbonAvailable = (carbonBucket != nil)
+        let carbonPercentage: Int? = isCarbonAvailable ? (usedPercentage(for: carbonBucket) ?? 0) : 0
+        let carbonResetTime: String? = isCarbonAvailable ? resetTime(for: carbonBucket, timeZone: timeZone) : nil
+        let carbonLabel: String = carbonBucket != nil
+            ? scopedLabel(for: carbonGroup?["displayName"] as? String, bucket: carbonBucket!)
+            : "Weekly (Carbon)"
+
+        let hasUsage = session != nil || weekly != nil || firstScoped != nil || isCarbonAvailable
 
         let fields: [String: Any] = [
             "success": hasUsage,
@@ -264,6 +285,10 @@ enum GeminiUsageAPI {
             "designWeeklyPercentage": usedPercentage(for: secondScoped?.bucket) as Any,
             "designWeeklyResetTime": resetTime(for: secondScoped?.bucket, timeZone: timeZone) as Any,
             "designWeeklyLabel": secondScoped?.label as Any,
+            "carbonWeeklyPercentage": carbonPercentage as Any,
+            "carbonWeeklyResetTime": carbonResetTime as Any,
+            "carbonWeeklyLabel": carbonLabel as Any,
+            "isCarbonAvailable": isCarbonAvailable as Any,
             "email": email as Any,
             "planName": planName as Any
         ]
@@ -314,7 +339,10 @@ enum GeminiUsageAPI {
     }
 
     private static func scopedWeeklyBuckets(from groups: [[String: Any]]) -> [(label: String, bucket: [String: Any])] {
-        let nonPrimaryGroups = groups.filter { ($0["displayName"] as? String) != "Gemini Models" }
+        let nonPrimaryGroups = groups.filter { group in
+            let name = (group["displayName"] as? String ?? "").lowercased()
+            return name != "gemini models" && !name.contains("carbon")
+        }
         let sortedGroups = nonPrimaryGroups.sorted { lhs, rhs in
             scopedPriority(for: lhs["displayName"] as? String) < scopedPriority(for: rhs["displayName"] as? String)
         }
@@ -339,6 +367,7 @@ enum GeminiUsageAPI {
         let name = groupName ?? (bucket["displayName"] as? String) ?? "Models"
         let lower = name.lowercased()
         if lower.contains("argon") { return "Weekly (Argon)" }
+        if lower.contains("carbon") { return "Weekly (Carbon)" }
         if lower.contains("claude") && lower.contains("gpt") { return "Weekly (Claude & GPT)" }
         return "Weekly (\(name))"
     }

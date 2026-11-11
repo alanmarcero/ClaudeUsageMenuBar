@@ -30,6 +30,11 @@ struct UsageData {
     var designWeeklyResetTime: String?
     var designWeeklyLabel: String?
 
+    var carbonWeeklyPercentage: Int?
+    var carbonWeeklyResetTime: String?
+    var carbonWeeklyLabel: String?
+    var isCarbonAvailable: Bool = true
+
     var email: String?
     var organizationName: String?
     var planName: String?
@@ -71,6 +76,11 @@ struct UsageData {
         isDesignWeeklyLimitReached
     }
 
+    /// Whether Carbon usage is unavailable (not available on this account).
+    var isCarbonUnavailable: Bool {
+        !isCarbonAvailable
+    }
+
     var displayPercentage: String {
         guard let percentage = dailyPercentage else { return "--" }
         return "\(percentage)%"
@@ -101,6 +111,10 @@ struct UsageSnapshot: Codable, Equatable {
     var creditsLimit: Double?
     var onDemandUsedDollars: Double?
     var lastUpdated: Date?
+    var carbonWeeklyPercentage: Int? = nil
+    var carbonWeeklyResetTime: String? = nil
+    var carbonWeeklyLabel: String? = nil
+    var isCarbonAvailable: Bool? = nil
 }
 
 // Stores/loads the last UsageSnapshot per provider. `defaults` is injectable for tests.

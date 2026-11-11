@@ -219,11 +219,16 @@ final class UsageProviderTests: XCTestCase {
         container.setGeminiMenuBarMetric("flash")
         XCTAssertEqual(container.menuBarDisplay(for: gemini), "5%")
 
+        gemini.usageData.carbonWeeklyPercentage = 15
+        container.setGeminiMenuBarMetric("carbon")
+        XCTAssertEqual(container.menuBarDisplay(for: gemini), "15%")
+        XCTAssertEqual(container.geminiMenuBarMetricID, "carbon")
+
         container.setGeminiMenuBarMetric("bogus")
-        XCTAssertEqual(container.geminiMenuBarMetricID, "flash")
+        XCTAssertEqual(container.geminiMenuBarMetricID, "carbon")
 
         let restored = UsageProviders(providers: [.claude, .gemini], defaults: defaults)
-        XCTAssertEqual(restored.geminiMenuBarMetricID, "flash")
+        XCTAssertEqual(restored.geminiMenuBarMetricID, "carbon")
     }
 
     func testGeminiMenuBarDisplayShowsSessionLimitWhenCapped() {
@@ -266,6 +271,17 @@ final class UsageProviderTests: XCTestCase {
         data.sonnetWeeklyLabel = "Weekly (Claude & GPT)"
         XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "opus"), "25%")
         XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "argon"), "--")
+    }
+
+    func testGeminiMenuBarDisplayCarbonReturnsPercentageOrZeroOrDash() {
+        var data = UsageData()
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "carbon"), "--")
+
+        data.carbonWeeklyPercentage = 0
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "carbon"), "0%")
+
+        data.carbonWeeklyPercentage = 42
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "carbon"), "42%")
     }
 
     private func makeSuiteDefaults() -> (defaults: UserDefaults, suite: String) {
