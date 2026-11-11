@@ -3,6 +3,12 @@ import XCTest
 
 final class GeminiUsageAPITests: XCTestCase {
 
+    override func setUp() {
+        super.setUp()
+        GeminiUsageAPI.onRefreshLogin = nil
+        GeminiUsageAPI.onWriteLogin = { _ in true }
+    }
+
     private let eastern = TimeZone(identifier: "America/New_York")!
 
     private let quotaBody = """
@@ -541,6 +547,7 @@ final class GeminiUsageAPITests: XCTestCase {
     override func tearDown() {
         MockURLProtocol.requestHandler = nil
         GeminiUsageAPI.onRefreshLogin = nil
+        GeminiUsageAPI.onWriteLogin = nil
         super.tearDown()
     }
 }

@@ -38,6 +38,7 @@ enum GeminiUsageAPI {
     static let userAgent = "antigravity/cli/1.5.1 (aidev_client; os_type=darwin; arch=arm64; cl=1014269460; auth_method=consumer)"
 
     nonisolated(unsafe) static var onRefreshLogin: ((Login) -> Login?)? = nil
+    nonisolated(unsafe) static var onWriteLogin: ((Login) -> Bool)? = nil
 
     private static let keyringBase64Prefix = "go-keyring-base64:"
     private static let keyringHexPrefix = "go-keyring-encoded:"
@@ -123,6 +124,9 @@ enum GeminiUsageAPI {
 
     @discardableResult
     static func writeLogin(_ login: Login) -> Bool {
+        if let customHandler = onWriteLogin {
+            return customHandler(login)
+        }
         var root = login.rawPayload ?? [:]
         var tokenDict = (root["token"] as? [String: Any]) ?? [:]
         tokenDict["access_token"] = login.accessToken
