@@ -9,8 +9,10 @@ import Foundation
 enum GeminiUsageAPI {
     static let quotaURL = URL(string: "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary")!
     static let loadCodeAssistURL = URL(string: "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist")!
+    static let availableModelsURL = URL(string: "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels")!
     static let fallbackQuotaURL = URL(string: "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary")!
     static let fallbackLoadCodeAssistURL = URL(string: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist")!
+    static let fallbackAvailableModelsURL = URL(string: "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels")!
     static let oauthTokenURL = URL(string: "https://oauth2.googleapis.com/token")!
     private static let oauthClientPayload: [UInt8] = [
         107, 106, 109, 107, 106, 106, 108, 106, 108, 106, 111, 99, 107, 119, 46, 55, 50, 41, 41, 51, 52,
@@ -340,13 +342,19 @@ enum GeminiUsageAPI {
                 }
             }
 
-            let planName = await fetchPlanName(accessToken: currentLogin.accessToken, fallbackTier: currentLogin.userTier, httpStatus: httpStatus, session: session)
-            return usageResult(from: data, httpStatus: httpStatus, email: currentLogin.email, planName: planName)
+            async let planNameTask = fetchPlanName(accessToken: currentLogin.accessToken, fallbackTier: currentLogin.userTier, httpStatus: httpStatus, session: session)
+            async let modelsDataTask = fetchAvailableModelsData(accessToken: currentLogin.accessToken, httpStatus: httpStatus, session: session)
+            let planName = await planNameTask
+            let modelsData = await modelsDataTask
+            return usageResult(from: data, modelsData: modelsData, httpStatus: httpStatus, email: currentLogin.email, planName: planName)
         } catch {
             if let fallbackResult = try? await postJSON(url: fallbackQuotaURL, body: Data("{}".utf8), accessToken: currentLogin.accessToken, session: session),
                fallbackResult.1 == 200 {
-                let planName = await fetchPlanName(accessToken: currentLogin.accessToken, fallbackTier: currentLogin.userTier, httpStatus: fallbackResult.1, session: session)
-                return usageResult(from: fallbackResult.0, httpStatus: fallbackResult.1, email: currentLogin.email, planName: planName)
+                async let planNameTask = fetchPlanName(accessToken: currentLogin.accessToken, fallbackTier: currentLogin.userTier, httpStatus: fallbackResult.1, session: session)
+                async let modelsDataTask = fetchAvailableModelsData(accessToken: currentLogin.accessToken, httpStatus: fallbackResult.1, session: session)
+                let planName = await planNameTask
+                let modelsData = await modelsDataTask
+                return usageResult(from: fallbackResult.0, modelsData: modelsData, httpStatus: fallbackResult.1, email: currentLogin.email, planName: planName)
             }
             return result(
                 ["success": false, "error": "Could not reach Google Cloud Code: \(error.localizedDescription)"],
@@ -357,6 +365,7 @@ enum GeminiUsageAPI {
 
     static func usageResult(
         from data: Data,
+        modelsData: Data? = nil,
         httpStatus: Int,
         email: String?,
         planName: String?,
@@ -422,7 +431,15 @@ enum GeminiUsageAPI {
             ? scopedLabel(for: carbonGroup?["displayName"] as? String, bucket: carbonBucket!)
             : "Weekly (Carbon)"
 
-        let hasUsage = session != nil || weekly != nil || firstScoped != nil || isCarbonAvailable
+        // Find Hydrogen buckets in retrieveUserQuotaSummary, or fall back to fetchAvailableModels
+        let hydrogen = parseHydrogenUsage(
+            groups: groups,
+            allBuckets: allBuckets,
+            modelsData: modelsData,
+            timeZone: timeZone
+        )
+
+        let hasUsage = session != nil || weekly != nil || firstScoped != nil || isCarbonAvailable || hydrogen.isAvailable
 
         let fields: [String: Any] = [
             "success": hasUsage,
@@ -444,6 +461,13 @@ enum GeminiUsageAPI {
             "carbonWeeklyResetTime": carbonResetTime as Any,
             "carbonWeeklyLabel": carbonLabel as Any,
             "isCarbonAvailable": isCarbonAvailable as Any,
+            "hydrogenDailyPercentage": hydrogen.dailyPercentage as Any,
+            "hydrogenDailyResetTime": hydrogen.dailyResetTime as Any,
+            "hydrogenDailyLabel": hydrogen.dailyLabel as Any,
+            "hydrogenWeeklyPercentage": hydrogen.weeklyPercentage as Any,
+            "hydrogenWeeklyResetTime": hydrogen.weeklyResetTime as Any,
+            "hydrogenWeeklyLabel": hydrogen.weeklyLabel as Any,
+            "isHydrogenAvailable": hydrogen.isAvailable as Any,
             "email": email as Any,
             "planName": planName as Any
         ]
@@ -481,6 +505,103 @@ enum GeminiUsageAPI {
         return formatTierName(fallbackTier)
     }
 
+    private static func fetchAvailableModelsData(accessToken: String, httpStatus: Int, session: URLSession) async -> Data? {
+        guard httpStatus == 200 else { return nil }
+        let body = Data("{}".utf8)
+        if let (data, status) = try? await postJSON(url: availableModelsURL, body: body, accessToken: accessToken, session: session),
+           status == 200 {
+            return data
+        }
+        if let (data, status) = try? await postJSON(url: fallbackAvailableModelsURL, body: body, accessToken: accessToken, session: session),
+           status == 200 {
+            return data
+        }
+        return nil
+    }
+
+    private struct HydrogenUsage {
+        let dailyPercentage: Int?
+        let dailyResetTime: String?
+        let dailyLabel: String?
+        let weeklyPercentage: Int?
+        let weeklyResetTime: String?
+        let weeklyLabel: String
+        let isAvailable: Bool
+    }
+
+    private static func parseHydrogenUsage(
+        groups: [[String: Any]],
+        allBuckets: [[String: Any]],
+        modelsData: Data?,
+        timeZone: TimeZone
+    ) -> HydrogenUsage {
+        let hydrogenGroup = groups.first {
+            let name = ($0["displayName"] as? String ?? "").lowercased()
+            return name.contains("hydrogen")
+        }
+        let groupBuckets = hydrogenGroup?["buckets"] as? [[String: Any]] ?? []
+        let matchingBuckets = !groupBuckets.isEmpty
+            ? groupBuckets
+            : allBuckets.filter {
+                let id = ($0["bucketId"] as? String ?? "").lowercased()
+                let name = ($0["displayName"] as? String ?? "").lowercased()
+                return id.contains("hydrogen") || name.contains("hydrogen")
+            }
+
+        if !matchingBuckets.isEmpty {
+            let sessionBucket = matchingBuckets.first {
+                ($0["bucketId"] as? String)?.lowercased().contains("5h") == true || ($0["window"] as? String) == "5h"
+            }
+            let weeklyBucket = matchingBuckets.first { ($0["window"] as? String) == "weekly" }
+                ?? matchingBuckets.first { $0["bucketId"] as? String != sessionBucket?["bucketId"] as? String }
+                ?? matchingBuckets.first
+            return HydrogenUsage(
+                dailyPercentage: usedPercentage(for: sessionBucket),
+                dailyResetTime: resetTime(for: sessionBucket, timeZone: timeZone),
+                dailyLabel: sessionBucket != nil ? "Session (Hydrogen)" : nil,
+                weeklyPercentage: weeklyBucket.flatMap { usedPercentage(for: $0) } ?? 0,
+                weeklyResetTime: resetTime(for: weeklyBucket, timeZone: timeZone),
+                weeklyLabel: weeklyBucket.map { scopedLabel(for: hydrogenGroup?["displayName"] as? String, bucket: $0) } ?? "Weekly (Hydrogen)",
+                isAvailable: true
+            )
+        }
+
+        if let modelsData,
+           let json = try? JSONSerialization.jsonObject(with: modelsData) as? [String: Any],
+           let models = json["models"] as? [String: Any] {
+            let hydrogenEntries: [(key: String, info: [String: Any])] = models.compactMap { key, value in
+                guard let info = value as? [String: Any] else { return nil }
+                let displayName = (info["displayName"] as? String ?? "").lowercased()
+                guard key.lowercased().contains("hydrogen") || displayName.contains("hydrogen") else { return nil }
+                guard (info["disabled"] as? Bool) != true else { return nil }
+                return (key: key, info: info)
+            }
+            let preferred = hydrogenEntries.first { $0.key.lowercased().contains("medium") }
+                ?? hydrogenEntries.first { $0.info["quotaInfo"] is [String: Any] }
+            if let quotaInfo = preferred?.info["quotaInfo"] as? [String: Any] {
+                return HydrogenUsage(
+                    dailyPercentage: nil,
+                    dailyResetTime: nil,
+                    dailyLabel: nil,
+                    weeklyPercentage: usedPercentage(for: quotaInfo) ?? 0,
+                    weeklyResetTime: resetTime(for: quotaInfo, timeZone: timeZone),
+                    weeklyLabel: "Weekly (Hydrogen)",
+                    isAvailable: true
+                )
+            }
+        }
+
+        return HydrogenUsage(
+            dailyPercentage: nil,
+            dailyResetTime: nil,
+            dailyLabel: nil,
+            weeklyPercentage: 0,
+            weeklyResetTime: nil,
+            weeklyLabel: "Weekly (Hydrogen)",
+            isAvailable: false
+        )
+    }
+
     private static func postJSON(url: URL, body: Data, accessToken: String, session: URLSession) async throws -> (Data, Int) {
         var request = URLRequest(url: url, timeoutInterval: requestTimeout)
         request.httpMethod = "POST"
@@ -496,7 +617,7 @@ enum GeminiUsageAPI {
     private static func scopedWeeklyBuckets(from groups: [[String: Any]]) -> [(label: String, bucket: [String: Any])] {
         let nonPrimaryGroups = groups.filter { group in
             let name = (group["displayName"] as? String ?? "").lowercased()
-            return name != "gemini models" && !name.contains("carbon")
+            return name != "gemini models" && !name.contains("carbon") && !name.contains("hydrogen")
         }
         let sortedGroups = nonPrimaryGroups.sorted { lhs, rhs in
             scopedPriority(for: lhs["displayName"] as? String) < scopedPriority(for: rhs["displayName"] as? String)
@@ -523,6 +644,7 @@ enum GeminiUsageAPI {
         let lower = name.lowercased()
         if lower.contains("argon") { return "Weekly (Argon)" }
         if lower.contains("carbon") { return "Weekly (Carbon)" }
+        if lower.contains("hydrogen") { return "Weekly (Hydrogen)" }
         if lower.contains("claude") && lower.contains("gpt") { return "Weekly (Claude & GPT)" }
         return "Weekly (\(name))"
     }

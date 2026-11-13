@@ -284,6 +284,17 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "carbon"), "42%")
     }
 
+    func testGeminiMenuBarDisplayHydrogenPrefersSessionOverWeekly() {
+        var data = UsageData()
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "hydrogen"), "--")
+
+        data.hydrogenWeeklyPercentage = 88
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "hydrogen"), "88%")
+
+        data.hydrogenDailyPercentage = 14
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "hydrogen"), "14%")
+    }
+
     private func makeSuiteDefaults() -> (defaults: UserDefaults, suite: String) {
         let suite = "test-usageproviders-\(UUID().uuidString)"
         return (UserDefaults(suiteName: suite)!, suite)

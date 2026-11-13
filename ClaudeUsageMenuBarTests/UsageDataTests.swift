@@ -279,4 +279,32 @@ final class UsageDataTests: XCTestCase {
         XCTAssertTrue(data.isCarbonUnavailable)
         XCTAssertEqual(data.carbonWeeklyPercentage, 0)
     }
+
+    func testSnapshotRoundTripsHydrogenUsage() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let snapshot = UsageSnapshot(
+            hydrogenDailyPercentage: 12,
+            hydrogenDailyResetTime: "Resets 3:00 PM",
+            hydrogenDailyLabel: "Session (Hydrogen)",
+            hydrogenWeeklyPercentage: 45,
+            hydrogenWeeklyResetTime: "Resets Nov 14, 2026 12:00 PM",
+            hydrogenWeeklyLabel: "Weekly (Hydrogen)",
+            isHydrogenAvailable: true
+        )
+        UsageCache.save(snapshot, for: "gemini", defaults: defaults)
+        XCTAssertEqual(UsageCache.load(for: "gemini", defaults: defaults), snapshot)
+    }
+
+    func testHydrogenWeeklyLimitReachedDisablesSession() {
+        var data = UsageData()
+        data.hydrogenDailyPercentage = 10
+        data.hydrogenWeeklyPercentage = 99
+        XCTAssertFalse(data.isHydrogenWeeklyLimitReached)
+        XCTAssertFalse(data.isHydrogenSessionUnavailable)
+
+        data.hydrogenWeeklyPercentage = 100
+        XCTAssertTrue(data.isHydrogenWeeklyLimitReached)
+        XCTAssertTrue(data.isHydrogenSessionUnavailable)
+    }
 }

@@ -187,6 +187,23 @@ struct ProviderSection: View {
                     unavailableHelp: service.usageData.isCarbonAvailable ? nil : "Not available on this account"
                 )
             }
+            if service.usageData.hydrogenDailyPercentage != nil {
+                usageRow(
+                    service.usageData.hydrogenDailyLabel ?? "Session (Hydrogen)",
+                    service.usageData.hydrogenDailyPercentage,
+                    service.hydrogenDailyResetCountdown,
+                    isUnavailable: service.usageData.isHydrogenSessionUnavailable
+                )
+            }
+            if service.usageData.hydrogenWeeklyPercentage != nil {
+                usageRow(
+                    service.usageData.hydrogenWeeklyLabel ?? "Weekly (Hydrogen)",
+                    service.usageData.hydrogenWeeklyPercentage,
+                    service.hydrogenWeeklyResetCountdown,
+                    isUnavailable: service.usageData.isHydrogenUnavailable,
+                    unavailableHelp: service.usageData.isHydrogenAvailable ? nil : "Not available on this account"
+                )
+            }
             if service.usageData.designDailyPercentage != nil {
                 let isUnavailable = service.usageData.isDesignSessionUnavailable
                 usageRow(
