@@ -35,6 +35,15 @@ struct UsageData {
     var carbonWeeklyLabel: String?
     var isCarbonAvailable: Bool = true
 
+    var hydrogenDailyPercentage: Int?
+    var hydrogenDailyResetTime: String?
+    var hydrogenDailyLabel: String?
+
+    var hydrogenWeeklyPercentage: Int?
+    var hydrogenWeeklyResetTime: String?
+    var hydrogenWeeklyLabel: String?
+    var isHydrogenAvailable: Bool = true
+
     var email: String?
     var organizationName: String?
     var planName: String?
@@ -81,6 +90,20 @@ struct UsageData {
         !isCarbonAvailable
     }
 
+    var isHydrogenWeeklyLimitReached: Bool {
+        (hydrogenWeeklyPercentage ?? 0) >= 100
+    }
+
+    /// Whether Hydrogen session usage is unavailable because its linked weekly limit reached 100%.
+    var isHydrogenSessionUnavailable: Bool {
+        isHydrogenWeeklyLimitReached
+    }
+
+    /// Whether Hydrogen usage is unavailable (not available on this account).
+    var isHydrogenUnavailable: Bool {
+        !isHydrogenAvailable
+    }
+
     var displayPercentage: String {
         guard let percentage = dailyPercentage else { return "--" }
         return "\(percentage)%"
@@ -115,6 +138,13 @@ struct UsageSnapshot: Codable, Equatable {
     var carbonWeeklyResetTime: String? = nil
     var carbonWeeklyLabel: String? = nil
     var isCarbonAvailable: Bool? = nil
+    var hydrogenDailyPercentage: Int? = nil
+    var hydrogenDailyResetTime: String? = nil
+    var hydrogenDailyLabel: String? = nil
+    var hydrogenWeeklyPercentage: Int? = nil
+    var hydrogenWeeklyResetTime: String? = nil
+    var hydrogenWeeklyLabel: String? = nil
+    var isHydrogenAvailable: Bool? = nil
 }
 
 // Stores/loads the last UsageSnapshot per provider. `defaults` is injectable for tests.

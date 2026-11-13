@@ -202,6 +202,120 @@ final class GeminiUsageAPITests: XCTestCase {
         XCTAssertEqual(result["carbonWeeklyResetTime"] as? String, "Resets Nov 13, 2026 5:00 AM")
     }
 
+    func testUsageResultWithHydrogenFromFetchAvailableModelsMapsWeeklyCorrectly() {
+        let quotaBody = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "buckets": [
+                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-13T20:30:18Z", "remainingFraction": 1.0},
+                {"bucketId": "gemini-weekly", "window": "weekly", "resetTime": "2026-11-14T00:53:15Z"}
+              ]
+            }
+          ]
+        }
+        """
+        let modelsBody = """
+        {
+          "models": {
+            "gemini-4-hydrogen-medium": {
+              "displayName": "Gemini 4 Hydrogen (Medium)",
+              "quotaInfo": {
+                "resetTime": "2026-11-14T00:53:15Z"
+              }
+            }
+          }
+        }
+        """
+
+        let result = GeminiUsageAPI.usageResult(
+            from: Data(quotaBody.utf8),
+            modelsData: Data(modelsBody.utf8),
+            httpStatus: 200,
+            email: "alan@example.com",
+            planName: "Google AI Pro",
+            timeZone: eastern
+        )
+
+        XCTAssertEqual(result["success"] as? Bool, true)
+        XCTAssertEqual(result["isHydrogenAvailable"] as? Bool, true)
+        XCTAssertNil(result["hydrogenDailyPercentage"] as? Int)
+        XCTAssertEqual(result["hydrogenWeeklyPercentage"] as? Int, 100)
+        XCTAssertEqual(result["hydrogenWeeklyLabel"] as? String, "Weekly (Hydrogen)")
+        XCTAssertEqual(result["hydrogenWeeklyResetTime"] as? String, "Resets Nov 13, 2026 7:53 PM")
+    }
+
+    func testUsageResultWithHydrogenGroupInQuotaSummaryMapsSessionAndWeekly() {
+        let quotaBody = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini 4 Hydrogen",
+              "buckets": [
+                {"bucketId": "gemini-hydrogen-5h", "window": "5h", "resetTime": "2026-11-13T20:30:18Z", "remainingFraction": 0.75},
+                {"bucketId": "gemini-hydrogen-weekly", "window": "weekly", "resetTime": "2026-11-14T00:53:15Z", "remainingFraction": 0.4}
+              ]
+            }
+          ]
+        }
+        """
+
+        let result = GeminiUsageAPI.usageResult(
+            from: Data(quotaBody.utf8),
+            httpStatus: 200,
+            email: "alan@example.com",
+            planName: "Google AI Pro",
+            timeZone: eastern
+        )
+
+        XCTAssertEqual(result["success"] as? Bool, true)
+        XCTAssertEqual(result["isHydrogenAvailable"] as? Bool, true)
+        XCTAssertEqual(result["hydrogenDailyPercentage"] as? Int, 25)
+        XCTAssertEqual(result["hydrogenDailyLabel"] as? String, "Session (Hydrogen)")
+        XCTAssertEqual(result["hydrogenWeeklyPercentage"] as? Int, 60)
+        XCTAssertEqual(result["hydrogenWeeklyLabel"] as? String, "Weekly (Hydrogen)")
+    }
+
+    func testUsageResultWithHydrogenDisabledInModelsDataMarksUnavailable() {
+        let quotaBody = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "buckets": [
+                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-13T20:30:18Z", "remainingFraction": 0.8}
+              ]
+            }
+          ]
+        }
+        """
+        let modelsBody = """
+        {
+          "models": {
+            "gemini-4-hydrogen-disabled": {
+              "displayName": "Gemini 4 Hydrogen",
+              "disabled": true
+            }
+          }
+        }
+        """
+
+        let result = GeminiUsageAPI.usageResult(
+            from: Data(quotaBody.utf8),
+            modelsData: Data(modelsBody.utf8),
+            httpStatus: 200,
+            email: "alan@example.com",
+            planName: "Google AI Pro",
+            timeZone: eastern
+        )
+
+        XCTAssertEqual(result["isHydrogenAvailable"] as? Bool, false)
+        XCTAssertEqual(result["hydrogenWeeklyPercentage"] as? Int, 0)
+        XCTAssertEqual(result["hydrogenWeeklyLabel"] as? String, "Weekly (Hydrogen)")
+        XCTAssertNil(result["hydrogenWeeklyResetTime"] as? String)
+    }
+
     func testUsageResultTreatsOmittedRemainingFractionAsHundredPercentUsed() {
         let exhaustedBody = """
         {

@@ -28,6 +28,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     @Published var designDailyResetCountdown: String?
     @Published var designWeeklyResetCountdown: String?
     @Published var carbonWeeklyResetCountdown: String?
+    @Published var hydrogenDailyResetCountdown: String?
+    @Published var hydrogenWeeklyResetCountdown: String?
     @Published var debugInfo: String = ""
     @Published var isUsingClaudeCodeLogin = false
 
@@ -41,6 +43,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private var rawDesignDailyResetTime: String?
     private var rawDesignWeeklyResetTime: String?
     private var rawCarbonWeeklyResetTime: String?
+    private var rawHydrogenDailyResetTime: String?
+    private var rawHydrogenWeeklyResetTime: String?
     private var isCheckingClaudeResets = false
     var refreshStartTime: Date?  // internal for @testable import
     var completedRefreshes = 0  // internal for @testable import
@@ -82,6 +86,15 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         if let isCarbonAvailable = snapshot.isCarbonAvailable {
             usageData.isCarbonAvailable = isCarbonAvailable
         }
+        usageData.hydrogenDailyPercentage = snapshot.hydrogenDailyPercentage
+        usageData.hydrogenDailyResetTime = snapshot.hydrogenDailyResetTime
+        usageData.hydrogenDailyLabel = snapshot.hydrogenDailyLabel
+        usageData.hydrogenWeeklyPercentage = snapshot.hydrogenWeeklyPercentage
+        usageData.hydrogenWeeklyResetTime = snapshot.hydrogenWeeklyResetTime
+        usageData.hydrogenWeeklyLabel = snapshot.hydrogenWeeklyLabel
+        if let isHydrogenAvailable = snapshot.isHydrogenAvailable {
+            usageData.isHydrogenAvailable = isHydrogenAvailable
+        }
         usageData.creditsUsed = snapshot.creditsUsed
         usageData.creditsLimit = snapshot.creditsLimit
         usageData.onDemandUsedDollars = snapshot.onDemandUsedDollars
@@ -91,6 +104,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         rawSonnetWeeklyResetTime = snapshot.sonnetWeeklyResetTime
         rawDesignWeeklyResetTime = snapshot.designWeeklyResetTime
         rawCarbonWeeklyResetTime = snapshot.carbonWeeklyResetTime
+        rawHydrogenDailyResetTime = snapshot.hydrogenDailyResetTime
+        rawHydrogenWeeklyResetTime = snapshot.hydrogenWeeklyResetTime
         updateResetCountdowns()
     }
 
@@ -244,12 +259,16 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         designDailyResetCountdown = nil
         designWeeklyResetCountdown = nil
         carbonWeeklyResetCountdown = nil
+        hydrogenDailyResetCountdown = nil
+        hydrogenWeeklyResetCountdown = nil
         rawDailyResetTime = nil
         rawWeeklyResetTime = nil
         rawSonnetWeeklyResetTime = nil
         rawDesignDailyResetTime = nil
         rawDesignWeeklyResetTime = nil
         rawCarbonWeeklyResetTime = nil
+        rawHydrogenDailyResetTime = nil
+        rawHydrogenWeeklyResetTime = nil
         // Drop the persisted snapshot so a later launch doesn't restore stale usage
         // after an explicit logout / cache clear.
         UsageCache.clear(for: provider.id)
@@ -275,6 +294,13 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.carbonWeeklyResetTime = data.carbonWeeklyResetTime
         usageData.carbonWeeklyLabel = data.carbonWeeklyLabel
         usageData.isCarbonAvailable = data.isCarbonAvailable
+        usageData.hydrogenDailyPercentage = data.hydrogenDailyPercentage
+        usageData.hydrogenDailyResetTime = data.hydrogenDailyResetTime
+        usageData.hydrogenDailyLabel = data.hydrogenDailyLabel
+        usageData.hydrogenWeeklyPercentage = data.hydrogenWeeklyPercentage
+        usageData.hydrogenWeeklyResetTime = data.hydrogenWeeklyResetTime
+        usageData.hydrogenWeeklyLabel = data.hydrogenWeeklyLabel
+        usageData.isHydrogenAvailable = data.isHydrogenAvailable
         usageData.email = data.email
         usageData.organizationName = data.organizationName
         usageData.planName = data.planName
@@ -312,7 +338,14 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
                 carbonWeeklyPercentage: data.carbonWeeklyPercentage,
                 carbonWeeklyResetTime: data.carbonWeeklyResetTime,
                 carbonWeeklyLabel: data.carbonWeeklyLabel,
-                isCarbonAvailable: data.isCarbonAvailable
+                isCarbonAvailable: data.isCarbonAvailable,
+                hydrogenDailyPercentage: data.hydrogenDailyPercentage,
+                hydrogenDailyResetTime: data.hydrogenDailyResetTime,
+                hydrogenDailyLabel: data.hydrogenDailyLabel,
+                hydrogenWeeklyPercentage: data.hydrogenWeeklyPercentage,
+                hydrogenWeeklyResetTime: data.hydrogenWeeklyResetTime,
+                hydrogenWeeklyLabel: data.hydrogenWeeklyLabel,
+                isHydrogenAvailable: data.isHydrogenAvailable
             ),
             for: provider.id
         )
@@ -323,6 +356,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         rawDesignDailyResetTime = data.designDailyResetTime
         rawDesignWeeklyResetTime = data.designWeeklyResetTime
         rawCarbonWeeklyResetTime = data.carbonWeeklyResetTime
+        rawHydrogenDailyResetTime = data.hydrogenDailyResetTime
+        rawHydrogenWeeklyResetTime = data.hydrogenWeeklyResetTime
         updateResetCountdowns()
 
         isRefreshing = false
@@ -393,6 +428,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         designDailyResetCountdown = DailyCountdownCalculator.calculate(from: rawDesignDailyResetTime)
         designWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawDesignWeeklyResetTime)
         carbonWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawCarbonWeeklyResetTime)
+        hydrogenDailyResetCountdown = DailyCountdownCalculator.calculate(from: rawHydrogenDailyResetTime)
+        hydrogenWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawHydrogenWeeklyResetTime)
     }
 
     // MARK: - WKNavigationDelegate
@@ -527,6 +564,13 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             carbonWeeklyResetTime: dict["carbonWeeklyResetTime"] as? String,
             carbonWeeklyLabel: dict["carbonWeeklyLabel"] as? String,
             isCarbonAvailable: dict["isCarbonAvailable"] as? Bool ?? true,
+            hydrogenDailyPercentage: dict["hydrogenDailyPercentage"] as? Int,
+            hydrogenDailyResetTime: dict["hydrogenDailyResetTime"] as? String,
+            hydrogenDailyLabel: dict["hydrogenDailyLabel"] as? String,
+            hydrogenWeeklyPercentage: dict["hydrogenWeeklyPercentage"] as? Int,
+            hydrogenWeeklyResetTime: dict["hydrogenWeeklyResetTime"] as? String,
+            hydrogenWeeklyLabel: dict["hydrogenWeeklyLabel"] as? String,
+            isHydrogenAvailable: dict["isHydrogenAvailable"] as? Bool ?? true,
             email: dict["email"] as? String,
             organizationName: dict["orgName"] as? String,
             planName: dict["planName"] as? String,
@@ -560,6 +604,13 @@ private struct ScrapedUsageData {
     let carbonWeeklyResetTime: String?
     let carbonWeeklyLabel: String?
     let isCarbonAvailable: Bool
+    let hydrogenDailyPercentage: Int?
+    let hydrogenDailyResetTime: String?
+    let hydrogenDailyLabel: String?
+    let hydrogenWeeklyPercentage: Int?
+    let hydrogenWeeklyResetTime: String?
+    let hydrogenWeeklyLabel: String?
+    let isHydrogenAvailable: Bool
     let email: String?
     let organizationName: String?
     let planName: String?
