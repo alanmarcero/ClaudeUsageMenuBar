@@ -8,14 +8,19 @@ struct MenuBarView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            ForEach(providers.sectionServices, id: \.provider.id) { service in
-                Divider().padding(.horizontal, 16)
-                ProviderSection(
-                    service: service,
-                    grokBotService: service.provider.id == UsageProvider.cursor.id && providers.isVisible(UsageProvider.grokBot.id)
-                        ? providers.grokBotService : nil
-                )
+            ScrollView(.vertical) {
+                VStack(spacing: 0) {
+                    ForEach(providers.sectionServices, id: \.provider.id) { service in
+                        Divider().padding(.horizontal, 16)
+                        ProviderSection(
+                            service: service,
+                            grokBotService: service.provider.id == UsageProvider.cursor.id && providers.isVisible(UsageProvider.grokBot.id)
+                                ? providers.grokBotService : nil
+                        )
+                    }
+                }
             }
+            .frame(maxHeight: 600)
             Divider()
             footer
         }
