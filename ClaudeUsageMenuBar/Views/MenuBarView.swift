@@ -20,7 +20,7 @@ struct MenuBarView: View {
                     }
                 }
             }
-            .frame(maxHeight: 600)
+            .frame(maxHeight: 700)
             Divider()
             footer
         }
