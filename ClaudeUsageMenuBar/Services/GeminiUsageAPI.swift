@@ -37,6 +37,13 @@ enum GeminiUsageAPI {
     private static let keyringBase64Prefix = "go-keyring-base64:"
     private static let keyringHexPrefix = "go-keyring-encoded:"
 
+    enum LoginSource: Equatable {
+        case antigravityFile
+        case oauthCredsFile
+        case keychain
+        case unknown
+    }
+
     struct Login: Equatable {
         let accessToken: String
         let refreshToken: String?
@@ -45,6 +52,7 @@ enum GeminiUsageAPI {
         let email: String?
         let userTier: String?
         let rawPayload: [String: Any]?
+        let source: LoginSource
 
         init(
             accessToken: String,
@@ -53,7 +61,8 @@ enum GeminiUsageAPI {
             authMethod: String? = nil,
             email: String? = nil,
             userTier: String? = nil,
-            rawPayload: [String: Any]? = nil
+            rawPayload: [String: Any]? = nil,
+            source: LoginSource = .unknown
         ) {
             self.accessToken = accessToken
             self.refreshToken = refreshToken
@@ -62,6 +71,7 @@ enum GeminiUsageAPI {
             self.email = email
             self.userTier = userTier
             self.rawPayload = rawPayload
+            self.source = source
         }
 
         static func == (lhs: Login, rhs: Login) -> Bool {
@@ -79,9 +89,43 @@ enum GeminiUsageAPI {
         }
     }
 
+    static var antigravityTokenURL: URL {
+        realUserHomeDirectory.appendingPathComponent(".gemini/antigravity-cli/antigravity-oauth-token")
+    }
+
+    static var oauthCredsURL: URL {
+        realUserHomeDirectory.appendingPathComponent(".gemini/oauth_creds.json")
+    }
+
+    // Reads the active Gemini / Antigravity CLI login from disk (`~/.gemini/antigravity-cli/antigravity-oauth-token`),
+    // macOS Keychain (`service: "gemini"`), or `~/.gemini/oauth_creds.json`, picking the freshest credential.
+    static func readLogin() -> Login? {
+        let candidates = [
+            readLoginFromFile(at: antigravityTokenURL, source: .antigravityFile),
+            readLoginFromKeychain(),
+            readLoginFromFile(at: oauthCredsURL, source: .oauthCredsFile)
+        ].compactMap { $0 }
+
+        return candidates.max { lhs, rhs in
+            let lhsHasRefresh = (lhs.refreshToken?.isEmpty == false)
+            let rhsHasRefresh = (rhs.refreshToken?.isEmpty == false)
+            if lhsHasRefresh != rhsHasRefresh {
+                return !lhsHasRefresh && rhsHasRefresh
+            }
+            let lhsExp = lhs.expiresAt ?? .distantPast
+            let rhsExp = rhs.expiresAt ?? .distantPast
+            return lhsExp < rhsExp
+        }
+    }
+
+    static func readLoginFromFile(at url: URL, source: LoginSource) -> Login? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return parseLogin(data, source: source)
+    }
+
     // Reads through /usr/bin/security so the item's ACL (written by go-keyring via
     // /usr/bin/security) grants access without prompting on ad hoc signed updates.
-    static func readLogin() -> Login? {
+    static func readLoginFromKeychain() -> Login? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
         process.arguments = ["find-generic-password", "-s", keychainService, "-w"]
@@ -92,19 +136,41 @@ enum GeminiUsageAPI {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { return nil }
-        return parseLogin(data)
+        return parseLogin(data, source: .keychain)
     }
 
-    static func parseLogin(_ data: Data) -> Login? {
+    static func parseLogin(_ data: Data, source: LoginSource = .unknown) -> Login? {
         guard let decoded = decodeKeychainPayload(data),
-              let root = try? JSONSerialization.jsonObject(with: decoded) as? [String: Any],
-              let token = root["token"] as? [String: Any] else {
+              let root = try? JSONSerialization.jsonObject(with: decoded) as? [String: Any] else {
             return nil
         }
-        let accessToken = (token["access_token"] as? String) ?? ""
+
+        // Format 1: antigravity-oauth-token / go-keyring (`{ "token": { "access_token": ..., "expiry": ... } }`)
+        if let token = root["token"] as? [String: Any] {
+            let accessToken = (token["access_token"] as? String) ?? ""
+            guard !accessToken.isEmpty else { return nil }
+            let refreshToken = nonEmpty(token["refresh_token"] as? String)
+            let expiresAt = (token["expiry"] as? String).flatMap(parseISODate)
+            return Login(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                expiresAt: expiresAt,
+                authMethod: nonEmpty(root["auth_method"] as? String),
+                email: nonEmpty(root["id_token_email"] as? String),
+                userTier: nonEmpty(root["user_tier"] as? String),
+                rawPayload: root,
+                source: source
+            )
+        }
+
+        // Format 2: ~/.gemini/oauth_creds.json (`{ "access_token": ..., "expiry_date": 1763391512000 }`)
+        let accessToken = (root["access_token"] as? String) ?? ""
         guard !accessToken.isEmpty else { return nil }
-        let refreshToken = nonEmpty(token["refresh_token"] as? String)
-        let expiresAt = (token["expiry"] as? String).flatMap(parseISODate)
+        let refreshToken = nonEmpty(root["refresh_token"] as? String)
+        let expiresAt: Date? = (root["expiry_date"] as? NSNumber).map {
+            Date(timeIntervalSince1970: $0.doubleValue / 1000.0)
+        } ?? (root["expiry"] as? String).flatMap(parseISODate)
+
         return Login(
             accessToken: accessToken,
             refreshToken: refreshToken,
@@ -112,7 +178,8 @@ enum GeminiUsageAPI {
             authMethod: nonEmpty(root["auth_method"] as? String),
             email: nonEmpty(root["id_token_email"] as? String),
             userTier: nonEmpty(root["user_tier"] as? String),
-            rawPayload: root
+            rawPayload: root,
+            source: source
         )
     }
 
@@ -122,38 +189,83 @@ enum GeminiUsageAPI {
             return customHandler(login)
         }
         var root = login.rawPayload ?? [:]
-        var tokenDict = (root["token"] as? [String: Any]) ?? [:]
-        tokenDict["access_token"] = login.accessToken
-        tokenDict["token_type"] = "Bearer"
-        if let rt = login.refreshToken {
-            tokenDict["refresh_token"] = rt
+        let isFlatCreds = (login.source == .oauthCredsFile) || (root["token"] == nil && root["access_token"] != nil)
+
+        if isFlatCreds {
+            root["access_token"] = login.accessToken
+            root["token_type"] = "Bearer"
+            if let rt = login.refreshToken {
+                root["refresh_token"] = rt
+            }
+            if let expiresAt = login.expiresAt {
+                root["expiry_date"] = Int64((expiresAt.timeIntervalSince1970 * 1000.0).rounded())
+            }
+        } else {
+            var tokenDict = (root["token"] as? [String: Any]) ?? [:]
+            tokenDict["access_token"] = login.accessToken
+            tokenDict["token_type"] = "Bearer"
+            if let rt = login.refreshToken {
+                tokenDict["refresh_token"] = rt
+            }
+            if let expiresAt = login.expiresAt {
+                tokenDict["expiry"] = ISO8601DateFormatter().string(from: expiresAt)
+                tokenDict["expires_in"] = max(0, Int(expiresAt.timeIntervalSinceNow))
+            }
+            root["token"] = tokenDict
+            if let authMethod = login.authMethod {
+                root["auth_method"] = authMethod
+            }
+            if let email = login.email {
+                root["id_token_email"] = email
+            }
+            if let userTier = login.userTier {
+                root["user_tier"] = userTier
+            }
         }
-        if let expiresAt = login.expiresAt {
-            tokenDict["expiry"] = ISO8601DateFormatter().string(from: expiresAt)
-            tokenDict["expires_in"] = max(0, Int(expiresAt.timeIntervalSinceNow))
-        }
-        root["token"] = tokenDict
-        if let authMethod = login.authMethod {
-            root["auth_method"] = authMethod
-        }
-        if let email = login.email {
-            root["id_token_email"] = email
-        }
-        if let userTier = login.userTier {
-            root["user_tier"] = userTier
-        }
+
         guard let jsonData = try? JSONSerialization.data(withJSONObject: root, options: []) else {
             return false
         }
-        let encoded = keyringBase64Prefix + jsonData.base64EncodedString()
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        process.arguments = ["add-generic-password", "-U", "-s", keychainService, "-a", keychainAccount, "-w", encoded]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return false }
-        process.waitUntilExit()
-        return process.terminationStatus == 0
+
+        var wroteAny = false
+
+        if login.source == .antigravityFile || (login.source == .unknown && FileManager.default.fileExists(atPath: antigravityTokenURL.path)) {
+            if writeTokenFile(jsonData, to: antigravityTokenURL) {
+                wroteAny = true
+            }
+        } else if login.source == .oauthCredsFile {
+            if writeTokenFile(jsonData, to: oauthCredsURL) {
+                wroteAny = true
+            }
+        }
+
+        if login.source == .keychain || login.source == .unknown {
+            let encoded = keyringBase64Prefix + jsonData.base64EncodedString()
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+            process.arguments = ["add-generic-password", "-U", "-s", keychainService, "-a", keychainAccount, "-w", encoded]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            if (try? process.run()) != nil {
+                process.waitUntilExit()
+                if process.terminationStatus == 0 {
+                    wroteAny = true
+                }
+            }
+        }
+
+        return wroteAny
+    }
+
+    private static func writeTokenFile(_ data: Data, to url: URL) -> Bool {
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url, options: .atomic)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            return true
+        } catch {
+            return false
+        }
     }
 
     static func refreshOAuthToken(
@@ -230,9 +342,14 @@ enum GeminiUsageAPI {
 
     static func refreshLoginViaCLI() -> Login? {
         guard let cliURL = findCLIExecutable() else { return nil }
+        let realHome = realUserHomeDirectory
         let process = Process()
         process.executableURL = cliURL
         process.arguments = ["-p", "/usage"]
+        process.environment = [
+            "HOME": realHome.path,
+            "PATH": "\(realHome.path)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        ]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         guard (try? process.run()) != nil else { return nil }
@@ -309,6 +426,12 @@ enum GeminiUsageAPI {
         if currentLogin.isExpiredOrExpiringSoon(now: now) {
             if let refreshed = await refreshLogin(currentLogin, session: session) {
                 currentLogin = refreshed
+            } else if currentLogin.source != .unknown,
+                      let diskLogin = readLogin(),
+                      diskLogin.accessToken != currentLogin.accessToken,
+                      !diskLogin.isExpiredOrExpiringSoon(now: now, window: 0) {
+                // CLI may have renewed the token on disk while the app was idle/asleep.
+                currentLogin = diskLogin
             }
         }
 
@@ -319,11 +442,20 @@ enum GeminiUsageAPI {
         do {
             var (data, httpStatus) = try await postJSON(url: quotaURL, body: Data("{}".utf8), accessToken: currentLogin.accessToken, session: session)
 
-            if httpStatus == 401, let refreshed = await refreshLogin(currentLogin, session: session) {
-                currentLogin = refreshed
-                let retryResult = try await postJSON(url: quotaURL, body: Data("{}".utf8), accessToken: currentLogin.accessToken, session: session)
-                data = retryResult.0
-                httpStatus = retryResult.1
+            if httpStatus == 401 {
+                if let refreshed = await refreshLogin(currentLogin, session: session) {
+                    currentLogin = refreshed
+                    let retryResult = try await postJSON(url: quotaURL, body: Data("{}".utf8), accessToken: currentLogin.accessToken, session: session)
+                    data = retryResult.0
+                    httpStatus = retryResult.1
+                } else if currentLogin.source != .unknown,
+                          let diskLogin = readLogin(),
+                          diskLogin.accessToken != currentLogin.accessToken {
+                    currentLogin = diskLogin
+                    let retryResult = try await postJSON(url: quotaURL, body: Data("{}".utf8), accessToken: currentLogin.accessToken, session: session)
+                    data = retryResult.0
+                    httpStatus = retryResult.1
+                }
             }
 
             if httpStatus != 200 && httpStatus != 401 {

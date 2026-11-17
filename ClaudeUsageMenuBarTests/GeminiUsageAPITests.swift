@@ -658,6 +658,51 @@ final class GeminiUsageAPITests: XCTestCase {
         return URLSession(configuration: config)
     }
 
+    func testParsesAntigravityTokenFileAndOAuthCredsJSON() throws {
+        let antigravityJSON = """
+        {
+          "token": {
+            "access_token": "agy-access-123",
+            "refresh_token": "agy-refresh-456",
+            "token_type": "Bearer",
+            "expiry": "2026-11-17T09:58:32.450115-05:00",
+            "expires_in": 3599
+          },
+          "auth_method": "oauth-personal",
+          "id_token_email": "alan@example.com"
+        }
+        """
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let agyFile = tempDir.appendingPathComponent("antigravity-oauth-token")
+        try Data(antigravityJSON.utf8).write(to: agyFile)
+
+        let agyLogin = GeminiUsageAPI.readLoginFromFile(at: agyFile, source: .antigravityFile)
+        XCTAssertEqual(agyLogin?.accessToken, "agy-access-123")
+        XCTAssertEqual(agyLogin?.refreshToken, "agy-refresh-456")
+        XCTAssertEqual(agyLogin?.email, "alan@example.com")
+        XCTAssertEqual(agyLogin?.source, .antigravityFile)
+        XCTAssertNotNil(agyLogin?.expiresAt)
+
+        let oauthCredsJSON = """
+        {
+          "access_token": "flat-access-789",
+          "refresh_token": "flat-refresh-012",
+          "expiry_date": 1763391512000
+        }
+        """
+        let flatFile = tempDir.appendingPathComponent("oauth_creds.json")
+        try Data(oauthCredsJSON.utf8).write(to: flatFile)
+
+        let flatLogin = GeminiUsageAPI.readLoginFromFile(at: flatFile, source: .oauthCredsFile)
+        XCTAssertEqual(flatLogin?.accessToken, "flat-access-789")
+        XCTAssertEqual(flatLogin?.refreshToken, "flat-refresh-012")
+        XCTAssertEqual(flatLogin?.source, .oauthCredsFile)
+        XCTAssertEqual(flatLogin?.expiresAt?.timeIntervalSince1970 ?? 0, 1763391512.0, accuracy: 0.001)
+    }
+
     override func tearDown() {
         MockURLProtocol.requestHandler = nil
         GeminiUsageAPI.onRefreshLogin = nil

@@ -25,10 +25,12 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
 
     private let usageService: UsageService
     private let provider: UsageProvider
+    private weak var browserState: WebViewBrowserState?
 
-    init(usageService: UsageService, provider: UsageProvider = .claude) {
+    init(usageService: UsageService, provider: UsageProvider = .claude, browserState: WebViewBrowserState? = nil) {
         self.usageService = usageService
         self.provider = provider
+        self.browserState = browserState
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -62,7 +64,16 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         return nil
     }
 
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        Task { @MainActor in
+            browserState?.update(from: webView)
+        }
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        Task { @MainActor in
+            browserState?.update(from: webView)
+        }
         guard let url = webView.url else { return }
 
         let urlString = url.absoluteString.lowercased()
