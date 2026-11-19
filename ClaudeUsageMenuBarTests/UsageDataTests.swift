@@ -307,4 +307,32 @@ final class UsageDataTests: XCTestCase {
         XCTAssertTrue(data.isHydrogenWeeklyLimitReached)
         XCTAssertTrue(data.isHydrogenSessionUnavailable)
     }
+
+    func testSnapshotRoundTripsNeonUsage() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let snapshot = UsageSnapshot(
+            neonDailyPercentage: 12,
+            neonDailyResetTime: "Resets 3:00 PM",
+            neonDailyLabel: "Session (Neon)",
+            neonWeeklyPercentage: 45,
+            neonWeeklyResetTime: "Resets Nov 20, 2026 12:00 PM",
+            neonWeeklyLabel: "Weekly (Neon)",
+            isNeonAvailable: true
+        )
+        UsageCache.save(snapshot, for: "gemini", defaults: defaults)
+        XCTAssertEqual(UsageCache.load(for: "gemini", defaults: defaults), snapshot)
+    }
+
+    func testNeonWeeklyLimitReachedDisablesSession() {
+        var data = UsageData()
+        data.neonDailyPercentage = 10
+        data.neonWeeklyPercentage = 99
+        XCTAssertFalse(data.isNeonWeeklyLimitReached)
+        XCTAssertFalse(data.isNeonSessionUnavailable)
+
+        data.neonWeeklyPercentage = 100
+        XCTAssertTrue(data.isNeonWeeklyLimitReached)
+        XCTAssertTrue(data.isNeonSessionUnavailable)
+    }
 }

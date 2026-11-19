@@ -30,6 +30,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     @Published var carbonWeeklyResetCountdown: String?
     @Published var hydrogenDailyResetCountdown: String?
     @Published var hydrogenWeeklyResetCountdown: String?
+    @Published var neonDailyResetCountdown: String?
+    @Published var neonWeeklyResetCountdown: String?
     @Published var debugInfo: String = ""
     @Published var isUsingClaudeCodeLogin = false
 
@@ -45,6 +47,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private var rawCarbonWeeklyResetTime: String?
     private var rawHydrogenDailyResetTime: String?
     private var rawHydrogenWeeklyResetTime: String?
+    private var rawNeonDailyResetTime: String?
+    private var rawNeonWeeklyResetTime: String?
     private var isCheckingClaudeResets = false
     var refreshStartTime: Date?  // internal for @testable import
     var completedRefreshes = 0  // internal for @testable import
@@ -95,6 +99,15 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         if let isHydrogenAvailable = snapshot.isHydrogenAvailable {
             usageData.isHydrogenAvailable = isHydrogenAvailable
         }
+        usageData.neonDailyPercentage = snapshot.neonDailyPercentage
+        usageData.neonDailyResetTime = snapshot.neonDailyResetTime
+        usageData.neonDailyLabel = snapshot.neonDailyLabel
+        usageData.neonWeeklyPercentage = snapshot.neonWeeklyPercentage
+        usageData.neonWeeklyResetTime = snapshot.neonWeeklyResetTime
+        usageData.neonWeeklyLabel = snapshot.neonWeeklyLabel
+        if let isNeonAvailable = snapshot.isNeonAvailable {
+            usageData.isNeonAvailable = isNeonAvailable
+        }
         usageData.creditsUsed = snapshot.creditsUsed
         usageData.creditsLimit = snapshot.creditsLimit
         usageData.onDemandUsedDollars = snapshot.onDemandUsedDollars
@@ -106,6 +119,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         rawCarbonWeeklyResetTime = snapshot.carbonWeeklyResetTime
         rawHydrogenDailyResetTime = snapshot.hydrogenDailyResetTime
         rawHydrogenWeeklyResetTime = snapshot.hydrogenWeeklyResetTime
+        rawNeonDailyResetTime = snapshot.neonDailyResetTime
+        rawNeonWeeklyResetTime = snapshot.neonWeeklyResetTime
         updateResetCountdowns()
     }
 
@@ -261,6 +276,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         carbonWeeklyResetCountdown = nil
         hydrogenDailyResetCountdown = nil
         hydrogenWeeklyResetCountdown = nil
+        neonDailyResetCountdown = nil
+        neonWeeklyResetCountdown = nil
         rawDailyResetTime = nil
         rawWeeklyResetTime = nil
         rawSonnetWeeklyResetTime = nil
@@ -269,6 +286,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         rawCarbonWeeklyResetTime = nil
         rawHydrogenDailyResetTime = nil
         rawHydrogenWeeklyResetTime = nil
+        rawNeonDailyResetTime = nil
+        rawNeonWeeklyResetTime = nil
         // Drop the persisted snapshot so a later launch doesn't restore stale usage
         // after an explicit logout / cache clear.
         UsageCache.clear(for: provider.id)
@@ -301,6 +320,13 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.hydrogenWeeklyResetTime = data.hydrogenWeeklyResetTime
         usageData.hydrogenWeeklyLabel = data.hydrogenWeeklyLabel
         usageData.isHydrogenAvailable = data.isHydrogenAvailable
+        usageData.neonDailyPercentage = data.neonDailyPercentage
+        usageData.neonDailyResetTime = data.neonDailyResetTime
+        usageData.neonDailyLabel = data.neonDailyLabel
+        usageData.neonWeeklyPercentage = data.neonWeeklyPercentage
+        usageData.neonWeeklyResetTime = data.neonWeeklyResetTime
+        usageData.neonWeeklyLabel = data.neonWeeklyLabel
+        usageData.isNeonAvailable = data.isNeonAvailable
         usageData.email = data.email
         usageData.organizationName = data.organizationName
         usageData.planName = data.planName
@@ -345,7 +371,14 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
                 hydrogenWeeklyPercentage: data.hydrogenWeeklyPercentage,
                 hydrogenWeeklyResetTime: data.hydrogenWeeklyResetTime,
                 hydrogenWeeklyLabel: data.hydrogenWeeklyLabel,
-                isHydrogenAvailable: data.isHydrogenAvailable
+                isHydrogenAvailable: data.isHydrogenAvailable,
+                neonDailyPercentage: data.neonDailyPercentage,
+                neonDailyResetTime: data.neonDailyResetTime,
+                neonDailyLabel: data.neonDailyLabel,
+                neonWeeklyPercentage: data.neonWeeklyPercentage,
+                neonWeeklyResetTime: data.neonWeeklyResetTime,
+                neonWeeklyLabel: data.neonWeeklyLabel,
+                isNeonAvailable: data.isNeonAvailable
             ),
             for: provider.id
         )
@@ -358,6 +391,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         rawCarbonWeeklyResetTime = data.carbonWeeklyResetTime
         rawHydrogenDailyResetTime = data.hydrogenDailyResetTime
         rawHydrogenWeeklyResetTime = data.hydrogenWeeklyResetTime
+        rawNeonDailyResetTime = data.neonDailyResetTime
+        rawNeonWeeklyResetTime = data.neonWeeklyResetTime
         updateResetCountdowns()
 
         isRefreshing = false
@@ -430,6 +465,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         carbonWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawCarbonWeeklyResetTime)
         hydrogenDailyResetCountdown = DailyCountdownCalculator.calculate(from: rawHydrogenDailyResetTime)
         hydrogenWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawHydrogenWeeklyResetTime)
+        neonDailyResetCountdown = DailyCountdownCalculator.calculate(from: rawNeonDailyResetTime)
+        neonWeeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawNeonWeeklyResetTime)
     }
 
     // MARK: - WKNavigationDelegate
@@ -571,6 +608,13 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             hydrogenWeeklyResetTime: dict["hydrogenWeeklyResetTime"] as? String,
             hydrogenWeeklyLabel: dict["hydrogenWeeklyLabel"] as? String,
             isHydrogenAvailable: dict["isHydrogenAvailable"] as? Bool ?? true,
+            neonDailyPercentage: dict["neonDailyPercentage"] as? Int,
+            neonDailyResetTime: dict["neonDailyResetTime"] as? String,
+            neonDailyLabel: dict["neonDailyLabel"] as? String,
+            neonWeeklyPercentage: dict["neonWeeklyPercentage"] as? Int,
+            neonWeeklyResetTime: dict["neonWeeklyResetTime"] as? String,
+            neonWeeklyLabel: dict["neonWeeklyLabel"] as? String,
+            isNeonAvailable: dict["isNeonAvailable"] as? Bool ?? true,
             email: dict["email"] as? String,
             organizationName: dict["orgName"] as? String,
             planName: dict["planName"] as? String,
@@ -611,6 +655,13 @@ private struct ScrapedUsageData {
     let hydrogenWeeklyResetTime: String?
     let hydrogenWeeklyLabel: String?
     let isHydrogenAvailable: Bool
+    let neonDailyPercentage: Int?
+    let neonDailyResetTime: String?
+    let neonDailyLabel: String?
+    let neonWeeklyPercentage: Int?
+    let neonWeeklyResetTime: String?
+    let neonWeeklyLabel: String?
+    let isNeonAvailable: Bool
     let email: String?
     let organizationName: String?
     let planName: String?

@@ -26,12 +26,13 @@ final class UsageProviders: ObservableObject {
 
     private static let geminiMetricKey = "geminiMenuBarMetricID"
 
-    // Gemini reports separate pools for Argon, Carbon, Hydrogen, Claude & GPT (Opus),
+    // Gemini reports separate pools for Argon, Carbon, Hydrogen, Neon, Claude & GPT (Opus),
     // and Gemini Flash; the menu bar can show any of them.
     static let geminiMetricOptions: [(id: String, label: String)] = [
         ("argon", "Argon"),
         ("carbon", "Carbon"),
         ("hydrogen", "Hydrogen"),
+        ("neon", "Neon"),
         ("opus", "Opus"),
         ("flash", "Flash")
     ]
@@ -209,6 +210,12 @@ final class UsageProviders: ObservableObject {
                 return "\(session)%"
             }
             guard let percentage = data.hydrogenWeeklyPercentage else { return "--" }
+            return "\(percentage)%"
+        case "neon":
+            if let session = data.neonDailyPercentage {
+                return "\(session)%"
+            }
+            guard let percentage = data.neonWeeklyPercentage else { return "--" }
             return "\(percentage)%"
         default: // "argon"
             let pools: [(label: String?, percentage: Int?)] = [

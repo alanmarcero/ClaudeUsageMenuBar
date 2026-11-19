@@ -316,6 +316,121 @@ final class GeminiUsageAPITests: XCTestCase {
         XCTAssertNil(result["hydrogenWeeklyResetTime"] as? String)
     }
 
+    func testUsageResultWithNeonFromFetchAvailableModelsMapsWeeklyCorrectly() {
+        let quotaBody = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "buckets": [
+                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-19T20:30:18Z", "remainingFraction": 1.0},
+                {"bucketId": "gemini-weekly", "window": "weekly", "resetTime": "2026-11-20T00:53:15Z"}
+              ]
+            }
+          ]
+        }
+        """
+        let modelsBody = """
+        {
+          "models": {
+            "gemini-4-neon-medium": {
+              "displayName": "Gemini 4 Neon (Medium)",
+              "quotaInfo": {
+                "remainingFraction": 0.65,
+                "resetTime": "2026-11-20T00:53:15Z"
+              }
+            }
+          }
+        }
+        """
+
+        let result = GeminiUsageAPI.usageResult(
+            from: Data(quotaBody.utf8),
+            modelsData: Data(modelsBody.utf8),
+            httpStatus: 200,
+            email: "alan@example.com",
+            planName: "Google AI Pro",
+            timeZone: eastern
+        )
+
+        XCTAssertEqual(result["success"] as? Bool, true)
+        XCTAssertEqual(result["isNeonAvailable"] as? Bool, true)
+        XCTAssertNil(result["neonDailyPercentage"] as? Int)
+        XCTAssertEqual(result["neonWeeklyPercentage"] as? Int, 35)
+        XCTAssertEqual(result["neonWeeklyLabel"] as? String, "Weekly (Neon)")
+        XCTAssertEqual(result["neonWeeklyResetTime"] as? String, "Resets Nov 19, 2026 7:53 PM")
+    }
+
+    func testUsageResultWithNeonGroupInQuotaSummaryMapsSessionAndWeekly() {
+        let quotaBody = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini 4 Neon",
+              "buckets": [
+                {"bucketId": "gemini-neon-5h", "window": "5h", "resetTime": "2026-11-19T20:30:18Z", "remainingFraction": 0.75},
+                {"bucketId": "gemini-neon-weekly", "window": "weekly", "resetTime": "2026-11-20T00:53:15Z", "remainingFraction": 0.4}
+              ]
+            }
+          ]
+        }
+        """
+
+        let result = GeminiUsageAPI.usageResult(
+            from: Data(quotaBody.utf8),
+            httpStatus: 200,
+            email: "alan@example.com",
+            planName: "Google AI Pro",
+            timeZone: eastern
+        )
+
+        XCTAssertEqual(result["success"] as? Bool, true)
+        XCTAssertEqual(result["isNeonAvailable"] as? Bool, true)
+        XCTAssertEqual(result["neonDailyPercentage"] as? Int, 25)
+        XCTAssertEqual(result["neonDailyLabel"] as? String, "Session (Neon)")
+        XCTAssertEqual(result["neonWeeklyPercentage"] as? Int, 60)
+        XCTAssertEqual(result["neonWeeklyLabel"] as? String, "Weekly (Neon)")
+    }
+
+    func testUsageResultWithNeonDisabledInModelsDataMarksUnavailable() {
+        let quotaBody = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "buckets": [
+                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-19T20:30:18Z", "remainingFraction": 0.8}
+              ]
+            }
+          ]
+        }
+        """
+        let modelsBody = """
+        {
+          "models": {
+            "gemini-4-neon-disabled": {
+              "displayName": "Gemini 4 Neon",
+              "disabled": true
+            }
+          }
+        }
+        """
+
+        let result = GeminiUsageAPI.usageResult(
+            from: Data(quotaBody.utf8),
+            modelsData: Data(modelsBody.utf8),
+            httpStatus: 200,
+            email: "alan@example.com",
+            planName: "Google AI Pro",
+            timeZone: eastern
+        )
+
+        XCTAssertEqual(result["isNeonAvailable"] as? Bool, false)
+        XCTAssertEqual(result["neonWeeklyPercentage"] as? Int, 0)
+        XCTAssertEqual(result["neonWeeklyLabel"] as? String, "Weekly (Neon)")
+        XCTAssertNil(result["neonWeeklyResetTime"] as? String)
+    }
+
     func testUsageResultTreatsOmittedRemainingFractionAsHundredPercentUsed() {
         let exhaustedBody = """
         {
