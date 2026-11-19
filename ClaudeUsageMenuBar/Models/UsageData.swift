@@ -44,6 +44,15 @@ struct UsageData {
     var hydrogenWeeklyLabel: String?
     var isHydrogenAvailable: Bool = true
 
+    var neonDailyPercentage: Int?
+    var neonDailyResetTime: String?
+    var neonDailyLabel: String?
+
+    var neonWeeklyPercentage: Int?
+    var neonWeeklyResetTime: String?
+    var neonWeeklyLabel: String?
+    var isNeonAvailable: Bool = true
+
     var email: String?
     var organizationName: String?
     var planName: String?
@@ -104,6 +113,20 @@ struct UsageData {
         !isHydrogenAvailable
     }
 
+    var isNeonWeeklyLimitReached: Bool {
+        (neonWeeklyPercentage ?? 0) >= 100
+    }
+
+    /// Whether Neon session usage is unavailable because its linked weekly limit reached 100%.
+    var isNeonSessionUnavailable: Bool {
+        isNeonWeeklyLimitReached
+    }
+
+    /// Whether Neon usage is unavailable (not available on this account).
+    var isNeonUnavailable: Bool {
+        !isNeonAvailable
+    }
+
     var displayPercentage: String {
         guard let percentage = dailyPercentage else { return "--" }
         return "\(percentage)%"
@@ -145,6 +168,13 @@ struct UsageSnapshot: Codable, Equatable {
     var hydrogenWeeklyResetTime: String? = nil
     var hydrogenWeeklyLabel: String? = nil
     var isHydrogenAvailable: Bool? = nil
+    var neonDailyPercentage: Int? = nil
+    var neonDailyResetTime: String? = nil
+    var neonDailyLabel: String? = nil
+    var neonWeeklyPercentage: Int? = nil
+    var neonWeeklyResetTime: String? = nil
+    var neonWeeklyLabel: String? = nil
+    var isNeonAvailable: Bool? = nil
 }
 
 // Stores/loads the last UsageSnapshot per provider. `defaults` is injectable for tests.

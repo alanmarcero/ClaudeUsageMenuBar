@@ -555,15 +555,25 @@ enum GeminiUsageAPI {
             ? scopedLabel(for: carbonGroup?["displayName"] as? String, bucket: carbonBucket!)
             : "Weekly (Carbon)"
 
-        // Find Hydrogen buckets in retrieveUserQuotaSummary, or fall back to fetchAvailableModels
-        let hydrogen = parseHydrogenUsage(
+        // Find Hydrogen and Neon buckets in retrieveUserQuotaSummary, or fall back to fetchAvailableModels
+        let hydrogen = parseScopedModelPoolUsage(
+            keyword: "hydrogen",
+            displayName: "Hydrogen",
+            groups: groups,
+            allBuckets: allBuckets,
+            modelsData: modelsData,
+            timeZone: timeZone
+        )
+        let neon = parseScopedModelPoolUsage(
+            keyword: "neon",
+            displayName: "Neon",
             groups: groups,
             allBuckets: allBuckets,
             modelsData: modelsData,
             timeZone: timeZone
         )
 
-        let hasUsage = session != nil || weekly != nil || firstScoped != nil || isCarbonAvailable || hydrogen.isAvailable
+        let hasUsage = session != nil || weekly != nil || firstScoped != nil || isCarbonAvailable || hydrogen.isAvailable || neon.isAvailable
 
         let fields: [String: Any] = [
             "success": hasUsage,
@@ -592,6 +602,13 @@ enum GeminiUsageAPI {
             "hydrogenWeeklyResetTime": hydrogen.weeklyResetTime as Any,
             "hydrogenWeeklyLabel": hydrogen.weeklyLabel as Any,
             "isHydrogenAvailable": hydrogen.isAvailable as Any,
+            "neonDailyPercentage": neon.dailyPercentage as Any,
+            "neonDailyResetTime": neon.dailyResetTime as Any,
+            "neonDailyLabel": neon.dailyLabel as Any,
+            "neonWeeklyPercentage": neon.weeklyPercentage as Any,
+            "neonWeeklyResetTime": neon.weeklyResetTime as Any,
+            "neonWeeklyLabel": neon.weeklyLabel as Any,
+            "isNeonAvailable": neon.isAvailable as Any,
             "email": email as Any,
             "planName": planName as Any
         ]
@@ -643,7 +660,7 @@ enum GeminiUsageAPI {
         return nil
     }
 
-    private struct HydrogenUsage {
+    private struct ScopedModelPoolUsage {
         let dailyPercentage: Int?
         let dailyResetTime: String?
         let dailyLabel: String?
@@ -653,23 +670,25 @@ enum GeminiUsageAPI {
         let isAvailable: Bool
     }
 
-    private static func parseHydrogenUsage(
+    private static func parseScopedModelPoolUsage(
+        keyword: String,
+        displayName: String,
         groups: [[String: Any]],
         allBuckets: [[String: Any]],
         modelsData: Data?,
         timeZone: TimeZone
-    ) -> HydrogenUsage {
-        let hydrogenGroup = groups.first {
+    ) -> ScopedModelPoolUsage {
+        let matchingGroup = groups.first {
             let name = ($0["displayName"] as? String ?? "").lowercased()
-            return name.contains("hydrogen")
+            return name.contains(keyword)
         }
-        let groupBuckets = hydrogenGroup?["buckets"] as? [[String: Any]] ?? []
+        let groupBuckets = matchingGroup?["buckets"] as? [[String: Any]] ?? []
         let matchingBuckets = !groupBuckets.isEmpty
             ? groupBuckets
             : allBuckets.filter {
                 let id = ($0["bucketId"] as? String ?? "").lowercased()
                 let name = ($0["displayName"] as? String ?? "").lowercased()
-                return id.contains("hydrogen") || name.contains("hydrogen")
+                return id.contains(keyword) || name.contains(keyword)
             }
 
         if !matchingBuckets.isEmpty {
@@ -679,13 +698,13 @@ enum GeminiUsageAPI {
             let weeklyBucket = matchingBuckets.first { ($0["window"] as? String) == "weekly" }
                 ?? matchingBuckets.first { $0["bucketId"] as? String != sessionBucket?["bucketId"] as? String }
                 ?? matchingBuckets.first
-            return HydrogenUsage(
+            return ScopedModelPoolUsage(
                 dailyPercentage: usedPercentage(for: sessionBucket),
                 dailyResetTime: resetTime(for: sessionBucket, timeZone: timeZone),
-                dailyLabel: sessionBucket != nil ? "Session (Hydrogen)" : nil,
+                dailyLabel: sessionBucket != nil ? "Session (\(displayName))" : nil,
                 weeklyPercentage: weeklyBucket.flatMap { usedPercentage(for: $0) } ?? 0,
                 weeklyResetTime: resetTime(for: weeklyBucket, timeZone: timeZone),
-                weeklyLabel: weeklyBucket.map { scopedLabel(for: hydrogenGroup?["displayName"] as? String, bucket: $0) } ?? "Weekly (Hydrogen)",
+                weeklyLabel: weeklyBucket.map { scopedLabel(for: matchingGroup?["displayName"] as? String, bucket: $0) } ?? "Weekly (\(displayName))",
                 isAvailable: true
             )
         }
@@ -693,35 +712,35 @@ enum GeminiUsageAPI {
         if let modelsData,
            let json = try? JSONSerialization.jsonObject(with: modelsData) as? [String: Any],
            let models = json["models"] as? [String: Any] {
-            let hydrogenEntries: [(key: String, info: [String: Any])] = models.compactMap { key, value in
+            let matchingEntries: [(key: String, info: [String: Any])] = models.compactMap { key, value in
                 guard let info = value as? [String: Any] else { return nil }
-                let displayName = (info["displayName"] as? String ?? "").lowercased()
-                guard key.lowercased().contains("hydrogen") || displayName.contains("hydrogen") else { return nil }
+                let modelDisplayName = (info["displayName"] as? String ?? "").lowercased()
+                guard key.lowercased().contains(keyword) || modelDisplayName.contains(keyword) else { return nil }
                 guard (info["disabled"] as? Bool) != true else { return nil }
                 return (key: key, info: info)
             }
-            let preferred = hydrogenEntries.first { $0.key.lowercased().contains("medium") }
-                ?? hydrogenEntries.first { $0.info["quotaInfo"] is [String: Any] }
+            let preferred = matchingEntries.first { $0.key.lowercased().contains("medium") }
+                ?? matchingEntries.first { $0.info["quotaInfo"] is [String: Any] }
             if let quotaInfo = preferred?.info["quotaInfo"] as? [String: Any] {
-                return HydrogenUsage(
+                return ScopedModelPoolUsage(
                     dailyPercentage: nil,
                     dailyResetTime: nil,
                     dailyLabel: nil,
                     weeklyPercentage: usedPercentage(for: quotaInfo) ?? 0,
                     weeklyResetTime: resetTime(for: quotaInfo, timeZone: timeZone),
-                    weeklyLabel: "Weekly (Hydrogen)",
+                    weeklyLabel: "Weekly (\(displayName))",
                     isAvailable: true
                 )
             }
         }
 
-        return HydrogenUsage(
+        return ScopedModelPoolUsage(
             dailyPercentage: nil,
             dailyResetTime: nil,
             dailyLabel: nil,
             weeklyPercentage: 0,
             weeklyResetTime: nil,
-            weeklyLabel: "Weekly (Hydrogen)",
+            weeklyLabel: "Weekly (\(displayName))",
             isAvailable: false
         )
     }
@@ -741,7 +760,7 @@ enum GeminiUsageAPI {
     private static func scopedWeeklyBuckets(from groups: [[String: Any]]) -> [(label: String, bucket: [String: Any])] {
         let nonPrimaryGroups = groups.filter { group in
             let name = (group["displayName"] as? String ?? "").lowercased()
-            return name != "gemini models" && !name.contains("carbon") && !name.contains("hydrogen")
+            return name != "gemini models" && !name.contains("carbon") && !name.contains("hydrogen") && !name.contains("neon")
         }
         let sortedGroups = nonPrimaryGroups.sorted { lhs, rhs in
             scopedPriority(for: lhs["displayName"] as? String) < scopedPriority(for: rhs["displayName"] as? String)
@@ -769,6 +788,7 @@ enum GeminiUsageAPI {
         if lower.contains("argon") { return "Weekly (Argon)" }
         if lower.contains("carbon") { return "Weekly (Carbon)" }
         if lower.contains("hydrogen") { return "Weekly (Hydrogen)" }
+        if lower.contains("neon") { return "Weekly (Neon)" }
         if lower.contains("claude") && lower.contains("gpt") { return "Weekly (Claude & GPT)" }
         return "Weekly (\(name))"
     }
