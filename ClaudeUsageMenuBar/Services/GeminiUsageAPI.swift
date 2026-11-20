@@ -573,7 +573,27 @@ enum GeminiUsageAPI {
             timeZone: timeZone
         )
 
-        let sharesHydrogenAndNeonPool = hydrogen.isAvailable
+        let geminiGroupDescription = (geminiGroup?["description"] as? String ?? "").lowercased()
+        let primaryWeeklyPercentage = usedPercentage(for: weekly)
+        let primaryWeeklyResetTime = resetTime(for: weekly, timeZone: timeZone)
+
+        let sharesHydrogenAndNeonWithPrimary = weekly != nil
+            && hydrogen.isAvailable
+            && neon.isAvailable
+            && (
+                (geminiGroupDescription.contains("hydrogen") && geminiGroupDescription.contains("neon"))
+                || (
+                    hydrogen.dailyPercentage == nil
+                    && neon.dailyPercentage == nil
+                    && hydrogen.weeklyPercentage == primaryWeeklyPercentage
+                    && neon.weeklyPercentage == primaryWeeklyPercentage
+                    && hydrogen.weeklyResetTime == primaryWeeklyResetTime
+                    && neon.weeklyResetTime == primaryWeeklyResetTime
+                )
+            )
+
+        let sharesHydrogenAndNeonPool = !sharesHydrogenAndNeonWithPrimary
+            && hydrogen.isAvailable
             && neon.isAvailable
             && hydrogen.dailyPercentage == neon.dailyPercentage
             && hydrogen.dailyResetTime == neon.dailyResetTime
@@ -594,8 +614,8 @@ enum GeminiUsageAPI {
             "error": (hasUsage ? nil : "No Gemini usage limits in the response. See body in debug.") as Any,
             "percentage": usedPercentage(for: session) as Any,
             "resetTime": resetTime(for: session, timeZone: timeZone) as Any,
-            "weeklyPercentage": usedPercentage(for: weekly) as Any,
-            "weeklyResetTime": resetTime(for: weekly, timeZone: timeZone) as Any,
+            "weeklyPercentage": primaryWeeklyPercentage as Any,
+            "weeklyResetTime": primaryWeeklyResetTime as Any,
             "sonnetWeeklyPercentage": usedPercentage(for: firstScoped?.bucket) as Any,
             "sonnetWeeklyResetTime": resetTime(for: firstScoped?.bucket, timeZone: timeZone) as Any,
             "sonnetWeeklyLabel": firstScoped?.label as Any,
@@ -609,19 +629,19 @@ enum GeminiUsageAPI {
             "carbonWeeklyResetTime": carbonResetTime as Any,
             "carbonWeeklyLabel": carbonLabel as Any,
             "isCarbonAvailable": isCarbonAvailable as Any,
-            "hydrogenDailyPercentage": hydrogen.dailyPercentage as Any,
-            "hydrogenDailyResetTime": hydrogen.dailyResetTime as Any,
-            "hydrogenDailyLabel": hydrogenDailyLabel as Any,
-            "hydrogenWeeklyPercentage": hydrogen.weeklyPercentage as Any,
-            "hydrogenWeeklyResetTime": hydrogen.weeklyResetTime as Any,
-            "hydrogenWeeklyLabel": hydrogenWeeklyLabel as Any,
+            "hydrogenDailyPercentage": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogen.dailyPercentage) as Any,
+            "hydrogenDailyResetTime": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogen.dailyResetTime) as Any,
+            "hydrogenDailyLabel": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogenDailyLabel) as Any,
+            "hydrogenWeeklyPercentage": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogen.weeklyPercentage) as Any,
+            "hydrogenWeeklyResetTime": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogen.weeklyResetTime) as Any,
+            "hydrogenWeeklyLabel": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogenWeeklyLabel) as Any,
             "isHydrogenAvailable": hydrogen.isAvailable as Any,
-            "neonDailyPercentage": (sharesHydrogenAndNeonPool ? nil : neon.dailyPercentage) as Any,
-            "neonDailyResetTime": (sharesHydrogenAndNeonPool ? nil : neon.dailyResetTime) as Any,
-            "neonDailyLabel": (sharesHydrogenAndNeonPool ? nil : neon.dailyLabel) as Any,
-            "neonWeeklyPercentage": (sharesHydrogenAndNeonPool ? nil : neon.weeklyPercentage) as Any,
-            "neonWeeklyResetTime": (sharesHydrogenAndNeonPool ? nil : neon.weeklyResetTime) as Any,
-            "neonWeeklyLabel": (sharesHydrogenAndNeonPool ? nil : neon.weeklyLabel) as Any,
+            "neonDailyPercentage": ((sharesHydrogenAndNeonWithPrimary || sharesHydrogenAndNeonPool) ? nil : neon.dailyPercentage) as Any,
+            "neonDailyResetTime": ((sharesHydrogenAndNeonWithPrimary || sharesHydrogenAndNeonPool) ? nil : neon.dailyResetTime) as Any,
+            "neonDailyLabel": ((sharesHydrogenAndNeonWithPrimary || sharesHydrogenAndNeonPool) ? nil : neon.dailyLabel) as Any,
+            "neonWeeklyPercentage": ((sharesHydrogenAndNeonWithPrimary || sharesHydrogenAndNeonPool) ? nil : neon.weeklyPercentage) as Any,
+            "neonWeeklyResetTime": ((sharesHydrogenAndNeonWithPrimary || sharesHydrogenAndNeonPool) ? nil : neon.weeklyResetTime) as Any,
+            "neonWeeklyLabel": ((sharesHydrogenAndNeonWithPrimary || sharesHydrogenAndNeonPool) ? nil : neon.weeklyLabel) as Any,
             "isNeonAvailable": neon.isAvailable as Any,
             "email": email as Any,
             "planName": planName as Any

@@ -306,6 +306,27 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "neon"), "14%")
     }
 
+    @MainActor
+    func testGeminiMenuBarOptionsCombineFlashHydrogenAndNeonAndMigrateSavedPicks() {
+        XCTAssertEqual(
+            UsageProviders.geminiMetricOptions.map { $0.id },
+            ["argon", "carbon", "opus", "flash"]
+        )
+        XCTAssertEqual(
+            UsageProviders.geminiMetricOptions.last?.label,
+            "Flash, Hydrogen & Neon"
+        )
+
+        for legacyMetric in ["hydrogen", "neon"] {
+            let (defaults, suite) = makeSuiteDefaults()
+            defer { defaults.removePersistentDomain(forName: suite) }
+            defaults.set(legacyMetric, forKey: "geminiMenuBarMetricID")
+
+            let container = UsageProviders(providers: [.gemini], defaults: defaults)
+            XCTAssertEqual(container.geminiMenuBarMetricID, "flash")
+        }
+    }
+
     private func makeSuiteDefaults() -> (defaults: UserDefaults, suite: String) {
         let suite = "test-usageproviders-\(UUID().uuidString)"
         return (UserDefaults(suiteName: suite)!, suite)
@@ -324,8 +345,8 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(UsageProvider.gemini.displayName, "Gemini")
         XCTAssertTrue(UsageProvider.gemini.readsGeminiLogin)
         XCTAssertFalse(UsageProvider.gemini.readsClaudeCodeLogin)
-        XCTAssertEqual(UsageProvider.gemini.primaryLabel, "Session (Flash)")
-        XCTAssertEqual(UsageProvider.gemini.secondaryLabel, "Weekly (Flash)")
+        XCTAssertEqual(UsageProvider.gemini.primaryLabel, "Session (Flash, Hydrogen & Neon)")
+        XCTAssertEqual(UsageProvider.gemini.secondaryLabel, "Weekly (Flash, Hydrogen & Neon)")
         XCTAssertFalse(UsageProvider.gemini.weeklyBlocksPrimary)
         XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("aistudio.google.com"))
         XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("google.com"))
