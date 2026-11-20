@@ -470,9 +470,11 @@ final class GeminiUsageAPITests: XCTestCase {
             timeZone: TimeZone(identifier: "America/New_York")!
         )
 
-        XCTAssertEqual(result["hydrogenWeeklyPercentage"] as? Int, 83)
-        XCTAssertEqual(result["hydrogenWeeklyLabel"] as? String, "Weekly (Hydrogen & Neon)")
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 83)
         XCTAssertEqual(result["isHydrogenAvailable"] as? Bool, true)
+        XCTAssertEqual(result["isNeonAvailable"] as? Bool, true)
+        XCTAssertNil(result["hydrogenWeeklyPercentage"] as? Int)
+        XCTAssertNil(result["hydrogenDailyPercentage"] as? Int)
         XCTAssertNil(result["neonWeeklyPercentage"] as? Int)
         XCTAssertNil(result["neonDailyPercentage"] as? Int)
     }

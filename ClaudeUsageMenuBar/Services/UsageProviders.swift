@@ -26,15 +26,13 @@ final class UsageProviders: ObservableObject {
 
     private static let geminiMetricKey = "geminiMenuBarMetricID"
 
-    // Gemini reports separate pools for Argon, Carbon, Hydrogen, Neon, Claude & GPT (Opus),
-    // and Gemini Flash; the menu bar can show any of them.
+    // Gemini reports separate pools for Argon, Carbon, Claude & GPT (Opus),
+    // and the shared Gemini Models pool (Flash, Hydrogen & Neon); the menu bar can show any of them.
     static let geminiMetricOptions: [(id: String, label: String)] = [
         ("argon", "Argon"),
         ("carbon", "Carbon"),
-        ("hydrogen", "Hydrogen"),
-        ("neon", "Neon"),
         ("opus", "Opus"),
-        ("flash", "Flash")
+        ("flash", "Flash, Hydrogen & Neon")
     ]
 
     // Which provider's percentage is shown in the menu bar. Persisted so it sticks
@@ -78,8 +76,11 @@ final class UsageProviders: ObservableObject {
             ? (savedMetric ?? "other") : "other"
 
         let savedGeminiMetric = defaults.string(forKey: Self.geminiMetricKey)
-        geminiMenuBarMetricID = Self.geminiMetricOptions.contains { $0.id == savedGeminiMetric }
-            ? (savedGeminiMetric ?? "argon") : "argon"
+        let migratedGeminiMetric = (savedGeminiMetric == "hydrogen" || savedGeminiMetric == "neon")
+            ? "flash"
+            : savedGeminiMetric
+        geminiMenuBarMetricID = Self.geminiMetricOptions.contains { $0.id == migratedGeminiMetric }
+            ? (migratedGeminiMetric ?? "argon") : "argon"
 
         services.forEach { $0.isRefreshPaused = hidden.contains($0.provider.id) }
         // Grok Bot is combined into Cursor overall: it is no longer a top-level
