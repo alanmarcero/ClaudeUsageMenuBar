@@ -27,12 +27,13 @@ final class UsageProviders: ObservableObject {
     private static let geminiMetricKey = "geminiMenuBarMetricID"
 
     // Gemini reports separate pools for Argon, Carbon, Claude & GPT (Opus),
-    // and the shared Gemini Models pool (Flash, Hydrogen & Neon); the menu bar can show any of them.
+    // Flash (5-hour session), and the shared Flash/Hydrogen/Neon weekly pool.
     static let geminiMetricOptions: [(id: String, label: String)] = [
         ("argon", "Argon"),
         ("carbon", "Carbon"),
         ("opus", "Opus"),
-        ("flash", "Flash, Hydrogen & Neon")
+        ("flash", "Flash (Session)"),
+        ("flashHydrogenNeon", "Flash, Hydrogen, Neon (Weekly)")
     ]
 
     // Which provider's percentage is shown in the menu bar. Persisted so it sticks
@@ -77,7 +78,7 @@ final class UsageProviders: ObservableObject {
 
         let savedGeminiMetric = defaults.string(forKey: Self.geminiMetricKey)
         let migratedGeminiMetric = (savedGeminiMetric == "hydrogen" || savedGeminiMetric == "neon")
-            ? "flash"
+            ? "flashHydrogenNeon"
             : savedGeminiMetric
         geminiMenuBarMetricID = Self.geminiMetricOptions.contains { $0.id == migratedGeminiMetric }
             ? (migratedGeminiMetric ?? "argon") : "argon"
@@ -200,6 +201,9 @@ final class UsageProviders: ObservableObject {
         case "flash":
             guard let session = data.percentage ?? data.dailyPercentage else { return "--" }
             return "\(session)%"
+        case "flashHydrogenNeon":
+            guard let weekly = data.weeklyPercentage else { return "--" }
+            return "\(weekly)%"
         case "opus":
             guard let session = data.designDailyPercentage else { return "--" }
             return "\(session)%"
