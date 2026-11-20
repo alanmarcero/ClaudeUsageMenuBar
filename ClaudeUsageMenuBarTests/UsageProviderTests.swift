@@ -881,6 +881,36 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testCodexSkipsResetWaitWhenAvailableZeroIsRendered() async throws {
+        let start = Date()
+        let result = try await scrapeCodexFixture("""
+        <div><span>Weekly limit</span><span>Resets in 3d 23h</span><span>0% left</span></div>
+        <div>Usage limit resets</div>
+        <div>Available 0</div>
+        """)
+
+        XCTAssertEqual(result["availableResets"] as? Int, 0)
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 100)
+        XCTAssertLessThan(Date().timeIntervalSince(start), 2.5)
+    }
+
+    @MainActor
+    func testCodexHandlesNullBodyWithoutUncaughtException() async throws {
+        let result = try await scrapeCodexFixture("""
+        <div>loading</div>
+        """, beforeScrape: """
+        document.body.remove();
+        """, script: """
+        // Run with short loop by overriding setTimeout so test doesn't wait 20s.
+        const origSetTimeout = window.setTimeout;
+        let ticks = 0;
+        window.setTimeout = (fn) => { ticks++; return origSetTimeout(fn, ticks > 2 ? 0 : 0); };
+        """ + CodexScrapingScript.script)
+
+        XCTAssertEqual(result["success"] as? Bool, false)
+    }
+
+    @MainActor
     private func scrapeCodexFixture(_ body: String, beforeScrape: String = "", script: String = CodexScrapingScript.script) async throws -> [String: Any] {
         let webView = WKWebView()
         let navigationWaiter = NavigationWaiter()

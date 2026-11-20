@@ -50,6 +50,8 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private var rawNeonDailyResetTime: String?
     private var rawNeonWeeklyResetTime: String?
     private var isCheckingClaudeResets = false
+    private var scrapeGeneration: Int = 0
+    private var pendingScrapeWorkItem: DispatchWorkItem?
     var refreshStartTime: Date?  // internal for @testable import
     var completedRefreshes = 0  // internal for @testable import
     // Set by UsageProviders while the provider is hidden from the menu: the
@@ -135,6 +137,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
     func triggerRefresh() {
         guard !isRefreshPaused, !isRefreshing else { return }
+        invalidatePendingScrapes()
         isRefreshing = true
         refreshStartTime = Date()
         usageData.errorMessage = nil
@@ -265,7 +268,14 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         resetCountdown()
     }
 
+    private func invalidatePendingScrapes() {
+        pendingScrapeWorkItem?.cancel()
+        pendingScrapeWorkItem = nil
+        scrapeGeneration += 1
+    }
+
     private func resetToLoggedOut() {
+        invalidatePendingScrapes()
         usageData = UsageData()
         usageData.weeklyBlocksPrimary = provider.weeklyBlocksPrimary
         dailyResetCountdown = nil
@@ -442,6 +452,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     func recoverFromStuckRefresh() {  // internal for @testable import
+        invalidatePendingScrapes()
         refreshStartTime = nil
         isRefreshing = false
         setupBackgroundWebView()
@@ -470,6 +481,13 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     // MARK: - WKNavigationDelegate
+
+    nonisolated func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        Task { @MainActor [weak self] in
+            guard let self, webView === self.backgroundWebView else { return }
+            self.invalidatePendingScrapes()
+        }
+    }
 
     nonisolated func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Task { @MainActor [weak self] in
@@ -501,7 +519,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     private func handleNavigationFinished(webView: WKWebView) {
-        guard let url = webView.url else { return }
+        guard webView === backgroundWebView, let url = webView.url else { return }
 
         if isUsingClaudeCodeLogin {
             if isCheckingClaudeResets { handleResetsCheckNavigation(webView: webView, url: url) }
@@ -517,9 +535,14 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         }
 
         if urlString.contains(provider.usagePathFragment) {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Constants.scrapeDelay) { [weak self] in
-                self?.scrapeUsage(from: webView)
+            pendingScrapeWorkItem?.cancel()
+            let generation = scrapeGeneration
+            let workItem = DispatchWorkItem { [weak self, weak webView] in
+                guard let self, let webView else { return }
+                self.scrapeUsage(from: webView, generation: generation)
             }
+            pendingScrapeWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + Constants.scrapeDelay, execute: workItem)
             return
         }
 
@@ -547,26 +570,50 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
     // MARK: - Scraping
 
-    private func scrapeUsage(from webView: WKWebView) {
+    private func scrapeUsage(from webView: WKWebView, generation: Int) {
+        guard webView === backgroundWebView, generation == scrapeGeneration, !webView.isLoading else { return }
+        let sourceURL = webView.url
         webView.callAsyncJavaScript(
             provider.scrapingScript,
             arguments: [:],
             in: nil,
             in: .page
-        ) { [weak self] result in
-            Task { @MainActor [weak self] in
+        ) { [weak self, weak webView] result in
+            Task { @MainActor [weak self, weak webView] in
+                guard let self,
+                      let webView,
+                      webView === self.backgroundWebView,
+                      generation == self.scrapeGeneration else { return }
                 switch result {
                 case .success(let value):
-                    self?.handleScrapingResult(value, error: nil)
+                    self.handleScrapingResult(value, error: nil, sourceURL: sourceURL)
                 case .failure(let error):
-                    self?.handleScrapingResult(nil, error: error)
+                    self.handleScrapingResult(nil, error: error, sourceURL: sourceURL)
                 }
             }
         }
     }
 
-    private func handleScrapingResult(_ result: Any?, error: Error?) {
+    private func handleScrapingResult(_ result: Any?, error: Error?, sourceURL: URL? = nil) {
         if let error = error {
+            let nsError = error as NSError
+            var details: [String: Any] = [
+                "provider": provider.id,
+                "domain": nsError.domain,
+                "code": nsError.code,
+                "description": error.localizedDescription,
+                "url": sourceURL?.absoluteString ?? ""
+            ]
+            if let jsMessage = nsError.userInfo["WKJavaScriptExceptionMessage"] as? String {
+                details["jsExceptionMessage"] = jsMessage
+            }
+            if let jsLine = nsError.userInfo["WKJavaScriptExceptionLineNumber"] {
+                details["jsExceptionLine"] = jsLine
+            }
+            if let jsonData = try? JSONSerialization.data(withJSONObject: details, options: [.prettyPrinted, .sortedKeys]),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                debugInfo = jsonString
+            }
             setError("Script error: \(error.localizedDescription)")
             return
         }

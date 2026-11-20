@@ -431,6 +431,52 @@ final class GeminiUsageAPITests: XCTestCase {
         XCTAssertNil(result["neonWeeklyResetTime"] as? String)
     }
 
+    func testUsageResultCombinesHydrogenAndNeonWhenTheyShareQuota() {
+        let quotaPayload = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "description": "Models within this group: Gemini 4 Neon, Gemini 4 Hydrogen, Gemini 3.8 Flash",
+              "buckets": [
+                {"bucketId": "gemini-weekly", "window": "weekly", "resetTime": "2026-11-25T00:16:18Z", "remainingFraction": 0.16544697},
+                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-20T23:27:08Z", "remainingFraction": 0.89066327}
+              ]
+            }
+          ]
+        }
+        """
+        let modelsPayload = """
+        {
+          "models": {
+            "gemini-4-hydrogen-medium": {
+              "displayName": "Gemini 4 Hydrogen (Medium)",
+              "quotaInfo": {"remainingFraction": 0.16544697, "resetTime": "2026-11-25T00:16:18Z"}
+            },
+            "gemini-4-neon-medium": {
+              "displayName": "Gemini 4 Neon (Medium)",
+              "quotaInfo": {"remainingFraction": 0.16544697, "resetTime": "2026-11-25T00:16:18Z"}
+            }
+          }
+        }
+        """
+
+        let result = GeminiUsageAPI.usageResult(
+            from: Data(quotaPayload.utf8),
+            modelsData: Data(modelsPayload.utf8),
+            httpStatus: 200,
+            email: nil,
+            planName: nil,
+            timeZone: TimeZone(identifier: "America/New_York")!
+        )
+
+        XCTAssertEqual(result["hydrogenWeeklyPercentage"] as? Int, 83)
+        XCTAssertEqual(result["hydrogenWeeklyLabel"] as? String, "Weekly (Hydrogen & Neon)")
+        XCTAssertEqual(result["isHydrogenAvailable"] as? Bool, true)
+        XCTAssertNil(result["neonWeeklyPercentage"] as? Int)
+        XCTAssertNil(result["neonDailyPercentage"] as? Int)
+    }
+
     func testUsageResultTreatsOmittedRemainingFractionAsHundredPercentUsed() {
         let exhaustedBody = """
         {
