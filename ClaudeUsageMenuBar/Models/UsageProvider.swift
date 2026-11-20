@@ -241,7 +241,7 @@ enum CodexScrapingScript {
     const hasLoadError = (t) => /could.{0,3}t load your usage/i.test(t);
     \(ResetDetailsScript.describeResets)
 
-    const bodyTextNow = () => normalizeText(document.body.innerText || document.body.textContent || '');
+    const bodyTextNow = () => document.body ? normalizeText(document.body.innerText || document.body.textContent || '') : '';
 
     const dailyLabelPattern = /^5\\s*(?:-|–)?\\s*hours? (?:usage )?limit$/i;
     const weeklyLabelPattern = /^weekly (?:usage )?limit$/i;
@@ -323,6 +323,7 @@ enum CodexScrapingScript {
         // Each available reset has its own "Use reset" button. Skip script and style
         // text: the page bundles its UI strings there.
         const countAvailableResets = () => {
+            if (!document.body) return null;
             const resetsWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
                 acceptNode: (node) => /^(SCRIPT|STYLE)$/.test(node.parentElement?.tagName ?? '')
                     ? NodeFilter.FILTER_REJECT
@@ -336,9 +337,11 @@ enum CodexScrapingScript {
         };
 
         // The reset list can render after the limit cards. A count made too early
-        // reads 0, so wait up to 5s for the buttons before accepting 0.
+        // reads 0, so wait up to 5s for the buttons before accepting 0—unless the
+        // page already renders "Available 0" in the resets section.
         result.availableResets = countAvailableResets();
-        for (let i = 0; i < 20 && result.availableResets === 0; i++) {
+        const hasExplicitZeroResets = /usage limit resets[\\s\\S]*\\bavailable\\s+0\\b/i.test(bodyTextNow());
+        for (let i = 0; i < 20 && result.availableResets === 0 && !hasExplicitZeroResets; i++) {
             await sleep(250);
             result.availableResets = countAvailableResets();
         }
@@ -408,8 +411,10 @@ enum CodexScrapingScript {
                 : 'No Codex usage parsed yet. See valueTokens/bodyTextSnippet in debug.';
         }
     } catch (e) {
-        result.error = 'Script error: ' + e.message;
-        result.debug += '\\nException: ' + e.stack;
+        const msg = e && typeof e === 'object' && 'message' in e ? e.message : String(e);
+        const stack = e && typeof e === 'object' && 'stack' in e ? e.stack : '';
+        result.error = 'Script error: ' + msg;
+        if (stack) result.debug += '\\nException: ' + stack;
     }
 
     return result;
@@ -581,8 +586,10 @@ enum CursorScrapingScript {
             result.error = 'No Cursor usage parsed yet. See bodyTextSnippet in debug.';
         }
     } catch (e) {
-        result.error = 'Script error: ' + e.message;
-        result.debug += '\\nException: ' + e.stack;
+        const msg = e && typeof e === 'object' && 'message' in e ? e.message : String(e);
+        const stack = e && typeof e === 'object' && 'stack' in e ? e.stack : '';
+        result.error = 'Script error: ' + msg;
+        if (stack) result.debug += '\\nException: ' + stack;
     }
 
     return result;
@@ -701,8 +708,10 @@ enum GrokBotScrapingScript {
             result.error = 'No Grok Bot usage parsed yet. See bodyTextSnippet in debug.';
         }
     } catch (e) {
-        result.error = 'Script error: ' + e.message;
-        result.debug += '\\nException: ' + e.stack;
+        const msg = e && typeof e === 'object' && 'message' in e ? e.message : String(e);
+        const stack = e && typeof e === 'object' && 'stack' in e ? e.stack : '';
+        result.error = 'Script error: ' + msg;
+        if (stack) result.debug += '\\nException: ' + stack;
     }
 
     return result;
