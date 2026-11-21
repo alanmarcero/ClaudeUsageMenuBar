@@ -459,7 +459,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         setError("Refresh timed out. Will retry automatically.")
     }
 
-    private func resetCountdown() {
+    func resetCountdown() {  // internal for UsageProviders.refreshAll()
         countdown = Int(currentRefreshInterval)
     }
 

@@ -263,6 +263,7 @@ final class UsageProviders: ObservableObject {
     }
 
     func refreshAll() {
+        services.forEach { $0.resetCountdown() }
         visibleServices.forEach { $0.triggerRefresh() }
     }
 

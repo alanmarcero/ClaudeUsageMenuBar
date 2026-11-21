@@ -63,6 +63,10 @@ struct MenuBarView: View {
                 .buttonStyle(.plain)
                 .help("Show \(service.provider.displayName) in the menu bar")
             }
+            IconButton(systemImage: "arrow.clockwise", help: "Refresh all now") {
+                providers.refreshAll()
+            }
+            .disabled(providers.isAnyRefreshing)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
