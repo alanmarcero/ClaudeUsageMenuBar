@@ -183,4 +183,18 @@ final class RefreshTimeoutTests: XCTestCase {
 
         XCTAssertFalse(service.isRefreshing)
     }
+
+    func testRefreshAllResetsAllAutoRefreshCountdownsAndTriggersVisibleRefreshes() {
+        let suiteName = "RefreshTimeoutTests.refreshAll.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let providers = UsageProviders(providers: [.claude, .codex], defaults: defaults)
+        providers.services.forEach { $0.countdown = 17 }
+
+        providers.refreshAll()
+
+        XCTAssertEqual(providers.services.map(\.countdown), [120, 120])
+        XCTAssertTrue(providers.services.allSatisfy(\.isRefreshing))
+    }
 }
