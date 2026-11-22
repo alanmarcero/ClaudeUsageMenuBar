@@ -415,27 +415,38 @@ struct ProviderSection: View {
         isUnavailable: Bool = false,
         unavailableHelp: String? = nil
     ) -> some View {
-        VStack(spacing: 5) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(title)
-                    .font(.subheadline)
-                    .foregroundColor(isUnavailable ? .secondary : .primary)
-                if let reset = resetTime {
-                    Text("resets in \(reset)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+        let titleParts = title.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+        let mainTitle = String(titleParts.first ?? Substring(title))
+        let subtitle = titleParts.count > 1 ? String(titleParts[1]) : nil
+
+        return VStack(spacing: 5) {
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(mainTitle)
+                        .font(.subheadline)
+                        .foregroundColor(isUnavailable ? .secondary : .primary)
+                    if let reset = resetTime {
+                        Text("resets in \(reset)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    if !isUnavailable, let pct = percentage, pct >= AppConfig.shared.redThreshold {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .help("Usage is high")
+                    }
+                    Text(percentage.map { "\($0)%" } ?? "--")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundColor(isUnavailable ? .secondary : (percentage != nil ? AppConfig.shared.colorForPercentage(percentage) : .secondary))
                 }
-                Spacer()
-                if !isUnavailable, let pct = percentage, pct >= AppConfig.shared.redThreshold {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .help("Usage is high")
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundColor(isUnavailable ? .secondary : .primary)
                 }
-                Text(percentage.map { "\($0)%" } ?? "--")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundColor(isUnavailable ? .secondary : (percentage != nil ? AppConfig.shared.colorForPercentage(percentage) : .secondary))
             }
 
             if let pct = percentage {
