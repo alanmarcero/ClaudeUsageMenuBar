@@ -27,12 +27,12 @@ final class UsageProviders: ObservableObject {
     private static let geminiMetricKey = "geminiMenuBarMetricID"
 
     // Gemini reports separate pools for Argon, Carbon, Claude & GPT (Opus),
-    // Flash (5-hour session), and the shared Flash/Hydrogen/Neon weekly pool.
+    // and the shared Flash/Hydrogen/Neon 5-hour session and weekly pools.
     static let geminiMetricOptions: [(id: String, label: String)] = [
         ("argon", "Argon"),
         ("carbon", "Carbon"),
         ("opus", "Opus"),
-        ("flash", "Flash (Session)"),
+        ("flash", "Flash, Hydrogen, Neon (Session)"),
         ("flashHydrogenNeon", "Flash, Hydrogen, Neon (Weekly)")
     ]
 
