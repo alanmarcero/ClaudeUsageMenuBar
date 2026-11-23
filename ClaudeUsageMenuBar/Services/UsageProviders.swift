@@ -26,14 +26,13 @@ final class UsageProviders: ObservableObject {
 
     private static let geminiMetricKey = "geminiMenuBarMetricID"
 
-    // Gemini reports separate pools for Argon, Carbon, Claude & GPT (Opus),
-    // and the shared Flash/Hydrogen/Neon 5-hour session and weekly pools.
+    // Gemini reports separate pools for Carbon and Claude & GPT (Opus),
+    // and the shared Argon/Flash/Hydrogen/Neon 5-hour session and weekly pools.
     static let geminiMetricOptions: [(id: String, label: String)] = [
-        ("argon", "Argon"),
         ("carbon", "Carbon"),
         ("opus", "Opus"),
-        ("flash", "Flash, Hydrogen, Neon (Session)"),
-        ("flashHydrogenNeon", "Flash, Hydrogen, Neon (Weekly)")
+        ("flash", "Argon, Flash, Hydrogen, Neon (Session)"),
+        ("flashHydrogenNeon", "Argon, Flash, Hydrogen, Neon (Weekly)")
     ]
 
     // Which provider's percentage is shown in the menu bar. Persisted so it sticks
@@ -77,11 +76,13 @@ final class UsageProviders: ObservableObject {
             ? (savedMetric ?? "other") : "other"
 
         let savedGeminiMetric = defaults.string(forKey: Self.geminiMetricKey)
-        let migratedGeminiMetric = (savedGeminiMetric == "hydrogen" || savedGeminiMetric == "neon")
-            ? "flashHydrogenNeon"
-            : savedGeminiMetric
+        let migratedGeminiMetric: String? = switch savedGeminiMetric {
+        case "hydrogen", "neon": "flashHydrogenNeon"
+        case "argon": "flash"
+        default: savedGeminiMetric
+        }
         geminiMenuBarMetricID = Self.geminiMetricOptions.contains { $0.id == migratedGeminiMetric }
-            ? (migratedGeminiMetric ?? "argon") : "argon"
+            ? (migratedGeminiMetric ?? "flash") : "flash"
 
         services.forEach { $0.isRefreshPaused = hidden.contains($0.provider.id) }
         // Grok Bot is combined into Cursor overall: it is no longer a top-level

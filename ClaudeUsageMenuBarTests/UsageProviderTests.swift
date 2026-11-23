@@ -209,8 +209,8 @@ final class UsageProviderTests: XCTestCase {
         gemini.usageData.designWeeklyPercentage = 80 // weekly is higher than session
         gemini.usageData.designWeeklyLabel = "Weekly (Claude & GPT)"
 
-        XCTAssertEqual(container.geminiMenuBarMetricID, "argon")
-        XCTAssertEqual(container.menuBarDisplay(for: gemini), "40%")
+        XCTAssertEqual(container.geminiMenuBarMetricID, "flash")
+        XCTAssertEqual(container.menuBarDisplay(for: gemini), "5%")
 
         container.setGeminiMenuBarMetric("opus")
         XCTAssertEqual(container.menuBarDisplay(for: gemini), "25%")
@@ -310,15 +310,15 @@ final class UsageProviderTests: XCTestCase {
     func testGeminiMenuBarOptionsCombineFlashHydrogenAndNeonAndMigrateSavedPicks() {
         XCTAssertEqual(
             UsageProviders.geminiMetricOptions.map { $0.id },
-            ["argon", "carbon", "opus", "flash", "flashHydrogenNeon"]
+            ["carbon", "opus", "flash", "flashHydrogenNeon"]
         )
         XCTAssertEqual(
             UsageProviders.geminiMetricOptions.first(where: { $0.id == "flash" })?.label,
-            "Flash, Hydrogen, Neon (Session)"
+            "Argon, Flash, Hydrogen, Neon (Session)"
         )
         XCTAssertEqual(
             UsageProviders.geminiMetricOptions.first(where: { $0.id == "flashHydrogenNeon" })?.label,
-            "Flash, Hydrogen, Neon (Weekly)"
+            "Argon, Flash, Hydrogen, Neon (Weekly)"
         )
 
         var data = UsageData()
@@ -355,8 +355,8 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(UsageProvider.gemini.displayName, "Gemini")
         XCTAssertTrue(UsageProvider.gemini.readsGeminiLogin)
         XCTAssertFalse(UsageProvider.gemini.readsClaudeCodeLogin)
-        XCTAssertEqual(UsageProvider.gemini.primaryLabel, "Session\n(Flash, Hydrogen, Neon)")
-        XCTAssertEqual(UsageProvider.gemini.secondaryLabel, "Weekly\n(Flash, Hydrogen, Neon)")
+        XCTAssertEqual(UsageProvider.gemini.primaryLabel, "Session\n(Argon, Flash, Hydrogen, Neon)")
+        XCTAssertEqual(UsageProvider.gemini.secondaryLabel, "Weekly\n(Argon, Flash, Hydrogen, Neon)")
         XCTAssertFalse(UsageProvider.gemini.weeklyBlocksPrimary)
         XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("aistudio.google.com"))
         XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("google.com"))

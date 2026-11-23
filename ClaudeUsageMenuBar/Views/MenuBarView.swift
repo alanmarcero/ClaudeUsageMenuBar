@@ -292,12 +292,12 @@ struct ProviderSection: View {
         )
     }
 
-    // Same control for Gemini: Argon or Opus (Claude & GPT) weekly pool.
+    // Same control for Gemini: which pool or session shows in the menu bar.
     private var geminiMenuMetricRow: some View {
         menuMetricRow(
             options: UsageProviders.geminiMetricOptions,
             selectedID: providers.geminiMenuBarMetricID,
-            fallbackLabel: "Argon",
+            fallbackLabel: "Argon, Flash, Hydrogen, Neon (Session)",
             help: "Choose which Gemini usage shows in the menu bar",
             select: providers.setGeminiMenuBarMetric
         )
