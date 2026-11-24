@@ -534,28 +534,15 @@ enum GeminiUsageAPI {
             ($0["bucketId"] as? String)?.contains("5h") == true || ($0["window"] as? String) == "5h"
         }
 
-        // Find Carbon bucket if present on the account
-        let carbonGroup = groups.first {
-            let name = ($0["displayName"] as? String ?? "").lowercased()
-            return name.contains("carbon")
-        }
-        let carbonBuckets = carbonGroup?["buckets"] as? [[String: Any]] ?? []
-        let carbonBucket = carbonBuckets.first { ($0["window"] as? String) == "weekly" }
-            ?? carbonBuckets.first
-            ?? allBuckets.first {
-                let id = ($0["bucketId"] as? String ?? "").lowercased()
-                let name = ($0["displayName"] as? String ?? "").lowercased()
-                return id.contains("carbon") || name.contains("carbon")
-            }
-
-        let isCarbonAvailable = (carbonBucket != nil)
-        let carbonPercentage: Int? = isCarbonAvailable ? (usedPercentage(for: carbonBucket) ?? 0) : 0
-        let carbonResetTime: String? = isCarbonAvailable ? resetTime(for: carbonBucket, timeZone: timeZone) : nil
-        let carbonLabel: String = carbonBucket != nil
-            ? scopedLabel(for: carbonGroup?["displayName"] as? String, bucket: carbonBucket!)
-            : "Weekly (Carbon)"
-
-        // Find Hydrogen and Neon buckets in retrieveUserQuotaSummary, or fall back to fetchAvailableModels
+        // Find Carbon, Hydrogen, and Neon buckets in retrieveUserQuotaSummary, or fall back to fetchAvailableModels
+        let carbon = parseScopedModelPoolUsage(
+            keyword: "carbon",
+            displayName: "Carbon",
+            groups: groups,
+            allBuckets: allBuckets,
+            modelsData: modelsData,
+            timeZone: timeZone
+        )
         let hydrogen = parseScopedModelPoolUsage(
             keyword: "hydrogen",
             displayName: "Hydrogen",
@@ -607,7 +594,7 @@ enum GeminiUsageAPI {
             ? "Weekly (Hydrogen & Neon)"
             : hydrogen.weeklyLabel
 
-        let hasUsage = session != nil || weekly != nil || firstScoped != nil || isCarbonAvailable || hydrogen.isAvailable || neon.isAvailable
+        let hasUsage = session != nil || weekly != nil || firstScoped != nil || carbon.isAvailable || hydrogen.isAvailable || neon.isAvailable
 
         let fields: [String: Any] = [
             "success": hasUsage,
@@ -625,10 +612,10 @@ enum GeminiUsageAPI {
             "designWeeklyPercentage": usedPercentage(for: secondScoped?.bucket) as Any,
             "designWeeklyResetTime": resetTime(for: secondScoped?.bucket, timeZone: timeZone) as Any,
             "designWeeklyLabel": secondScoped?.label as Any,
-            "carbonWeeklyPercentage": carbonPercentage as Any,
-            "carbonWeeklyResetTime": carbonResetTime as Any,
-            "carbonWeeklyLabel": carbonLabel as Any,
-            "isCarbonAvailable": isCarbonAvailable as Any,
+            "carbonWeeklyPercentage": carbon.weeklyPercentage as Any,
+            "carbonWeeklyResetTime": carbon.weeklyResetTime as Any,
+            "carbonWeeklyLabel": carbon.weeklyLabel as Any,
+            "isCarbonAvailable": carbon.isAvailable as Any,
             "hydrogenDailyPercentage": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogen.dailyPercentage) as Any,
             "hydrogenDailyResetTime": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogen.dailyResetTime) as Any,
             "hydrogenDailyLabel": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogenDailyLabel) as Any,
