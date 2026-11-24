@@ -303,7 +303,7 @@ struct ProviderSection: View {
         menuMetricRow(
             options: UsageProviders.geminiMetricOptions,
             selectedID: providers.geminiMenuBarMetricID,
-            fallbackLabel: "Argon, Flash, Hydrogen, Neon (Session)",
+            fallbackLabel: "Session",
             help: "Choose which Gemini usage shows in the menu bar",
             select: providers.setGeminiMenuBarMetric
         )

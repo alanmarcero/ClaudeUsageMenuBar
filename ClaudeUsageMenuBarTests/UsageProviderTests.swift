@@ -314,11 +314,11 @@ final class UsageProviderTests: XCTestCase {
         )
         XCTAssertEqual(
             UsageProviders.geminiMetricOptions.first(where: { $0.id == "flash" })?.label,
-            "Argon, Flash, Hydrogen, Neon (Session)"
+            "Session"
         )
         XCTAssertEqual(
             UsageProviders.geminiMetricOptions.first(where: { $0.id == "flashHydrogenNeon" })?.label,
-            "Argon, Flash, Hydrogen, Neon (Weekly)"
+            "Weekly"
         )
 
         var data = UsageData()
@@ -355,8 +355,8 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(UsageProvider.gemini.displayName, "Gemini")
         XCTAssertTrue(UsageProvider.gemini.readsGeminiLogin)
         XCTAssertFalse(UsageProvider.gemini.readsClaudeCodeLogin)
-        XCTAssertEqual(UsageProvider.gemini.primaryLabel, "Session\n(Argon, Flash, Hydrogen, Neon)")
-        XCTAssertEqual(UsageProvider.gemini.secondaryLabel, "Weekly\n(Argon, Flash, Hydrogen, Neon)")
+        XCTAssertEqual(UsageProvider.gemini.primaryLabel, "Session")
+        XCTAssertEqual(UsageProvider.gemini.secondaryLabel, "Weekly")
         XCTAssertFalse(UsageProvider.gemini.weeklyBlocksPrimary)
         XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("aistudio.google.com"))
         XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("google.com"))
