@@ -54,6 +54,23 @@ struct UsageProvider: Identifiable {
         self.weeklyBlocksPrimary = weeklyBlocksPrimary
     }
 
+    // The spending tab still exists but `/dashboard/usage` is the stable entry
+    // point other tools use; legacy spending URLs should still count as usage pages.
+    func isUsagePage(_ urlString: String) -> Bool {
+        let lowered = urlString.lowercased()
+        if lowered.contains(usagePathFragment.lowercased()) { return true }
+        if id == "cursor" {
+            return lowered.contains("/dashboard/spending") || lowered.contains("tab=spending")
+        }
+        return false
+    }
+
+    func isLoginPage(_ urlString: String) -> Bool {
+        let lowered = urlString.lowercased()
+        if lowered.contains("/callback") || lowered.contains("/oauth") { return false }
+        return loginPaths.contains { lowered.contains($0.lowercased()) }
+    }
+
     static let sharedSSOHosts = [
         "google.com", "googleapis.com", "gstatic.com",
         "apple.com", "icloud.com",
@@ -102,9 +119,9 @@ struct UsageProvider: Identifiable {
         displayName: "Cursor",
         menuGlyph: "cursorarrow.rays",
         primaryHost: "cursor.com",
-        usageURL: URL(string: "https://cursor.com/dashboard/spending")!,
-        usagePathFragment: "/dashboard/spending",
-        loginPaths: ["/login", "/signin", "/auth"],
+        usageURL: URL(string: "https://cursor.com/dashboard/usage")!,
+        usagePathFragment: "/dashboard/usage",
+        loginPaths: ["/login", "/signin", "/api/auth/login"],
         oauthHostSuffixes: ["cursor.com", "cursor.sh", "workos.com", "github.com"] + sharedSSOHosts,
         dataRecordTokens: ["cursor"],
         scrapingScript: CursorScrapingScript.script,
@@ -125,7 +142,7 @@ struct UsageProvider: Identifiable {
         primaryHost: "cursor.com",
         usageURL: URL(string: "https://cursor.com/dashboard/bot")!,
         usagePathFragment: "/dashboard/bot",
-        loginPaths: ["/login", "/signin", "/auth"],
+        loginPaths: ["/login", "/signin", "/api/auth/login"],
         oauthHostSuffixes: ["cursor.com", "cursor.sh", "workos.com", "github.com"] + sharedSSOHosts,
         dataRecordTokens: ["cursor"],
         scrapingScript: GrokBotScrapingScript.script,

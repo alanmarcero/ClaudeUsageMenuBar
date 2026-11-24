@@ -123,7 +123,7 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
 
         let urlString = url.absoluteString.lowercased()
 
-        if urlString.contains(provider.usagePathFragment) {
+        if provider.isUsagePage(urlString) {
             Task { @MainActor in
                 usageService.triggerRefresh()
             }

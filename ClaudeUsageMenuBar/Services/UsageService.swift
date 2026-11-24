@@ -446,6 +446,23 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         }
     }
 
+    nonisolated func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        guard let url = navigationAction.request.url else {
+            decisionHandler(.cancel)
+            return
+        }
+        let scheme = url.scheme?.lowercased() ?? ""
+        guard scheme == "http" || scheme == "https" else {
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+
     // With the Claude Code login, the web view loads only to count resets. claude.ai can
     // finish a second navigation to its login page after that check ends. Ignore it, or
     // the logged-out path clears the Daily usage the API already filled.
@@ -454,6 +471,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             if isCheckingClaudeResets { finishClaudeResetsCheck(nil) }
             return
         }
+        if message.lowercased().contains("bad url") { return }
         setError(message)
     }
 
@@ -466,14 +484,14 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         }
         let urlString = url.absoluteString.lowercased()
 
-        if provider.loginPaths.contains(where: { urlString.contains($0) }) {
+        if provider.isLoginPage(urlString) {
             debugInfo = navigationDiagnostic(state: "loginPage", url: urlString)
             setLoggedOut()
             setError("Click the person icon next to \(provider.displayName) to log in.")
             return
         }
 
-        if urlString.contains(provider.usagePathFragment) {
+        if provider.isUsagePage(urlString) {
             pendingScrapeWorkItem?.cancel()
             let generation = scrapeGeneration
             let workItem = DispatchWorkItem { [weak self, weak webView] in
