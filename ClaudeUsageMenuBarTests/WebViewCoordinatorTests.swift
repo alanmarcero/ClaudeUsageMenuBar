@@ -1,4 +1,5 @@
 import XCTest
+import WebKit
 @testable import ClaudeUsageMenuBar
 
 final class WebViewCoordinatorTests: XCTestCase {
@@ -191,5 +192,34 @@ final class WebViewCoordinatorTests: XCTestCase {
         XCTAssertNotNil(userAgent)
         XCTAssertTrue(userAgent?.contains("Safari/") ?? false, "Expected UA to contain 'Safari/', got: \(userAgent ?? "nil")")
         XCTAssertTrue(userAgent?.contains("Version/") ?? false, "Expected UA to contain 'Version/', got: \(userAgent ?? "nil")")
+    }
+
+    func testWebCryptoMasterKeyDelegateGeneratesAndPersists32ByteKeyWithoutKeychainPrompt() {
+        let suiteName = "test-webcrypto-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let delegate = WebCryptoMasterKeyDelegate(defaults: defaults)
+        var callbackKey: Data?
+        delegate.webCryptoMasterKey { data in
+            callbackKey = data
+        }
+
+        XCTAssertEqual(callbackKey?.count, 32)
+        XCTAssertEqual(delegate.masterKeyData(), callbackKey)
+
+        let secondInstance = WebCryptoMasterKeyDelegate(defaults: defaults)
+        XCTAssertEqual(secondInstance.masterKeyData(), callbackKey)
+    }
+
+    @MainActor
+    func testDefaultDataStoreAttachesWebCryptoMasterKeyDelegate() {
+        let dataStore = WKWebsiteDataStore.default()
+        ClaudeWebViewFactory.configureDefaultDataStore(dataStore)
+
+        let getter = NSSelectorFromString("_delegate")
+        XCTAssertTrue(dataStore.responds(to: getter))
+        let attached = dataStore.perform(getter)?.takeUnretainedValue() as AnyObject?
+        XCTAssertTrue(attached === WebCryptoMasterKeyDelegate.shared)
     }
 }

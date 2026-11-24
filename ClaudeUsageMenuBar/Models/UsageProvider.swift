@@ -150,7 +150,7 @@ struct UsageProvider: Identifiable {
         readsGeminiLogin: true,
         primaryLabel: "Session",
         secondaryLabel: "Weekly",
-        weeklyBlocksPrimary: false
+        weeklyBlocksPrimary: true
     )
 
     static let all: [UsageProvider] = [.claude, .codex, .cursor, .grokBot, .gemini]

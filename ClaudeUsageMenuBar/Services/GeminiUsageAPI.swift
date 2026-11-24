@@ -466,19 +466,25 @@ enum GeminiUsageAPI {
                 }
             }
 
-            async let planNameTask = fetchPlanName(accessToken: currentLogin.accessToken, fallbackTier: currentLogin.userTier, httpStatus: httpStatus, session: session)
-            async let modelsDataTask = fetchAvailableModelsData(accessToken: currentLogin.accessToken, httpStatus: httpStatus, session: session)
+            let activeToken = currentLogin.accessToken
+            let activeTier = currentLogin.userTier
+            let activeEmail = currentLogin.email
+            async let planNameTask = fetchPlanName(accessToken: activeToken, fallbackTier: activeTier, httpStatus: httpStatus, session: session)
+            async let modelsDataTask = fetchAvailableModelsData(accessToken: activeToken, httpStatus: httpStatus, session: session)
             let planName = await planNameTask
             let modelsData = await modelsDataTask
-            return usageResult(from: data, modelsData: modelsData, httpStatus: httpStatus, email: currentLogin.email, planName: planName)
+            return usageResult(from: data, modelsData: modelsData, httpStatus: httpStatus, email: activeEmail, planName: planName)
         } catch {
-            if let fallbackResult = try? await postJSON(url: fallbackQuotaURL, body: Data("{}".utf8), accessToken: currentLogin.accessToken, session: session),
+            let fallbackToken = currentLogin.accessToken
+            let fallbackTier = currentLogin.userTier
+            let fallbackEmail = currentLogin.email
+            if let fallbackResult = try? await postJSON(url: fallbackQuotaURL, body: Data("{}".utf8), accessToken: fallbackToken, session: session),
                fallbackResult.1 == 200 {
-                async let planNameTask = fetchPlanName(accessToken: currentLogin.accessToken, fallbackTier: currentLogin.userTier, httpStatus: fallbackResult.1, session: session)
-                async let modelsDataTask = fetchAvailableModelsData(accessToken: currentLogin.accessToken, httpStatus: fallbackResult.1, session: session)
+                async let planNameTask = fetchPlanName(accessToken: fallbackToken, fallbackTier: fallbackTier, httpStatus: fallbackResult.1, session: session)
+                async let modelsDataTask = fetchAvailableModelsData(accessToken: fallbackToken, httpStatus: fallbackResult.1, session: session)
                 let planName = await planNameTask
                 let modelsData = await modelsDataTask
-                return usageResult(from: fallbackResult.0, modelsData: modelsData, httpStatus: fallbackResult.1, email: currentLogin.email, planName: planName)
+                return usageResult(from: fallbackResult.0, modelsData: modelsData, httpStatus: fallbackResult.1, email: fallbackEmail, planName: planName)
             }
             return result(
                 ["success": false, "error": "Could not reach Google Cloud Code: \(error.localizedDescription)"],
@@ -524,10 +530,8 @@ enum GeminiUsageAPI {
         let firstScoped = scoped.first
         let secondScoped = scoped.dropFirst().first
 
-        // Find the 3p (Claude & GPT) 5-hour session bucket if present
         let thirdPartyGroup = groups.first {
-            let name = ($0["displayName"] as? String ?? "").lowercased()
-            return name.contains("claude") || name.contains("gpt") || name.contains("3p")
+            UsageData.isClaudeGPTLabel($0["displayName"] as? String)
         }
         let thirdPartyBuckets = thirdPartyGroup?["buckets"] as? [[String: Any]] ?? []
         let thirdPartySession = thirdPartyBuckets.first {
@@ -535,145 +539,35 @@ enum GeminiUsageAPI {
         } ?? allBuckets.first {
             let id = ($0["bucketId"] as? String ?? "").lowercased()
             let name = ($0["displayName"] as? String ?? "").lowercased()
-            return (id.contains("3p") || id.contains("claude") || id.contains("gpt") || name.contains("claude") || name.contains("gpt"))
+            return (UsageData.isClaudeGPTLabel(id) || UsageData.isClaudeGPTLabel(name))
                 && (id.contains("5h") || ($0["window"] as? String) == "5h")
         }
 
-        let primarySessionResetTime = resetTime(for: session, timeZone: timeZone)
-
-        // Find Carbon, Hydrogen, and Neon buckets in retrieveUserQuotaSummary, or fall back to fetchAvailableModels
-        let carbon = parseScopedModelPoolUsage(
-            keyword: "carbon",
-            displayName: "Carbon",
-            groups: groups,
-            allBuckets: allBuckets,
-            modelsData: modelsData,
-            timeZone: timeZone,
-            primarySessionResetTime: primarySessionResetTime
-        )
-        let hydrogen = parseScopedModelPoolUsage(
-            keyword: "hydrogen",
-            displayName: "Hydrogen",
-            groups: groups,
-            allBuckets: allBuckets,
-            modelsData: modelsData,
-            timeZone: timeZone,
-            primarySessionResetTime: primarySessionResetTime
-        )
-        let neon = parseScopedModelPoolUsage(
-            keyword: "neon",
-            displayName: "Neon",
-            groups: groups,
-            allBuckets: allBuckets,
-            modelsData: modelsData,
-            timeZone: timeZone,
-            primarySessionResetTime: primarySessionResetTime
-        )
-
-        let geminiGroupDescription = (geminiGroup?["description"] as? String ?? "").lowercased()
-        let primaryWeeklyPercentage = usedPercentage(for: weekly)
-        let primaryWeeklyResetTime = resetTime(for: weekly, timeZone: timeZone)
-
-        let sharesHydrogenAndNeonWithPrimary = weekly != nil
-            && hydrogen.isAvailable
-            && neon.isAvailable
-            && (
-                (geminiGroupDescription.contains("hydrogen") && geminiGroupDescription.contains("neon"))
-                || (
-                    hydrogen.dailyPercentage == nil
-                    && neon.dailyPercentage == nil
-                    && hydrogen.weeklyPercentage == primaryWeeklyPercentage
-                    && neon.weeklyPercentage == primaryWeeklyPercentage
-                    && hydrogen.weeklyResetTime == primaryWeeklyResetTime
-                    && neon.weeklyResetTime == primaryWeeklyResetTime
-                )
-            )
-
-        let sharesHydrogenAndNeonPool = !sharesHydrogenAndNeonWithPrimary
-            && hydrogen.isAvailable
-            && neon.isAvailable
-            && hydrogen.dailyPercentage == neon.dailyPercentage
-            && hydrogen.dailyResetTime == neon.dailyResetTime
-            && hydrogen.weeklyPercentage == neon.weeklyPercentage
-            && hydrogen.weeklyResetTime == neon.weeklyResetTime
-
-        let hydrogenDailyLabel = sharesHydrogenAndNeonPool
-            ? (hydrogen.dailyPercentage != nil ? "Session (Hydrogen & Neon)" : nil)
-            : hydrogen.dailyLabel
-        let hydrogenWeeklyLabel = sharesHydrogenAndNeonPool
-            ? "Weekly (Hydrogen & Neon)"
-            : hydrogen.weeklyLabel
-
-        var sonnetWeeklyPercentage = usedPercentage(for: firstScoped?.bucket)
-        var sonnetWeeklyResetTime = resetTime(for: firstScoped?.bucket, timeZone: timeZone)
-        var sonnetWeeklyLabel = firstScoped?.label
-
-        var designWeeklyPercentage = usedPercentage(for: secondScoped?.bucket)
-        var designWeeklyResetTime = resetTime(for: secondScoped?.bucket, timeZone: timeZone)
-        var designWeeklyLabel = secondScoped?.label
-
-        // If no Claude / GPT weekly was found in groups, check modelsData as fallback
-        let hasClaudeGPTWeekly = [sonnetWeeklyLabel, designWeeklyLabel].compactMap { $0 }.contains {
-            $0.lowercased().contains("claude") || $0.lowercased().contains("gpt") || $0.lowercased().contains("3p")
-        }
-        if !hasClaudeGPTWeekly, let modelsData {
-            let claudeModelUsage = parseScopedModelPoolUsage(
-                keyword: "claude",
-                displayName: "Claude / GPT",
-                groups: groups,
-                allBuckets: allBuckets,
-                modelsData: modelsData,
-                timeZone: timeZone
-            )
-            if claudeModelUsage.isAvailable {
-                if sonnetWeeklyPercentage == nil {
-                    sonnetWeeklyPercentage = claudeModelUsage.weeklyPercentage
-                    sonnetWeeklyResetTime = claudeModelUsage.weeklyResetTime
-                    sonnetWeeklyLabel = claudeModelUsage.weeklyLabel
-                } else if designWeeklyPercentage == nil {
-                    designWeeklyPercentage = claudeModelUsage.weeklyPercentage
-                    designWeeklyResetTime = claudeModelUsage.weeklyResetTime
-                    designWeeklyLabel = claudeModelUsage.weeklyLabel
-                }
-            }
-        }
-
-        let hasUsage = session != nil || weekly != nil || firstScoped != nil || carbon.isAvailable || hydrogen.isAvailable || neon.isAvailable || sonnetWeeklyPercentage != nil
+        let extraRows = buildExtraRows(from: groups, allBuckets: allBuckets, modelsData: modelsData, timeZone: timeZone)
+        let isPrimarySessionDisabled = (session?["disabled"] as? Bool) == true
+        let isThirdPartySessionDisabled = (thirdPartySession?["disabled"] as? Bool) == true
+        let hasUsage = session != nil || weekly != nil || firstScoped != nil || thirdPartySession != nil || !extraRows.isEmpty
 
         let fields: [String: Any] = [
             "success": hasUsage,
             "error": (hasUsage ? nil : "No Gemini usage limits in the response. See body in debug.") as Any,
-            "percentage": usedPercentage(for: session) as Any,
-            "resetTime": resetTime(for: session, timeZone: timeZone) as Any,
-            "weeklyPercentage": primaryWeeklyPercentage as Any,
-            "weeklyResetTime": primaryWeeklyResetTime as Any,
-            "sonnetWeeklyPercentage": sonnetWeeklyPercentage as Any,
-            "sonnetWeeklyResetTime": sonnetWeeklyResetTime as Any,
-            "sonnetWeeklyLabel": sonnetWeeklyLabel as Any,
-            "designDailyPercentage": usedPercentage(for: thirdPartySession) as Any,
-            "designDailyResetTime": resetTime(for: thirdPartySession, timeZone: timeZone) as Any,
+            "percentage": (isPrimarySessionDisabled ? nil : usedPercentage(for: session)) as Any,
+            "resetTime": (isPrimarySessionDisabled ? nil : resetTime(for: session, timeZone: timeZone)) as Any,
+            "isSessionDisabled": isPrimarySessionDisabled,
+            "weeklyPercentage": usedPercentage(for: weekly) as Any,
+            "weeklyResetTime": resetTime(for: weekly, timeZone: timeZone) as Any,
+            "geminiSharedDescription": nonEmpty(geminiGroup?["description"] as? String) as Any,
+            "geminiThirdPartyDescription": nonEmpty(thirdPartyGroup?["description"] as? String) as Any,
+            "geminiExtraRows": extraRows,
+            "sonnetWeeklyPercentage": usedPercentage(for: firstScoped?.bucket) as Any,
+            "sonnetWeeklyResetTime": resetTime(for: firstScoped?.bucket, timeZone: timeZone) as Any,
+            "sonnetWeeklyLabel": firstScoped?.label as Any,
+            "designDailyPercentage": (isThirdPartySessionDisabled ? nil : usedPercentage(for: thirdPartySession)) as Any,
+            "designDailyResetTime": (isThirdPartySessionDisabled ? nil : resetTime(for: thirdPartySession, timeZone: timeZone)) as Any,
             "designDailyLabel": (thirdPartySession != nil ? "Session (Claude / GPT)" : nil) as Any,
-            "designWeeklyPercentage": designWeeklyPercentage as Any,
-            "designWeeklyResetTime": designWeeklyResetTime as Any,
-            "designWeeklyLabel": designWeeklyLabel as Any,
-            "carbonWeeklyPercentage": carbon.weeklyPercentage as Any,
-            "carbonWeeklyResetTime": carbon.weeklyResetTime as Any,
-            "carbonWeeklyLabel": carbon.weeklyLabel as Any,
-            "isCarbonAvailable": carbon.isAvailable as Any,
-            "hydrogenDailyPercentage": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogen.dailyPercentage) as Any,
-            "hydrogenDailyResetTime": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogen.dailyResetTime) as Any,
-            "hydrogenDailyLabel": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogenDailyLabel) as Any,
-            "hydrogenWeeklyPercentage": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogen.weeklyPercentage) as Any,
-            "hydrogenWeeklyResetTime": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogen.weeklyResetTime) as Any,
-            "hydrogenWeeklyLabel": (sharesHydrogenAndNeonWithPrimary ? nil : hydrogenWeeklyLabel) as Any,
-            "isHydrogenAvailable": hydrogen.isAvailable as Any,
-            "neonDailyPercentage": ((sharesHydrogenAndNeonWithPrimary || sharesHydrogenAndNeonPool) ? nil : neon.dailyPercentage) as Any,
-            "neonDailyResetTime": ((sharesHydrogenAndNeonWithPrimary || sharesHydrogenAndNeonPool) ? nil : neon.dailyResetTime) as Any,
-            "neonDailyLabel": ((sharesHydrogenAndNeonWithPrimary || sharesHydrogenAndNeonPool) ? nil : neon.dailyLabel) as Any,
-            "neonWeeklyPercentage": ((sharesHydrogenAndNeonWithPrimary || sharesHydrogenAndNeonPool) ? nil : neon.weeklyPercentage) as Any,
-            "neonWeeklyResetTime": ((sharesHydrogenAndNeonWithPrimary || sharesHydrogenAndNeonPool) ? nil : neon.weeklyResetTime) as Any,
-            "neonWeeklyLabel": ((sharesHydrogenAndNeonWithPrimary || sharesHydrogenAndNeonPool) ? nil : neon.weeklyLabel) as Any,
-            "isNeonAvailable": neon.isAvailable as Any,
+            "designWeeklyPercentage": usedPercentage(for: secondScoped?.bucket) as Any,
+            "designWeeklyResetTime": resetTime(for: secondScoped?.bucket, timeZone: timeZone) as Any,
+            "designWeeklyLabel": secondScoped?.label as Any,
             "email": email as Any,
             "planName": planName as Any
         ]
@@ -725,97 +619,151 @@ enum GeminiUsageAPI {
         return nil
     }
 
-    private struct ScopedModelPoolUsage {
-        let dailyPercentage: Int?
-        let dailyResetTime: String?
-        let dailyLabel: String?
-        let weeklyPercentage: Int?
-        let weeklyResetTime: String?
-        let weeklyLabel: String
-        let isAvailable: Bool
-    }
-
-    private static func parseScopedModelPoolUsage(
-        keyword: String,
-        displayName: String,
-        groups: [[String: Any]],
+    // Builds dedicated rows for any model or model group that has its OWN quota pool
+    // (either as its own group in retrieveUserQuotaSummary, or in fetchAvailableModels with a
+    // quotaInfo resetTime not shared with any group bucket in retrieveUserQuotaSummary).
+    private static func buildExtraRows(
+        from groups: [[String: Any]],
         allBuckets: [[String: Any]],
         modelsData: Data?,
-        timeZone: TimeZone,
-        primarySessionResetTime: String? = nil
-    ) -> ScopedModelPoolUsage {
-        let matchingGroup = groups.first {
-            let name = ($0["displayName"] as? String ?? "").lowercased()
-            return name.contains(keyword)
+        timeZone: TimeZone
+    ) -> [[String: Any]] {
+        let dedicatedGroups = groups.filter { group in
+            let name = (group["displayName"] as? String ?? "").lowercased()
+            return name != "gemini models" && !UsageData.isClaudeGPTLabel(name)
         }
-        let groupBuckets = matchingGroup?["buckets"] as? [[String: Any]] ?? []
-        let matchingBuckets = !groupBuckets.isEmpty
-            ? groupBuckets
-            : allBuckets.filter {
-                let id = ($0["bucketId"] as? String ?? "").lowercased()
-                let name = ($0["displayName"] as? String ?? "").lowercased()
-                return id.contains(keyword) || name.contains(keyword)
-            }
 
-        if !matchingBuckets.isEmpty {
-            let sessionBucket = matchingBuckets.first {
+        let groupRows: [[String: Any]] = dedicatedGroups.flatMap { group -> [[String: Any]] in
+            let groupName = group["displayName"] as? String
+            let short = shortPoolName(from: groupName)
+            let helpText = nonEmpty(group["description"] as? String)
+            let buckets = group["buckets"] as? [[String: Any]] ?? []
+            let sessionBucket = buckets.first {
                 ($0["bucketId"] as? String)?.lowercased().contains("5h") == true || ($0["window"] as? String) == "5h"
             }
-            let weeklyBucket = matchingBuckets.first { ($0["window"] as? String) == "weekly" }
-                ?? matchingBuckets.first { $0["bucketId"] as? String != sessionBucket?["bucketId"] as? String }
-                ?? matchingBuckets.first
-            return ScopedModelPoolUsage(
-                dailyPercentage: usedPercentage(for: sessionBucket),
-                dailyResetTime: resetTime(for: sessionBucket, timeZone: timeZone),
-                dailyLabel: sessionBucket != nil ? "Session (\(displayName))" : nil,
-                weeklyPercentage: weeklyBucket.flatMap { usedPercentage(for: $0) } ?? 0,
-                weeklyResetTime: resetTime(for: weeklyBucket, timeZone: timeZone),
-                weeklyLabel: weeklyBucket.map { scopedLabel(for: matchingGroup?["displayName"] as? String, bucket: $0) } ?? "Weekly (\(displayName))",
-                isAvailable: true
-            )
+            let weeklyBucket = buckets.first { ($0["window"] as? String) == "weekly" }
+                ?? buckets.first { $0["bucketId"] as? String != sessionBucket?["bucketId"] as? String }
+            let weeklyPct = usedPercentage(for: weeklyBucket)
+            let linkedWeeklyReached = (weeklyPct ?? 0) >= 100
+            let slug = short.lowercased().replacingOccurrences(of: " ", with: "-")
+
+            let sessionRows: [[String: Any]] = sessionBucket.map { bucket in
+                let isDisabled = (bucket["disabled"] as? Bool) == true
+                return [[
+                    "id": "\(slug)-session",
+                    "label": "Session (\(short))",
+                    "window": "5h",
+                    "percentage": (isDisabled ? nil : usedPercentage(for: bucket)) as Any,
+                    "resetTime": (isDisabled ? nil : resetTime(for: bucket, timeZone: timeZone)) as Any,
+                    "isDisabled": isDisabled,
+                    "linkedWeeklyReached": linkedWeeklyReached,
+                    "helpText": helpText as Any
+                ]]
+            } ?? []
+
+            let weeklyRows: [[String: Any]] = weeklyBucket.map { bucket in
+                [[
+                    "id": "\(slug)-weekly",
+                    "label": scopedLabel(for: groupName, bucket: bucket),
+                    "window": "weekly",
+                    "percentage": weeklyPct as Any,
+                    "resetTime": resetTime(for: bucket, timeZone: timeZone) as Any,
+                    "isDisabled": false,
+                    "linkedWeeklyReached": false,
+                    "helpText": helpText as Any
+                ]]
+            } ?? []
+
+            return sessionRows + weeklyRows
         }
 
-        if let modelsData,
-           let json = try? JSONSerialization.jsonObject(with: modelsData) as? [String: Any],
-           let models = json["models"] as? [String: Any] {
-            let matchingEntries: [(key: String, info: [String: Any])] = models.compactMap { key, value in
-                guard let info = value as? [String: Any] else { return nil }
-                let modelDisplayName = (info["displayName"] as? String ?? "").lowercased()
-                guard key.lowercased().contains(keyword) || modelDisplayName.contains(keyword) else { return nil }
-                guard (info["disabled"] as? Bool) != true else { return nil }
-                return (key: key, info: info)
-            }
-            let preferred = matchingEntries.first { $0.key.lowercased().contains("medium") }
-                ?? matchingEntries.first { $0.info["quotaInfo"] is [String: Any] }
-            if let quotaInfo = preferred?.info["quotaInfo"] as? [String: Any] {
-                let quotaReset = resetTime(for: quotaInfo, timeZone: timeZone)
-                let quotaPct = usedPercentage(for: quotaInfo) ?? 0
-
-                // If quotaInfo shares the exact same reset time as the primary 5-hour session,
-                // it is reflecting the generic shared session limit, NOT a dedicated weekly pool for this model!
-                // Report weekly usage as 0% (unused) so using Flash doesn't make Carbon's weekly usage climb.
-                let isMirroringPrimarySession = (primarySessionResetTime != nil && quotaReset == primarySessionResetTime)
-                return ScopedModelPoolUsage(
-                    dailyPercentage: nil,
-                    dailyResetTime: nil,
-                    dailyLabel: nil,
-                    weeklyPercentage: isMirroringPrimarySession ? 0 : quotaPct,
-                    weeklyResetTime: isMirroringPrimarySession ? nil : quotaReset,
-                    weeklyLabel: "Weekly (\(displayName))",
-                    isAvailable: true
-                )
-            }
-        }
-
-        return ScopedModelPoolUsage(
-            dailyPercentage: nil,
-            dailyResetTime: nil,
-            dailyLabel: nil,
-            weeklyPercentage: 0,
-            weeklyResetTime: nil,
-            weeklyLabel: "Weekly (\(displayName))",
-            isAvailable: false
+        let standaloneRows = buildStandaloneModelRows(
+            from: modelsData,
+            groups: groups,
+            allBuckets: allBuckets,
+            timeZone: timeZone
         )
+        return groupRows + standaloneRows
+    }
+
+    private static func buildStandaloneModelRows(
+        from modelsData: Data?,
+        groups: [[String: Any]],
+        allBuckets: [[String: Any]],
+        timeZone: TimeZone
+    ) -> [[String: Any]] {
+        guard let modelsData,
+              let json = try? JSONSerialization.jsonObject(with: modelsData) as? [String: Any],
+              let models = json["models"] as? [String: Any] else {
+            return []
+        }
+
+        let coveredGroupText = groups
+            .compactMap { group -> String? in
+                let name = group["displayName"] as? String ?? ""
+                let desc = group["description"] as? String ?? ""
+                return "\(name) \(desc)".lowercased()
+            }
+            .joined(separator: " ")
+
+        let groupResetTimes = Set(allBuckets.compactMap { $0["resetTime"] as? String })
+
+        let standaloneEntries: [(baseName: String, shortName: String, quotaInfo: [String: Any], rawReset: String, pct: Int)] = models
+            .compactMap { key, value in
+                guard !key.lowercased().hasPrefix("tab_"),
+                      let info = value as? [String: Any],
+                      (info["disabled"] as? Bool) != true,
+                      let rawDisplay = nonEmpty(info["displayName"] as? String),
+                      let quotaInfo = info["quotaInfo"] as? [String: Any],
+                      let rawReset = nonEmpty(quotaInfo["resetTime"] as? String),
+                      !groupResetTimes.contains(rawReset) else {
+                    return nil
+                }
+                let baseName = stripEffortSuffix(from: rawDisplay)
+                let shortName = shortPoolName(from: baseName)
+                if coveredGroupText.contains(baseName.lowercased()) || coveredGroupText.contains(shortName.lowercased()) {
+                    return nil
+                }
+                let pct = usedPercentage(for: quotaInfo) ?? 0
+                return (baseName: baseName, shortName: shortName, quotaInfo: quotaInfo, rawReset: rawReset, pct: pct)
+            }
+
+        let groupedByPool = Dictionary(grouping: standaloneEntries) { "\($0.rawReset)|\($0.pct)" }
+        return groupedByPool.keys.sorted().compactMap { poolKey in
+            guard let items = groupedByPool[poolKey], let first = items.first else { return nil }
+            let uniqueNames = Array(Set(items.map(\.shortName))).sorted()
+            let poolTitle = uniqueNames.joined(separator: " & ")
+            let slug = poolTitle.lowercased().replacingOccurrences(of: " ", with: "-")
+            return [
+                "id": "model-\(slug)",
+                "label": "Weekly (\(poolTitle))",
+                "window": "weekly",
+                "percentage": first.pct,
+                "resetTime": resetTime(for: first.quotaInfo, timeZone: timeZone) as Any,
+                "isDisabled": false,
+                "linkedWeeklyReached": false,
+                "helpText": "Dedicated quota for \(Array(Set(items.map(\.baseName))).sorted().joined(separator: ", "))"
+            ]
+        }
+    }
+
+    private static func stripEffortSuffix(from displayName: String) -> String {
+        displayName.replacingOccurrences(
+            of: #"\s*\((Low|Medium|High|XHigh|Extra)\)\s*$"#,
+            with: "",
+            options: [.regularExpression, .caseInsensitive]
+        )
+    }
+
+    private static func shortPoolName(from rawName: String?) -> String {
+        let name = nonEmpty(rawName) ?? "Models"
+        let lower = name.lowercased()
+        if lower.contains("carbon") { return "Carbon" }
+        if lower.contains("argon") { return "Argon" }
+        if lower.contains("hydrogen") { return "Hydrogen" }
+        if lower.contains("neon") { return "Neon" }
+        if UsageData.isClaudeGPTLabel(lower) { return "Claude / GPT" }
+        return name.replacingOccurrences(of: #"^Gemini\s+\d+(\.\d+)?\s+"#, with: "", options: .regularExpression)
     }
 
     private static func postJSON(url: URL, body: Data, accessToken: String, session: URLSession) async throws -> (Data, Int) {
@@ -833,7 +781,7 @@ enum GeminiUsageAPI {
     private static func scopedWeeklyBuckets(from groups: [[String: Any]]) -> [(label: String, bucket: [String: Any])] {
         let nonPrimaryGroups = groups.filter { group in
             let name = (group["displayName"] as? String ?? "").lowercased()
-            return name != "gemini models" && !name.contains("carbon") && !name.contains("hydrogen") && !name.contains("neon")
+            return name != "gemini models"
         }
         let sortedGroups = nonPrimaryGroups.sorted { lhs, rhs in
             scopedPriority(for: lhs["displayName"] as? String) < scopedPriority(for: rhs["displayName"] as? String)
@@ -849,10 +797,7 @@ enum GeminiUsageAPI {
     }
 
     private static func scopedPriority(for groupName: String?) -> Int {
-        let lower = (groupName ?? "").lowercased()
-        if lower.contains("argon") { return 0 }
-        if lower.contains("claude") || lower.contains("gpt") { return 1 }
-        return 2
+        UsageData.isClaudeGPTLabel(groupName) ? 0 : 1
     }
 
     private static func scopedLabel(for groupName: String?, bucket: [String: Any]) -> String {

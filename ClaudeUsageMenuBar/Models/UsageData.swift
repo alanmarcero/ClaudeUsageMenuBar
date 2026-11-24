@@ -11,12 +11,51 @@ struct UsageReset: Equatable {
     }
 }
 
+struct GeminiExtraRow: Codable, Equatable, Identifiable {
+    let id: String
+    let label: String
+    let window: String
+    let percentage: Int?
+    let resetTime: String?
+    let isDisabled: Bool
+    let linkedWeeklyReached: Bool
+    let helpText: String?
+
+    var isUnavailable: Bool {
+        isDisabled || linkedWeeklyReached
+    }
+
+    static func list(from value: Any?) -> [GeminiExtraRow] {
+        (value as? [[String: Any]] ?? []).compactMap { dict in
+            guard let id = dict["id"] as? String,
+                  let label = dict["label"] as? String,
+                  let window = dict["window"] as? String else {
+                return nil
+            }
+            return GeminiExtraRow(
+                id: id,
+                label: label,
+                window: window,
+                percentage: dict["percentage"] as? Int,
+                resetTime: dict["resetTime"] as? String,
+                isDisabled: dict["isDisabled"] as? Bool ?? false,
+                linkedWeeklyReached: dict["linkedWeeklyReached"] as? Bool ?? false,
+                helpText: dict["helpText"] as? String
+            )
+        }
+    }
+}
+
 struct UsageData {
     var percentage: Int?
     var resetTime: String?
+    var isSessionDisabled: Bool = false
 
     var weeklyPercentage: Int?
     var weeklyResetTime: String?
+    var geminiSharedDescription: String?
+    var geminiThirdPartyDescription: String?
+    var geminiExtraRows: [GeminiExtraRow] = []
 
     var sonnetWeeklyPercentage: Int?
     var sonnetWeeklyResetTime: String?
@@ -29,29 +68,6 @@ struct UsageData {
     var designWeeklyPercentage: Int?
     var designWeeklyResetTime: String?
     var designWeeklyLabel: String?
-
-    var carbonWeeklyPercentage: Int?
-    var carbonWeeklyResetTime: String?
-    var carbonWeeklyLabel: String?
-    var isCarbonAvailable: Bool = true
-
-    var hydrogenDailyPercentage: Int?
-    var hydrogenDailyResetTime: String?
-    var hydrogenDailyLabel: String?
-
-    var hydrogenWeeklyPercentage: Int?
-    var hydrogenWeeklyResetTime: String?
-    var hydrogenWeeklyLabel: String?
-    var isHydrogenAvailable: Bool = true
-
-    var neonDailyPercentage: Int?
-    var neonDailyResetTime: String?
-    var neonDailyLabel: String?
-
-    var neonWeeklyPercentage: Int?
-    var neonWeeklyResetTime: String?
-    var neonWeeklyLabel: String?
-    var isNeonAvailable: Bool = true
 
     var email: String?
     var organizationName: String?
@@ -83,61 +99,49 @@ struct UsageData {
         weeklyBlocksPrimary && isWeeklyLimitReached ? 100 : percentage
     }
 
-    /// Whether the primary session (e.g. Daily / Session (Flash)) is unavailable because its linked weekly limit reached 100%.
+    /// Whether the primary session (e.g. Daily / Session) is unavailable because it is disabled or its linked weekly limit reached 100%.
     func isPrimarySessionUnavailable(for provider: UsageProvider) -> Bool {
         guard provider.id != UsageProvider.cursor.id, provider.secondaryLabel != nil else { return false }
-        return isWeeklyLimitReached
+        return isSessionDisabled || isWeeklyLimitReached
     }
 
-    private static func isClaudeGPTLabel(_ label: String?) -> Bool {
+    static func isClaudeGPTLabel(_ label: String?) -> Bool {
         guard let label else { return false }
         let lower = label.lowercased()
         return lower.contains("claude") || lower.contains("gpt") || lower.contains("3p")
     }
 
-    /// Weekly percentage for Claude / GPT on Gemini (checks both designWeekly and sonnetWeekly for a Claude/GPT label).
+    /// Weekly percentage for Claude / GPT on Gemini (checks both scoped slots by label).
     var geminiClaudeGPTWeeklyPercentage: Int? {
-        if Self.isClaudeGPTLabel(designWeeklyLabel) {
-            return designWeeklyPercentage
-        }
         if Self.isClaudeGPTLabel(sonnetWeeklyLabel) {
             return sonnetWeeklyPercentage
         }
+        if Self.isClaudeGPTLabel(designWeeklyLabel) {
+            return designWeeklyPercentage
+        }
+        guard sonnetWeeklyLabel == nil, designWeeklyLabel == nil else { return nil }
         return designWeeklyPercentage ?? sonnetWeeklyPercentage
     }
 
     var geminiClaudeGPTWeeklyLabel: String {
-        if Self.isClaudeGPTLabel(designWeeklyLabel) {
-            return "Weekly (Claude / GPT)"
-        }
-        if Self.isClaudeGPTLabel(sonnetWeeklyLabel) {
-            return "Weekly (Claude / GPT)"
-        }
-        return "Weekly (Claude / GPT)"
+        "Weekly (Claude / GPT)"
     }
 
-    var geminiArgonWeeklyPercentage: Int? {
-        if sonnetWeeklyLabel?.lowercased().contains("argon") == true {
+    var geminiExtraScopedWeeklyPercentage: Int? {
+        if let label = sonnetWeeklyLabel, !Self.isClaudeGPTLabel(label) {
             return sonnetWeeklyPercentage
         }
-        if designWeeklyLabel?.lowercased().contains("argon") == true {
+        if let label = designWeeklyLabel, !Self.isClaudeGPTLabel(label) {
             return designWeeklyPercentage
         }
         return nil
     }
 
-    var geminiArgonWeeklyLabel: String? {
-        if sonnetWeeklyLabel?.lowercased().contains("argon") == true {
-            return sonnetWeeklyLabel
-        }
-        if designWeeklyLabel?.lowercased().contains("argon") == true {
-            return designWeeklyLabel
-        }
-        return nil
-    }
-
-    /// Whether the secondary/scoped session (e.g. Session (Claude / GPT)) is unavailable because its linked weekly limit reached 100%.
+    /// Whether the secondary/scoped session (e.g. Session (Claude / GPT)) is unavailable because it is disabled or its linked weekly limit reached 100%.
     var isDesignSessionUnavailable: Bool {
+        if designDailyLabel != nil && designDailyPercentage == nil {
+            return true
+        }
         if Self.isClaudeGPTLabel(designWeeklyLabel) {
             return (designWeeklyPercentage ?? 0) >= 100
         }
@@ -147,46 +151,13 @@ struct UsageData {
         return isDesignWeeklyLimitReached
     }
 
-    /// Whether Carbon usage is unavailable (not available on this account).
-    var isCarbonUnavailable: Bool {
-        !isCarbonAvailable
-    }
-
-    var isHydrogenWeeklyLimitReached: Bool {
-        (hydrogenWeeklyPercentage ?? 0) >= 100
-    }
-
-    /// Whether Hydrogen session usage is unavailable because its linked weekly limit reached 100%.
-    var isHydrogenSessionUnavailable: Bool {
-        isHydrogenWeeklyLimitReached
-    }
-
-    /// Whether Hydrogen usage is unavailable (not available on this account).
-    var isHydrogenUnavailable: Bool {
-        !isHydrogenAvailable
-    }
-
-    var isNeonWeeklyLimitReached: Bool {
-        (neonWeeklyPercentage ?? 0) >= 100
-    }
-
-    /// Whether Neon session usage is unavailable because its linked weekly limit reached 100%.
-    var isNeonSessionUnavailable: Bool {
-        isNeonWeeklyLimitReached
-    }
-
-    /// Whether Neon usage is unavailable (not available on this account).
-    var isNeonUnavailable: Bool {
-        !isNeonAvailable
-    }
-
     var displayPercentage: String {
         guard let percentage = dailyPercentage else { return "--" }
         return "\(percentage)%"
     }
 
     var hasDailyLimit: Bool {
-        percentage != nil || resetTime != nil
+        percentage != nil || resetTime != nil || isSessionDisabled
     }
 }
 
@@ -210,24 +181,10 @@ struct UsageSnapshot: Codable, Equatable {
     var creditsLimit: Double?
     var onDemandUsedDollars: Double?
     var lastUpdated: Date?
-    var carbonWeeklyPercentage: Int? = nil
-    var carbonWeeklyResetTime: String? = nil
-    var carbonWeeklyLabel: String? = nil
-    var isCarbonAvailable: Bool? = nil
-    var hydrogenDailyPercentage: Int? = nil
-    var hydrogenDailyResetTime: String? = nil
-    var hydrogenDailyLabel: String? = nil
-    var hydrogenWeeklyPercentage: Int? = nil
-    var hydrogenWeeklyResetTime: String? = nil
-    var hydrogenWeeklyLabel: String? = nil
-    var isHydrogenAvailable: Bool? = nil
-    var neonDailyPercentage: Int? = nil
-    var neonDailyResetTime: String? = nil
-    var neonDailyLabel: String? = nil
-    var neonWeeklyPercentage: Int? = nil
-    var neonWeeklyResetTime: String? = nil
-    var neonWeeklyLabel: String? = nil
-    var isNeonAvailable: Bool? = nil
+    var isSessionDisabled: Bool? = nil
+    var geminiSharedDescription: String? = nil
+    var geminiThirdPartyDescription: String? = nil
+    var geminiExtraRows: [GeminiExtraRow]? = nil
 }
 
 // Stores/loads the last UsageSnapshot per provider. `defaults` is injectable for tests.

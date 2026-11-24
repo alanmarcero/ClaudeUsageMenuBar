@@ -196,164 +196,128 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
-    func testGeminiMenuBarMetricDefaultsToArgonAndSwitchesToOpus() {
+    func testGeminiMenuBarMetricDefaultsToSessionAndSwitchesAcrossRealQuotaPools() {
         let (defaults, suite) = makeSuiteDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let container = UsageProviders(providers: [.claude, .gemini], defaults: defaults)
         let gemini = container.services.first { $0.provider.id == "gemini" }!
-        gemini.usageData.percentage = 5
-        gemini.usageData.weeklyPercentage = 30 // weekly is higher than session
-        gemini.usageData.sonnetWeeklyPercentage = 40
-        gemini.usageData.sonnetWeeklyLabel = "Weekly (Argon)"
+        gemini.usageData.percentage = 42
+        gemini.usageData.weeklyPercentage = 15
         gemini.usageData.designDailyPercentage = 25
         gemini.usageData.designDailyLabel = "Session (Claude / GPT)"
-        gemini.usageData.designWeeklyPercentage = 80 // weekly is higher than session
-        gemini.usageData.designWeeklyLabel = "Weekly (Claude / GPT)"
+        gemini.usageData.sonnetWeeklyPercentage = 80
+        gemini.usageData.sonnetWeeklyLabel = "Weekly (Claude / GPT)"
 
-        XCTAssertEqual(container.geminiMenuBarMetricID, "flash")
-        XCTAssertEqual(container.menuBarDisplay(for: gemini), "5%")
+        XCTAssertEqual(container.geminiMenuBarMetricID, "session")
+        XCTAssertEqual(container.menuBarDisplay(for: gemini), "42%")
 
-        container.setGeminiMenuBarMetric("opus")
-        XCTAssertEqual(container.menuBarDisplay(for: gemini), "25%")
+        container.setGeminiMenuBarMetric("weekly")
+        XCTAssertEqual(container.menuBarDisplay(for: gemini), "15%")
         XCTAssertEqual(container.selectedMenuBarProviderID, "gemini")
 
-        container.setGeminiMenuBarMetric("flash")
-        XCTAssertEqual(container.menuBarDisplay(for: gemini), "5%")
+        container.setGeminiMenuBarMetric("claudeGPTSession")
+        XCTAssertEqual(container.menuBarDisplay(for: gemini), "25%")
 
-        gemini.usageData.carbonWeeklyPercentage = 15
-        container.setGeminiMenuBarMetric("carbon")
-        XCTAssertEqual(container.menuBarDisplay(for: gemini), "15%")
-        XCTAssertEqual(container.geminiMenuBarMetricID, "carbon")
+        container.setGeminiMenuBarMetric("claudeGPTWeekly")
+        XCTAssertEqual(container.menuBarDisplay(for: gemini), "80%")
 
         container.setGeminiMenuBarMetric("bogus")
-        XCTAssertEqual(container.geminiMenuBarMetricID, "carbon")
+        XCTAssertEqual(container.geminiMenuBarMetricID, "claudeGPTWeekly")
 
         let restored = UsageProviders(providers: [.claude, .gemini], defaults: defaults)
-        XCTAssertEqual(restored.geminiMenuBarMetricID, "carbon")
+        XCTAssertEqual(restored.geminiMenuBarMetricID, "claudeGPTWeekly")
     }
 
-    func testGeminiMenuBarDisplayShowsSessionLimitWhenCapped() {
+    func testGeminiMenuBarDisplayShowsSessionLimitWhenCappedOrWeeklyExhausted() {
         var data = UsageData()
         data.designDailyPercentage = 100
-        data.designDailyLabel = "Session (Claude & GPT)"
+        data.designDailyLabel = "Session (Claude / GPT)"
         data.designWeeklyPercentage = 42
-        data.designWeeklyLabel = "Weekly (Claude & GPT)"
+        data.designWeeklyLabel = "Weekly (Claude / GPT)"
 
-        // When the 5-hour session is capped at 100%, Opus displays 100%.
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "opus"), "100%")
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "claudeGPTSession"), "100%")
+
+        var disabledSessionData = UsageData()
+        disabledSessionData.designDailyLabel = "Session (Claude / GPT)"
+        disabledSessionData.sonnetWeeklyPercentage = 100
+        disabledSessionData.sonnetWeeklyLabel = "Weekly (Claude / GPT)"
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: disabledSessionData, metricID: "claudeGPTSession"), "100%")
     }
 
-    func testGeminiMenuBarDisplayNeverShowsWeeklyForFlashOrOpus() {
+    func testGeminiMenuBarDisplayNeverShowsWeeklyForSessionMetricsWhenUnderCap() {
         var data = UsageData()
         data.percentage = 4
         data.weeklyPercentage = 14
         data.designDailyPercentage = 2
         data.designWeeklyPercentage = 80
 
-        // Even though weekly (14% and 80%) is higher than session, the menu bar must show session.
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "flash"), "4%")
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "opus"), "2%")
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "session"), "4%")
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "claudeGPTSession"), "2%")
     }
 
-    func testGeminiMenuBarDisplayReturnsDashWhenSessionLimitIsMissing() {
+    func testGeminiMenuBarDisplayReturnsDashWhenSessionLimitIsMissingAndWeeklyUnderCap() {
         var data = UsageData()
         data.weeklyPercentage = 14
         data.designWeeklyPercentage = 80
-        // No session limits: must return "--", never weekly.
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "flash"), "--")
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "opus"), "--")
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "session"), "--")
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "claudeGPTSession"), "--")
     }
 
-    func testGeminiMenuBarDisplayMatchesPoolByLabelNotSlot() {
+    func testGeminiMenuBarDisplayMatchesClaudeGPTWeeklyAcrossSlots() {
         var data = UsageData()
-        // No Argon pool: Claude & GPT shifts into the first scoped slot.
         data.designDailyPercentage = 25
-        data.sonnetWeeklyPercentage = 25
+        data.sonnetWeeklyPercentage = 60
         data.sonnetWeeklyLabel = "Weekly (Claude / GPT)"
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "opus"), "25%")
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "argon"), "--")
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "claudeGPTSession"), "25%")
+        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "claudeGPTWeekly"), "60%")
     }
 
     func testGeminiClaudeGPTWeeklyResolvesFromEitherSlot() {
-        var dataWithoutArgon = UsageData()
-        dataWithoutArgon.sonnetWeeklyPercentage = 100
-        dataWithoutArgon.sonnetWeeklyLabel = "Weekly (Claude / GPT)"
-        XCTAssertEqual(dataWithoutArgon.geminiClaudeGPTWeeklyPercentage, 100)
-        XCTAssertEqual(dataWithoutArgon.geminiClaudeGPTWeeklyLabel, "Weekly (Claude / GPT)")
-        XCTAssertTrue(dataWithoutArgon.isDesignSessionUnavailable)
+        var dataPrimarySlot = UsageData()
+        dataPrimarySlot.sonnetWeeklyPercentage = 100
+        dataPrimarySlot.sonnetWeeklyLabel = "Weekly (Claude / GPT)"
+        XCTAssertEqual(dataPrimarySlot.geminiClaudeGPTWeeklyPercentage, 100)
+        XCTAssertEqual(dataPrimarySlot.geminiClaudeGPTWeeklyLabel, "Weekly (Claude / GPT)")
+        XCTAssertTrue(dataPrimarySlot.isDesignSessionUnavailable)
 
-        var dataWithArgon = UsageData()
-        dataWithArgon.sonnetWeeklyPercentage = 45
-        dataWithArgon.sonnetWeeklyLabel = "Weekly (Argon)"
-        dataWithArgon.designWeeklyPercentage = 80
-        dataWithArgon.designWeeklyLabel = "Weekly (Claude & GPT)"
-        XCTAssertEqual(dataWithArgon.geminiClaudeGPTWeeklyPercentage, 80)
-        XCTAssertEqual(dataWithArgon.geminiClaudeGPTWeeklyLabel, "Weekly (Claude / GPT)")
-        XCTAssertEqual(dataWithArgon.geminiArgonWeeklyPercentage, 45)
-        XCTAssertFalse(dataWithArgon.isDesignSessionUnavailable)
-    }
-
-    func testGeminiMenuBarDisplayCarbonReturnsPercentageOrZeroOrDash() {
-        var data = UsageData()
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "carbon"), "--")
-
-        data.carbonWeeklyPercentage = 0
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "carbon"), "0%")
-
-        data.carbonWeeklyPercentage = 42
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "carbon"), "42%")
-    }
-
-    func testGeminiMenuBarDisplayHydrogenPrefersSessionOverWeekly() {
-        var data = UsageData()
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "hydrogen"), "--")
-
-        data.hydrogenWeeklyPercentage = 88
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "hydrogen"), "88%")
-
-        data.hydrogenDailyPercentage = 14
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "hydrogen"), "14%")
-    }
-
-    func testGeminiMenuBarDisplayNeonPrefersSessionOverWeekly() {
-        var data = UsageData()
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "neon"), "--")
-
-        data.neonWeeklyPercentage = 88
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "neon"), "88%")
-
-        data.neonDailyPercentage = 14
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "neon"), "14%")
+        var dataSecondarySlot = UsageData()
+        dataSecondarySlot.sonnetWeeklyPercentage = 45
+        dataSecondarySlot.sonnetWeeklyLabel = "Weekly (Argon)"
+        dataSecondarySlot.designWeeklyPercentage = 80
+        dataSecondarySlot.designWeeklyLabel = "Weekly (Claude & GPT)"
+        XCTAssertEqual(dataSecondarySlot.geminiClaudeGPTWeeklyPercentage, 80)
+        XCTAssertEqual(dataSecondarySlot.geminiClaudeGPTWeeklyLabel, "Weekly (Claude / GPT)")
+        XCTAssertEqual(dataSecondarySlot.geminiExtraScopedWeeklyPercentage, 45)
+        XCTAssertFalse(dataSecondarySlot.isDesignSessionUnavailable)
     }
 
     @MainActor
-    func testGeminiMenuBarOptionsCombineFlashHydrogenAndNeonAndMigrateSavedPicks() {
+    func testGeminiMenuBarOptionsMatchActualQuotaBarsAndMigrateSavedLegacyPicks() {
         XCTAssertEqual(
             UsageProviders.geminiMetricOptions.map { $0.id },
-            ["carbon", "opus", "flash", "flashHydrogenNeon"]
+            ["session", "weekly", "claudeGPTSession", "claudeGPTWeekly"]
         )
         XCTAssertEqual(
-            UsageProviders.geminiMetricOptions.first(where: { $0.id == "flash" })?.label,
-            "Session"
-        )
-        XCTAssertEqual(
-            UsageProviders.geminiMetricOptions.first(where: { $0.id == "flashHydrogenNeon" })?.label,
-            "Weekly"
+            UsageProviders.geminiMetricOptions.map { $0.label },
+            ["Session", "Weekly", "Session (Claude / GPT)", "Weekly (Claude / GPT)"]
         )
 
-        var data = UsageData()
-        data.percentage = 11
-        data.weeklyPercentage = 83
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "flash"), "11%")
-        XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "flashHydrogenNeon"), "83%")
-
-        for legacyMetric in ["hydrogen", "neon"] {
+        let migrations: [(legacy: String, expected: String)] = [
+            ("flash", "session"),
+            ("carbon", "session"),
+            ("argon", "session"),
+            ("flashHydrogenNeon", "weekly"),
+            ("hydrogen", "weekly"),
+            ("neon", "weekly"),
+            ("opus", "claudeGPTSession")
+        ]
+        migrations.forEach { entry in
             let (defaults, suite) = makeSuiteDefaults()
             defer { defaults.removePersistentDomain(forName: suite) }
-            defaults.set(legacyMetric, forKey: "geminiMenuBarMetricID")
+            defaults.set(entry.legacy, forKey: "geminiMenuBarMetricID")
 
             let container = UsageProviders(providers: [.gemini], defaults: defaults)
-            XCTAssertEqual(container.geminiMenuBarMetricID, "flashHydrogenNeon")
+            XCTAssertEqual(container.geminiMenuBarMetricID, entry.expected)
         }
     }
 
@@ -377,7 +341,7 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertFalse(UsageProvider.gemini.readsClaudeCodeLogin)
         XCTAssertEqual(UsageProvider.gemini.primaryLabel, "Session")
         XCTAssertEqual(UsageProvider.gemini.secondaryLabel, "Weekly")
-        XCTAssertFalse(UsageProvider.gemini.weeklyBlocksPrimary)
+        XCTAssertTrue(UsageProvider.gemini.weeklyBlocksPrimary)
         XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("aistudio.google.com"))
         XCTAssertTrue(UsageProvider.gemini.oauthHostSuffixes.contains("google.com"))
     }
@@ -967,6 +931,70 @@ final class UsageProviderTests: XCTestCase {
         let platformIDs = Set(ModelPriceCatalog.entries.map { $0.platformId })
         let expectedPlatforms: Set<String> = ["claude", "codex", "cursor", "gemini"]
         XCTAssertEqual(platformIDs, expectedPlatforms)
+        XCTAssertEqual(ModelPriceCatalog.platformFilters.map { $0.id }, ["all", "claude", "codex", "cursor", "gemini"])
+    }
+
+    func testModelPriceCatalogClaudeContainsCurrentModelsAndPrices() {
+        let claudeModels = Dictionary(
+            uniqueKeysWithValues: ModelPriceCatalog.entries
+                .filter { $0.platformId == "claude" }
+                .map { ($0.name, $0) }
+        )
+
+        XCTAssertEqual(claudeModels["Claude Fable 5.2"]?.inputPrice, 8.00)
+        XCTAssertEqual(claudeModels["Claude Fable 5.2"]?.outputPrice, 40.00)
+        XCTAssertEqual(claudeModels["Claude Opus 5.5"]?.inputPrice, 4.00)
+        XCTAssertEqual(claudeModels["Claude Opus 5.5"]?.outputPrice, 20.00)
+        XCTAssertEqual(claudeModels["Claude Sonnet 5.5"]?.inputPrice, 2.00)
+        XCTAssertEqual(claudeModels["Claude Sonnet 5.5"]?.outputPrice, 10.00)
+        XCTAssertEqual(claudeModels["Claude Haiku 5.5"]?.inputPrice, 0.10)
+        XCTAssertEqual(claudeModels["Claude Haiku 5.5"]?.outputPrice, 0.50)
+        XCTAssertEqual(claudeModels["Claude Opus 4.8"]?.outputPrice, 25.00)
+        XCTAssertEqual(claudeModels["Claude Sonnet 4.6"]?.outputPrice, 15.00)
+        XCTAssertEqual(claudeModels["Claude Haiku 4.5"]?.outputPrice, 5.00)
+        XCTAssertNil(claudeModels["Claude 3 Opus"])
+        XCTAssertNil(claudeModels["Claude 3.5 Sonnet"])
+        XCTAssertNil(claudeModels["Claude 3.7 Sonnet"])
+    }
+
+    func testModelPriceCatalogGeminiContainsGemini38FlashAndCurrentModels() {
+        let geminiModels = Dictionary(
+            uniqueKeysWithValues: ModelPriceCatalog.entries
+                .filter { $0.platformId == "gemini" }
+                .map { ($0.name, $0) }
+        )
+
+        XCTAssertEqual(geminiModels["Gemini 3.8 Flash"]?.inputPrice, 0.75)
+        XCTAssertEqual(geminiModels["Gemini 3.8 Flash"]?.outputPrice, 3.75)
+        XCTAssertEqual(geminiModels["Gemini 4 Carbon"]?.inputPrice, 2.00)
+        XCTAssertEqual(geminiModels["Gemini 4 Carbon"]?.outputPrice, 10.00)
+        XCTAssertEqual(geminiModels["Gemini 4 Neon"]?.inputPrice, 3.00)
+        XCTAssertEqual(geminiModels["Gemini 4 Neon"]?.outputPrice, 15.00)
+        XCTAssertEqual(geminiModels["Gemini 4 Hydrogen"]?.inputPrice, 1.50)
+        XCTAssertEqual(geminiModels["Gemini 4 Hydrogen"]?.outputPrice, 7.50)
+        XCTAssertEqual(geminiModels["Gemini 3.1 Pro"]?.outputPrice, 12.00)
+        XCTAssertNil(geminiModels["Gemini 1.5 Pro"])
+        XCTAssertNil(geminiModels["Gemini 2.0 Flash"])
+    }
+
+    func testModelPriceCatalogCursorContainsCurrentModels() {
+        let cursorModels = Dictionary(
+            uniqueKeysWithValues: ModelPriceCatalog.entries
+                .filter { $0.platformId == "cursor" }
+                .map { ($0.name, $0) }
+        )
+
+        XCTAssertEqual(cursorModels["Composer 2.5"]?.inputPrice, 0.50)
+        XCTAssertEqual(cursorModels["Composer 2.5"]?.outputPrice, 2.50)
+        XCTAssertEqual(cursorModels["Grok 4.7"]?.inputPrice, 2.00)
+        XCTAssertEqual(cursorModels["Grok 4.7"]?.outputPrice, 6.00)
+        XCTAssertEqual(cursorModels["Claude Opus 5.5"]?.outputPrice, 20.00)
+        XCTAssertEqual(cursorModels["Claude Sonnet 5.5"]?.outputPrice, 10.00)
+        XCTAssertEqual(cursorModels["GPT-5.6 Sol"]?.outputPrice, 20.00)
+        XCTAssertEqual(cursorModels["Gemini 3.8 Flash"]?.outputPrice, 3.75)
+        XCTAssertNil(cursorModels["Claude 3 Opus"])
+        XCTAssertNil(cursorModels["GPT-4o"])
+        XCTAssertNil(cursorModels["Cursor Small"])
     }
 
     func testModelPriceCatalogIsSortedByOutputAscendingWithinPlatformByDefault() {
@@ -1009,10 +1037,10 @@ final class UsageProviderTests: XCTestCase {
         let sortedAsc = ModelPriceCatalog.sortModels(claudeModels, by: .name, ascending: true)
         let sortedDesc = ModelPriceCatalog.sortModels(claudeModels, by: .name, ascending: false)
 
-        XCTAssertEqual(sortedAsc.first?.name, "Claude 3 Haiku")
-        XCTAssertEqual(sortedAsc.last?.name, "Claude 3.7 Sonnet")
-        XCTAssertEqual(sortedDesc.first?.name, "Claude 3.7 Sonnet")
-        XCTAssertEqual(sortedDesc.last?.name, "Claude 3 Haiku")
+        XCTAssertEqual(sortedAsc.first?.name, "Claude Fable 5")
+        XCTAssertEqual(sortedAsc.last?.name, "Claude Sonnet 5.5")
+        XCTAssertEqual(sortedDesc.first?.name, "Claude Sonnet 5.5")
+        XCTAssertEqual(sortedDesc.last?.name, "Claude Fable 5")
     }
 
     func testModelPriceCatalogSortsByInputPrice() {
@@ -1044,25 +1072,28 @@ final class UsageProviderTests: XCTestCase {
 
     func testModelPriceCatalogCustomSortPerGroup() {
         let grouped = ModelPriceCatalog.groupedByPlatform { pid in
-            if pid == "claude" {
+            switch pid {
+            case "claude":
                 return (column: .name, ascending: true)
-            } else if pid == "gemini" {
+            case "gemini":
                 return (column: .inputPrice, ascending: false)
-            } else {
+            default:
                 return (column: .outputPrice, ascending: false)
             }
         }
 
         let claudeGroup = grouped.first { $0.platformId == "claude" }
-        XCTAssertEqual(claudeGroup?.models.first?.name, "Claude 3 Haiku")
+        XCTAssertEqual(claudeGroup?.models.first?.name, "Claude Fable 5")
 
         let geminiGroup = grouped.first { $0.platformId == "gemini" }
-        XCTAssertEqual(geminiGroup?.models.first?.name, "Gemini 4 Carbon") // highest input price ($4.00)
+        XCTAssertEqual(geminiGroup?.models.first?.name, "Gemini 4 Neon")
     }
 
     @MainActor
     private func scrapeCodexFixture(_ body: String, beforeScrape: String = "", script: String = CodexScrapingScript.script) async throws -> [String: Any] {
-        let webView = WKWebView()
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+        let webView = WKWebView(frame: .zero, configuration: config)
         let navigationWaiter = NavigationWaiter()
 
         await withCheckedContinuation { continuation in

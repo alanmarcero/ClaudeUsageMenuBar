@@ -45,14 +45,9 @@ final class ScrapedUsageDataTests: XCTestCase {
         XCTAssertNil(data.percentage)
         XCTAssertNil(data.weeklyPercentage)
         XCTAssertNil(data.sonnetWeeklyPercentage)
-        XCTAssertNil(data.carbonWeeklyPercentage)
-        XCTAssertTrue(data.isCarbonAvailable)
-        XCTAssertNil(data.hydrogenDailyPercentage)
-        XCTAssertNil(data.hydrogenWeeklyPercentage)
-        XCTAssertTrue(data.isHydrogenAvailable)
-        XCTAssertNil(data.neonDailyPercentage)
-        XCTAssertNil(data.neonWeeklyPercentage)
-        XCTAssertTrue(data.isNeonAvailable)
+        XCTAssertNil(data.designDailyPercentage)
+        XCTAssertNil(data.designWeeklyPercentage)
+        XCTAssertFalse(data.isSessionDisabled)
     }
 
     func testDefaultStateHasNoAccountInfo() {

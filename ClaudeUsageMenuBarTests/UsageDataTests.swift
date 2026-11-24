@@ -258,81 +258,15 @@ final class UsageDataTests: XCTestCase {
         XCTAssertEqual(UsageCache.load(for: "cursor", defaults: defaults), snapshot)
     }
 
-    func testSnapshotRoundTripsCarbonUsage() {
-        let (defaults, suite) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let snapshot = UsageSnapshot(
-            carbonWeeklyPercentage: 0,
-            carbonWeeklyResetTime: nil,
-            carbonWeeklyLabel: "Weekly (Carbon)",
-            isCarbonAvailable: false
-        )
-        UsageCache.save(snapshot, for: "gemini", defaults: defaults)
-        XCTAssertEqual(UsageCache.load(for: "gemini", defaults: defaults), snapshot)
-    }
-
-    func testCarbonUnavailableState() {
+    func testDisabledSessionStateMarksSessionUnavailable() {
         var data = UsageData()
-        XCTAssertFalse(data.isCarbonUnavailable)
-        data.isCarbonAvailable = false
-        data.carbonWeeklyPercentage = 0
-        XCTAssertTrue(data.isCarbonUnavailable)
-        XCTAssertEqual(data.carbonWeeklyPercentage, 0)
-    }
+        data.isSessionDisabled = true
+        XCTAssertTrue(data.isPrimarySessionUnavailable(for: .gemini))
+        XCTAssertTrue(data.hasDailyLimit)
 
-    func testSnapshotRoundTripsHydrogenUsage() {
-        let (defaults, suite) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let snapshot = UsageSnapshot(
-            hydrogenDailyPercentage: 12,
-            hydrogenDailyResetTime: "Resets 3:00 PM",
-            hydrogenDailyLabel: "Session (Hydrogen)",
-            hydrogenWeeklyPercentage: 45,
-            hydrogenWeeklyResetTime: "Resets Nov 14, 2026 12:00 PM",
-            hydrogenWeeklyLabel: "Weekly (Hydrogen)",
-            isHydrogenAvailable: true
-        )
-        UsageCache.save(snapshot, for: "gemini", defaults: defaults)
-        XCTAssertEqual(UsageCache.load(for: "gemini", defaults: defaults), snapshot)
-    }
-
-    func testHydrogenWeeklyLimitReachedDisablesSession() {
-        var data = UsageData()
-        data.hydrogenDailyPercentage = 10
-        data.hydrogenWeeklyPercentage = 99
-        XCTAssertFalse(data.isHydrogenWeeklyLimitReached)
-        XCTAssertFalse(data.isHydrogenSessionUnavailable)
-
-        data.hydrogenWeeklyPercentage = 100
-        XCTAssertTrue(data.isHydrogenWeeklyLimitReached)
-        XCTAssertTrue(data.isHydrogenSessionUnavailable)
-    }
-
-    func testSnapshotRoundTripsNeonUsage() {
-        let (defaults, suite) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let snapshot = UsageSnapshot(
-            neonDailyPercentage: 12,
-            neonDailyResetTime: "Resets 3:00 PM",
-            neonDailyLabel: "Session (Neon)",
-            neonWeeklyPercentage: 45,
-            neonWeeklyResetTime: "Resets Nov 20, 2026 12:00 PM",
-            neonWeeklyLabel: "Weekly (Neon)",
-            isNeonAvailable: true
-        )
-        UsageCache.save(snapshot, for: "gemini", defaults: defaults)
-        XCTAssertEqual(UsageCache.load(for: "gemini", defaults: defaults), snapshot)
-    }
-
-    func testNeonWeeklyLimitReachedDisablesSession() {
-        var data = UsageData()
-        data.neonDailyPercentage = 10
-        data.neonWeeklyPercentage = 99
-        XCTAssertFalse(data.isNeonWeeklyLimitReached)
-        XCTAssertFalse(data.isNeonSessionUnavailable)
-
-        data.neonWeeklyPercentage = 100
-        XCTAssertTrue(data.isNeonWeeklyLimitReached)
-        XCTAssertTrue(data.isNeonSessionUnavailable)
+        var thirdPartyDisabled = UsageData()
+        thirdPartyDisabled.designDailyLabel = "Session (Claude / GPT)"
+        thirdPartyDisabled.designDailyPercentage = nil
+        XCTAssertTrue(thirdPartyDisabled.isDesignSessionUnavailable)
     }
 }

@@ -26,14 +26,25 @@ final class UsageProviders: ObservableObject {
 
     private static let geminiMetricKey = "geminiMenuBarMetricID"
 
-    // Gemini reports separate pools for Carbon and Claude & GPT (Opus),
-    // and the shared Session and Weekly pools.
+    // Gemini provides two quota groups in retrieveUserQuotaSummary:
+    // Gemini Models (Session + Weekly) and Claude and GPT models (Session + Weekly).
     static let geminiMetricOptions: [(id: String, label: String)] = [
-        ("carbon", "Carbon"),
-        ("opus", "Opus"),
-        ("flash", "Session"),
-        ("flashHydrogenNeon", "Weekly")
+        ("session", "Session"),
+        ("weekly", "Weekly"),
+        ("claudeGPTSession", "Session (Claude / GPT)"),
+        ("claudeGPTWeekly", "Weekly (Claude / GPT)")
     ]
+
+    nonisolated static func geminiMetricOptions(for data: UsageData) -> [(id: String, label: String)] {
+        let extraOptions = data.geminiExtraRows.map { (id: "extra:\($0.id)", label: $0.label) }
+        return [
+            ("session", "Session"),
+            ("weekly", "Weekly")
+        ] + extraOptions + [
+            ("claudeGPTSession", "Session (Claude / GPT)"),
+            ("claudeGPTWeekly", "Weekly (Claude / GPT)")
+        ]
+    }
 
     // Which provider's percentage is shown in the menu bar. Persisted so it sticks
     // across launches. The dropdown picker scales to however many providers exist.
@@ -77,12 +88,13 @@ final class UsageProviders: ObservableObject {
 
         let savedGeminiMetric = defaults.string(forKey: Self.geminiMetricKey)
         let migratedGeminiMetric: String? = switch savedGeminiMetric {
-        case "hydrogen", "neon": "flashHydrogenNeon"
-        case "argon": "flash"
+        case "flash", "carbon", "argon": "session"
+        case "flashHydrogenNeon", "hydrogen", "neon": "weekly"
+        case "opus": "claudeGPTSession"
         default: savedGeminiMetric
         }
         geminiMenuBarMetricID = Self.geminiMetricOptions.contains { $0.id == migratedGeminiMetric }
-            ? (migratedGeminiMetric ?? "flash") : "flash"
+            ? (migratedGeminiMetric ?? "session") : "session"
 
         services.forEach { $0.isRefreshPaused = hidden.contains($0.provider.id) }
         // Grok Bot is combined into Cursor overall: it is no longer a top-level
@@ -168,7 +180,9 @@ final class UsageProviders: ObservableObject {
 
     // Picking a Gemini pool also selects Gemini for the menu bar.
     func setGeminiMenuBarMetric(_ metricID: String) {
-        guard Self.geminiMetricOptions.contains(where: { $0.id == metricID }) else { return }
+        let geminiData = services.first { $0.provider.id == UsageProvider.gemini.id }?.usageData ?? UsageData()
+        let validOptions = Self.geminiMetricOptions(for: geminiData)
+        guard validOptions.contains(where: { $0.id == metricID }) else { return }
         geminiMenuBarMetricID = metricID
         defaults.set(metricID, forKey: Self.geminiMetricKey)
         selectedMenuBarProviderID = UsageProvider.gemini.id
@@ -199,40 +213,37 @@ final class UsageProviders: ObservableObject {
     // always show their 5-hour session limits.
     nonisolated static func geminiMenuBarDisplay(for data: UsageData, metricID: String) -> String {
         switch metricID {
-        case "flash":
-            guard let session = data.percentage ?? data.dailyPercentage else { return "--" }
+        case "session", "flash":
+            if data.isSessionDisabled || data.isWeeklyLimitReached {
+                return "100%"
+            }
+            guard let session = data.percentage else { return "--" }
             return "\(session)%"
-        case "flashHydrogenNeon":
+        case "weekly", "flashHydrogenNeon":
             guard let weekly = data.weeklyPercentage else { return "--" }
             return "\(weekly)%"
-        case "opus":
+        case "claudeGPTSession", "opus":
+            if data.isDesignSessionUnavailable && (data.designDailyLabel != nil || data.designDailyPercentage != nil) {
+                return "100%"
+            }
             guard let session = data.designDailyPercentage else { return "--" }
             return "\(session)%"
-        case "carbon":
-            guard let percentage = data.carbonWeeklyPercentage else { return "--" }
-            return "\(percentage)%"
-        case "hydrogen":
-            if let session = data.hydrogenDailyPercentage {
-                return "\(session)%"
+        case "claudeGPTWeekly":
+            guard let weekly = data.geminiClaudeGPTWeeklyPercentage else { return "--" }
+            return "\(weekly)%"
+        default:
+            if metricID.hasPrefix("extra:") {
+                let rowID = String(metricID.dropFirst("extra:".count))
+                guard let row = data.geminiExtraRows.first(where: { $0.id == rowID }) else {
+                    return data.dailyPercentage.map { "\($0)%" } ?? "--"
+                }
+                if row.isUnavailable {
+                    return "100%"
+                }
+                return row.percentage.map { "\($0)%" } ?? "--"
             }
-            guard let percentage = data.hydrogenWeeklyPercentage else { return "--" }
-            return "\(percentage)%"
-        case "neon":
-            if let session = data.neonDailyPercentage {
-                return "\(session)%"
-            }
-            guard let percentage = data.neonWeeklyPercentage else { return "--" }
-            return "\(percentage)%"
-        default: // "argon"
-            let pools: [(label: String?, percentage: Int?)] = [
-                (data.sonnetWeeklyLabel, data.sonnetWeeklyPercentage),
-                (data.designWeeklyLabel, data.designWeeklyPercentage)
-            ]
-            let match = pools.first { $0.label?.lowercased().contains("argon") == true }
-            guard let percentage = match?.percentage else {
-                return data.dailyPercentage.map { "\($0)%" } ?? "--"
-            }
-            return "\(percentage)%"
+            guard let session = data.dailyPercentage else { return "--" }
+            return "\(session)%"
         }
     }
 

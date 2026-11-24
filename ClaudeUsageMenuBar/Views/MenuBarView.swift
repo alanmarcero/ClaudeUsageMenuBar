@@ -194,49 +194,6 @@ struct ProviderSection: View {
                 if service.usageData.sonnetWeeklyPercentage != nil {
                     usageRow(service.usageData.sonnetWeeklyLabel ?? "Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
                 }
-                if service.usageData.carbonWeeklyPercentage != nil {
-                    usageRow(
-                        service.usageData.carbonWeeklyLabel ?? "Weekly (Carbon)",
-                        service.usageData.carbonWeeklyPercentage,
-                        service.carbonWeeklyResetCountdown,
-                        isUnavailable: service.usageData.isCarbonUnavailable,
-                        unavailableHelp: service.usageData.isCarbonAvailable ? nil : "Not available on this account"
-                    )
-                }
-                if service.usageData.hydrogenDailyPercentage != nil {
-                    usageRow(
-                        service.usageData.hydrogenDailyLabel ?? "Session (Hydrogen)",
-                        service.usageData.hydrogenDailyPercentage,
-                        service.hydrogenDailyResetCountdown,
-                        isUnavailable: service.usageData.isHydrogenSessionUnavailable
-                    )
-                }
-                if service.usageData.hydrogenWeeklyPercentage != nil {
-                    usageRow(
-                        service.usageData.hydrogenWeeklyLabel ?? "Weekly (Hydrogen)",
-                        service.usageData.hydrogenWeeklyPercentage,
-                        service.hydrogenWeeklyResetCountdown,
-                        isUnavailable: service.usageData.isHydrogenUnavailable,
-                        unavailableHelp: service.usageData.isHydrogenAvailable ? nil : "Not available on this account"
-                    )
-                }
-                if service.usageData.neonDailyPercentage != nil {
-                    usageRow(
-                        service.usageData.neonDailyLabel ?? "Session (Neon)",
-                        service.usageData.neonDailyPercentage,
-                        service.neonDailyResetCountdown,
-                        isUnavailable: service.usageData.isNeonSessionUnavailable
-                    )
-                }
-                if service.usageData.neonWeeklyPercentage != nil {
-                    usageRow(
-                        service.usageData.neonWeeklyLabel ?? "Weekly (Neon)",
-                        service.usageData.neonWeeklyPercentage,
-                        service.neonWeeklyResetCountdown,
-                        isUnavailable: service.usageData.isNeonUnavailable,
-                        unavailableHelp: service.usageData.isNeonAvailable ? nil : "Not available on this account"
-                    )
-                }
                 if service.usageData.designDailyPercentage != nil {
                     let isUnavailable = service.usageData.isDesignSessionUnavailable
                     usageRow(
@@ -303,7 +260,7 @@ struct ProviderSection: View {
     // Same control for Gemini: which pool or session shows in the menu bar.
     private var geminiMenuMetricRow: some View {
         menuMetricRow(
-            options: UsageProviders.geminiMetricOptions,
+            options: UsageProviders.geminiMetricOptions(for: service.usageData),
             selectedID: providers.geminiMenuBarMetricID,
             fallbackLabel: "Session",
             help: "Choose which Gemini usage shows in the menu bar",
@@ -313,89 +270,56 @@ struct ProviderSection: View {
 
     @ViewBuilder
     private func geminiUsageRows(service: UsageService) -> some View {
-        // 1. Session
-        usageRow(
-            service.provider.primaryLabel,
-            service.usageData.percentage,
-            service.dailyResetCountdown,
-            isUnavailable: service.usageData.isPrimarySessionUnavailable(for: service.provider)
-        )
-
-        // 2. Weekly
-        if let secondaryLabel = service.provider.secondaryLabel {
-            usageRow(secondaryLabel, service.usageData.weeklyPercentage, service.weeklyResetCountdown)
-        }
-
-        // 3. Weekly (Carbon)
-        if service.usageData.carbonWeeklyPercentage != nil {
+        // 1. Gemini Models: Session (5-hour limit; shared across Neon, Carbon, Argon, Hydrogen, 3.8 Flash)
+        if service.usageData.hasDailyLimit {
             usageRow(
-                service.usageData.carbonWeeklyLabel ?? "Weekly (Carbon)",
-                service.usageData.carbonWeeklyPercentage,
-                service.carbonWeeklyResetCountdown,
-                isUnavailable: service.usageData.isCarbonUnavailable,
-                unavailableHelp: service.usageData.isCarbonAvailable ? nil : "Not available on this account"
+                service.provider.primaryLabel,
+                service.usageData.percentage,
+                service.dailyResetCountdown,
+                isUnavailable: service.usageData.isPrimarySessionUnavailable(for: service.provider),
+                activeHelp: service.usageData.geminiSharedDescription
             )
         }
 
-        // 4. Session (Claude / GPT)
-        if service.usageData.designDailyPercentage != nil {
+        // 2. Gemini Models: Weekly
+        if let secondaryLabel = service.provider.secondaryLabel, service.usageData.weeklyPercentage != nil {
+            usageRow(
+                secondaryLabel,
+                service.usageData.weeklyPercentage,
+                service.weeklyResetCountdown,
+                activeHelp: service.usageData.geminiSharedDescription
+            )
+        }
+
+        // 3. Model-specific bars for any Gemini model that has its own standalone quota pool
+        ForEach(service.usageData.geminiExtraRows) { row in
+            usageRow(
+                row.label,
+                row.percentage,
+                service.extraRowCountdown(for: row),
+                isUnavailable: row.isUnavailable,
+                activeHelp: row.helpText
+            )
+        }
+
+        // 4. Claude and GPT models: Session (5-hour limit)
+        if service.usageData.designDailyPercentage != nil || service.usageData.designDailyLabel != nil {
             usageRow(
                 service.usageData.designDailyLabel ?? "Session (Claude / GPT)",
                 service.usageData.designDailyPercentage,
                 service.designDailyResetCountdown,
-                isUnavailable: service.usageData.isDesignSessionUnavailable
+                isUnavailable: service.usageData.isDesignSessionUnavailable,
+                activeHelp: service.usageData.geminiThirdPartyDescription
             )
         }
 
-        // 5. Weekly (Claude / GPT)
+        // 5. Claude and GPT models: Weekly
         if let claudeGPTWeeklyPct = service.usageData.geminiClaudeGPTWeeklyPercentage {
             usageRow(
                 service.usageData.geminiClaudeGPTWeeklyLabel,
                 claudeGPTWeeklyPct,
-                service.geminiClaudeGPTWeeklyResetCountdown
-            )
-        }
-
-        // Additional scoped pools if present on other tiers (Argon, Hydrogen, Neon)
-        if let argonPct = service.usageData.geminiArgonWeeklyPercentage {
-            usageRow(
-                service.usageData.geminiArgonWeeklyLabel ?? "Weekly (Argon)",
-                argonPct,
-                service.geminiArgonWeeklyResetCountdown
-            )
-        }
-        if service.usageData.hydrogenDailyPercentage != nil {
-            usageRow(
-                service.usageData.hydrogenDailyLabel ?? "Session (Hydrogen)",
-                service.usageData.hydrogenDailyPercentage,
-                service.hydrogenDailyResetCountdown,
-                isUnavailable: service.usageData.isHydrogenSessionUnavailable
-            )
-        }
-        if service.usageData.hydrogenWeeklyPercentage != nil {
-            usageRow(
-                service.usageData.hydrogenWeeklyLabel ?? "Weekly (Hydrogen)",
-                service.usageData.hydrogenWeeklyPercentage,
-                service.hydrogenWeeklyResetCountdown,
-                isUnavailable: service.usageData.isHydrogenUnavailable,
-                unavailableHelp: service.usageData.isHydrogenAvailable ? nil : "Not available on this account"
-            )
-        }
-        if service.usageData.neonDailyPercentage != nil {
-            usageRow(
-                service.usageData.neonDailyLabel ?? "Session (Neon)",
-                service.usageData.neonDailyPercentage,
-                service.neonDailyResetCountdown,
-                isUnavailable: service.usageData.isNeonSessionUnavailable
-            )
-        }
-        if service.usageData.neonWeeklyPercentage != nil {
-            usageRow(
-                service.usageData.neonWeeklyLabel ?? "Weekly (Neon)",
-                service.usageData.neonWeeklyPercentage,
-                service.neonWeeklyResetCountdown,
-                isUnavailable: service.usageData.isNeonUnavailable,
-                unavailableHelp: service.usageData.isNeonAvailable ? nil : "Not available on this account"
+                service.geminiClaudeGPTWeeklyResetCountdown,
+                activeHelp: service.usageData.geminiThirdPartyDescription
             )
         }
     }
@@ -510,7 +434,8 @@ struct ProviderSection: View {
         _ percentage: Int?,
         _ resetTime: String?,
         isUnavailable: Bool = false,
-        unavailableHelp: String? = nil
+        unavailableHelp: String? = nil,
+        activeHelp: String? = nil
     ) -> some View {
         let titleParts = title.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
         let mainTitle = String(titleParts.first ?? Substring(title))
@@ -534,7 +459,8 @@ struct ProviderSection: View {
                             .foregroundColor(.red)
                             .help("Usage is high")
                     }
-                    Text(percentage.map { "\($0)%" } ?? "--")
+                    let valueText = percentage.map { "\($0)%" } ?? (isUnavailable ? "Disabled" : "--")
+                    Text(valueText)
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .monospacedDigit()
                         .foregroundColor(isUnavailable ? .secondary : (percentage != nil ? AppConfig.shared.colorForPercentage(percentage) : .secondary))
@@ -556,7 +482,7 @@ struct ProviderSection: View {
             }
         }
         .opacity(isUnavailable ? 0.55 : 1.0)
-        .help(isUnavailable ? (unavailableHelp ?? "Unavailable: weekly limit reached") : "")
+        .help(isUnavailable ? (unavailableHelp ?? "Unavailable: weekly limit reached") : (activeHelp ?? ""))
     }
 
     private func resetDetailRow(_ reset: UsageReset) -> some View {
@@ -938,13 +864,31 @@ enum ModelPriceSortColumn: String, CaseIterable, Equatable {
 }
 
 enum ModelPriceCatalog {
+    static let platformFilters: [(id: String, label: String)] = [
+        ("all", "All"),
+        ("claude", "Claude"),
+        ("codex", "Codex"),
+        ("cursor", "Cursor"),
+        ("gemini", "Gemini")
+    ]
+
     static let entries: [ModelPriceEntry] = [
         // MARK: - Claude (Anthropic)
-        ModelPriceEntry(name: "Claude 3 Opus", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 15.00, outputPrice: 75.00),
-        ModelPriceEntry(name: "Claude 3.7 Sonnet", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 3.00, outputPrice: 15.00, note: "Hybrid reasoning"),
-        ModelPriceEntry(name: "Claude 3.5 Sonnet", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 3.00, outputPrice: 15.00),
-        ModelPriceEntry(name: "Claude 3.5 Haiku", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 0.80, outputPrice: 4.00),
-        ModelPriceEntry(name: "Claude 3 Haiku", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 0.25, outputPrice: 1.25),
+        ModelPriceEntry(name: "Claude Fable 5.2", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 8.00, outputPrice: 40.00, note: "Frontier reasoning"),
+        ModelPriceEntry(name: "Claude Fable 5.1", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 10.00, outputPrice: 50.00),
+        ModelPriceEntry(name: "Claude Fable 5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 10.00, outputPrice: 50.00),
+        ModelPriceEntry(name: "Claude Opus 5.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 4.00, outputPrice: 20.00, note: "Latest Opus"),
+        ModelPriceEntry(name: "Claude Opus 5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00),
+        ModelPriceEntry(name: "Claude Opus 4.8", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00),
+        ModelPriceEntry(name: "Claude Opus 4.7", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00),
+        ModelPriceEntry(name: "Claude Opus 4.6", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00),
+        ModelPriceEntry(name: "Claude Opus 4.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00),
+        ModelPriceEntry(name: "Claude Sonnet 5.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 2.00, outputPrice: 10.00, note: "Latest Sonnet"),
+        ModelPriceEntry(name: "Claude Sonnet 5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 2.00, outputPrice: 10.00),
+        ModelPriceEntry(name: "Claude Sonnet 4.6", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 3.00, outputPrice: 15.00),
+        ModelPriceEntry(name: "Claude Sonnet 4.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 3.00, outputPrice: 15.00),
+        ModelPriceEntry(name: "Claude Haiku 5.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 0.10, outputPrice: 0.50, note: "≤100K ($0.50/$2.50 >100K)"),
+        ModelPriceEntry(name: "Claude Haiku 4.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 1.00, outputPrice: 5.00),
 
         // MARK: - Codex (OpenAI)
         ModelPriceEntry(name: "GPT-6.2-Sol", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.00, outputPrice: 10.00, note: "Fast, go-to model for coding and everyday work"),
@@ -959,33 +903,42 @@ enum ModelPriceCatalog {
         ModelPriceEntry(name: "GPT-5.6-Luna", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 0.20, outputPrice: 1.20, note: "Legacy fast model for simpler tasks"),
 
         // MARK: - Cursor
-        ModelPriceEntry(name: "Claude 3 Opus", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 15.00, outputPrice: 75.00),
-        ModelPriceEntry(name: "o1", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 15.00, outputPrice: 60.00),
-        ModelPriceEntry(name: "Claude 3.7 Sonnet", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 3.00, outputPrice: 15.00),
-        ModelPriceEntry(name: "Claude 3.5 Sonnet", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 3.00, outputPrice: 15.00),
-        ModelPriceEntry(name: "GPT-4o", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.50, outputPrice: 10.00),
-        ModelPriceEntry(name: "o3", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 8.00),
-        ModelPriceEntry(name: "o3-mini", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 1.10, outputPrice: 4.40),
-        ModelPriceEntry(name: "o1-mini", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 1.10, outputPrice: 4.40),
-        ModelPriceEntry(name: "Gemini 2.5 Pro", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 1.25, outputPrice: 10.00),
-        ModelPriceEntry(name: "Claude 3.5 Haiku", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.80, outputPrice: 4.00),
-        ModelPriceEntry(name: "DeepSeek R1", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.55, outputPrice: 2.19, note: "Reasoning"),
-        ModelPriceEntry(name: "DeepSeek V3", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.27, outputPrice: 1.10),
-        ModelPriceEntry(name: "GPT-4o mini", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.15, outputPrice: 0.60),
-        ModelPriceEntry(name: "Cursor Small", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.10, outputPrice: 0.40, note: "Included"),
+        ModelPriceEntry(name: "Composer 2.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.50, outputPrice: 2.50, note: "Cursor model"),
+        ModelPriceEntry(name: "Composer 2.5 (Fast)", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 3.00, outputPrice: 15.00, note: "Cursor model"),
+        ModelPriceEntry(name: "Grok 4.7", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 6.00, note: "Cursor model"),
+        ModelPriceEntry(name: "Grok 4.7 (Fast)", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 4.00, outputPrice: 12.00, note: "Cursor model"),
+        ModelPriceEntry(name: "Grok 4.6", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 6.00, note: "Cursor model"),
+        ModelPriceEntry(name: "Grok 4.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 6.00, note: "Cursor model"),
+        ModelPriceEntry(name: "Claude Fable 5.2", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 8.00, outputPrice: 40.00),
+        ModelPriceEntry(name: "Claude Opus 5.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 4.00, outputPrice: 20.00),
+        ModelPriceEntry(name: "Claude Sonnet 5.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 10.00),
+        ModelPriceEntry(name: "Claude Haiku 5.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.10, outputPrice: 0.50, note: "≤100K ($0.50/$2.50 >100K)"),
+        ModelPriceEntry(name: "GPT-5.6 Sol", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 4.00, outputPrice: 20.00),
+        ModelPriceEntry(name: "GPT-5.6 Terra", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 12.00),
+        ModelPriceEntry(name: "GPT-5.6 Luna", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.20, outputPrice: 1.20),
+        ModelPriceEntry(name: "Gemini 4 Neon", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 3.00, outputPrice: 15.00),
+        ModelPriceEntry(name: "Gemini 4 Carbon", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 10.00, note: "Intro ($4/$20 Dec 1)"),
+        ModelPriceEntry(name: "Gemini 4 Argon", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 10.00, note: "Intro ($4/$20 Dec 1)"),
+        ModelPriceEntry(name: "Gemini 4 Hydrogen", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 1.50, outputPrice: 7.50),
+        ModelPriceEntry(name: "Gemini 3.1 Pro", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 12.00),
+        ModelPriceEntry(name: "Gemini 3.8 Flash", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.75, outputPrice: 3.75),
+        ModelPriceEntry(name: "Muse Wonder", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 4.00, outputPrice: 20.00, note: "Meta"),
 
-        // MARK: - Gemini (Google AI)
-        ModelPriceEntry(name: "Gemini 4 Carbon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 4.00, outputPrice: 20.00, note: "Antigravity"),
-        ModelPriceEntry(name: "Gemini 4 Argon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 4.00, outputPrice: 20.00, note: "Antigravity"),
+        // MARK: - Gemini (Google AI / Antigravity)
         ModelPriceEntry(name: "Gemini 4 Neon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 3.00, outputPrice: 15.00, note: "Antigravity"),
-        ModelPriceEntry(name: "Gemini 2.5 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.25, outputPrice: 10.00),
+        ModelPriceEntry(name: "Gemini 4 Carbon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 2.00, outputPrice: 10.00, note: "Antigravity · $4/$20 Dec 1"),
+        ModelPriceEntry(name: "Gemini 4 Argon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 2.00, outputPrice: 10.00, note: "Antigravity · $4/$20 Dec 1"),
         ModelPriceEntry(name: "Gemini 4 Hydrogen", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.50, outputPrice: 7.50, note: "Antigravity"),
-        ModelPriceEntry(name: "Gemini 1.5 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.25, outputPrice: 5.00),
+        ModelPriceEntry(name: "Gemini 3.8 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.75, outputPrice: 3.75, note: "Antigravity · $1.50/$7.50 Jan 1"),
+        ModelPriceEntry(name: "Gemini 3.7 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.75, outputPrice: 3.75),
+        ModelPriceEntry(name: "Gemini 3.6 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.75, outputPrice: 3.75),
+        ModelPriceEntry(name: "Gemini 3.5 Flash-Lite", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.30, outputPrice: 2.50),
+        ModelPriceEntry(name: "Gemini 3.1 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 2.00, outputPrice: 12.00, note: "≤200K ($4/$18 >200K)"),
+        ModelPriceEntry(name: "Gemini 3.1 Flash-Lite", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.25, outputPrice: 1.50),
+        ModelPriceEntry(name: "Gemini 3 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.50, outputPrice: 3.00),
+        ModelPriceEntry(name: "Gemini 2.5 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.25, outputPrice: 10.00),
         ModelPriceEntry(name: "Gemini 2.5 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.30, outputPrice: 2.50),
-        ModelPriceEntry(name: "Gemini 2.0 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.10, outputPrice: 0.40),
-        ModelPriceEntry(name: "Gemini 1.5 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.075, outputPrice: 0.30),
-        ModelPriceEntry(name: "Gemini 2.0 Flash-Lite", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.075, outputPrice: 0.30),
-        ModelPriceEntry(name: "Gemini 1.5 Flash-8B", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.0375, outputPrice: 0.15)
+        ModelPriceEntry(name: "Gemini 2.5 Flash-Lite", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.10, outputPrice: 0.40)
     ]
 
     static func formatPrice(_ price: Double) -> String {
@@ -1036,7 +989,7 @@ enum ModelPriceCatalog {
         filter: String = "",
         sortForGroup: ((String) -> (column: ModelPriceSortColumn, ascending: Bool))? = nil
     ) -> [GroupedPlatform] {
-        let platformsOrder = ["claude", "codex", "cursor", "grokbot", "gemini"]
+        let platformsOrder = ["claude", "codex", "cursor", "gemini"]
         let query = filter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
         let filtered = query.isEmpty ? entries : entries.filter {
@@ -1065,14 +1018,9 @@ struct ModelPriceCheatSheetView: View {
     @State private var selectedPlatform: String = "all"
     @State private var groupSorts: [String: (column: ModelPriceSortColumn, ascending: Bool)] = [:]
 
-    private let platformFilters: [(id: String, label: String)] = [
-        ("all", "All"),
-        ("claude", "Claude"),
-        ("codex", "Codex"),
-        ("cursor", "Cursor"),
-        ("grokbot", "Grok Bot"),
-        ("gemini", "Gemini")
-    ]
+    private var platformFilters: [(id: String, label: String)] {
+        ModelPriceCatalog.platformFilters
+    }
 
     private func currentSort(for platformId: String) -> (column: ModelPriceSortColumn, ascending: Bool) {
         groupSorts[platformId] ?? (.outputPrice, true)

@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import WebKit
 
 // WKWebView's default User-Agent omits the "Version/X Safari/Y" suffix that
@@ -8,10 +9,54 @@ enum SafariUserAgent {
     static let applicationName = "Version/17.6 Safari/605.1.15"
 }
 
+// Supplies WebKit's persistent IndexedDB WebCrypto wrapping key from the app's own
+// sandbox UserDefaults instead of macOS's legacy login keychain. Without this delegate,
+// ad-hoc signed builds get a new CDHash on each rebuild and macOS prompts for
+// "Claude Usage WebCrypto Master Key" every time the app is reinstalled.
+final class WebCryptoMasterKeyDelegate: NSObject {
+    static let shared = WebCryptoMasterKeyDelegate()
+    static let defaultsKey = "webKitWebCryptoMasterKey"
+    static let keyByteCount = 32
+
+    private let lock = NSLock()
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        super.init()
+    }
+
+    func masterKeyData() -> Data {
+        lock.lock()
+        defer { lock.unlock() }
+        if let existing = defaults.data(forKey: Self.defaultsKey), existing.count == Self.keyByteCount {
+            return existing
+        }
+        var bytes = [UInt8](repeating: 0, count: Self.keyByteCount)
+        _ = SecRandomCopyBytes(kSecRandomDefault, Self.keyByteCount, &bytes)
+        let generated = Data(bytes)
+        defaults.set(generated, forKey: Self.defaultsKey)
+        return generated
+    }
+
+    @objc(webCryptoMasterKey:)
+    func webCryptoMasterKey(_ completionHandler: @escaping (Data?) -> Void) {
+        completionHandler(masterKeyData())
+    }
+}
+
 enum ClaudeWebViewFactory {
+    static func configureDefaultDataStore(_ dataStore: WKWebsiteDataStore = .default()) {
+        let setter = NSSelectorFromString("set_delegate:")
+        guard dataStore.responds(to: setter) else { return }
+        _ = dataStore.perform(setter, with: WebCryptoMasterKeyDelegate.shared)
+    }
+
     static func makeConfiguration() -> WKWebViewConfiguration {
+        let dataStore = WKWebsiteDataStore.default()
+        configureDefaultDataStore(dataStore)
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .default()
+        configuration.websiteDataStore = dataStore
         configuration.applicationNameForUserAgent = SafariUserAgent.applicationName
         return configuration
     }

@@ -27,6 +27,10 @@ rm -rf "$INSTALL_DIR/$APP_NAME.app"
 cp -R "$APP_BUNDLE" "$INSTALL_DIR/"
 rm -rf "$BUILD_DIR"
 
+# Remove any legacy CDHash-locked WebKit WebCrypto keychain item; the app now provides
+# its own persistent WebCrypto master key via WKWebsiteDataStore's delegate.
+security delete-generic-password -a "com.apple.WebKit.WebCrypto.master+com.alanmarcero.claudeusagemenubar" 2>/dev/null || true
+
 echo "Starting app..."
 open "$INSTALL_DIR/$APP_NAME.app"
 

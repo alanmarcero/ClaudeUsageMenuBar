@@ -130,7 +130,157 @@ final class GeminiUsageAPITests: XCTestCase {
 
     // MARK: - usageResult
 
-    func testUsageResultMapsPrimaryWeeklyArgonAndThirdPartyBuckets() {
+    func testUsageResultMapsSharedGeminiAndThirdPartyGroupsWithoutFakeCarbonBar() {
+        let liveProQuotaBody = """
+        {
+          "groups": [
+            {
+              "buckets": [
+                {
+                  "bucketId": "gemini-weekly",
+                  "displayName": "Weekly Limit Remaining",
+                  "window": "weekly",
+                  "resetTime": "2026-11-30T21:23:29Z",
+                  "remainingFraction": 0.8451861
+                },
+                {
+                  "bucketId": "gemini-5h",
+                  "displayName": "Five Hour Limit Remaining",
+                  "window": "5h",
+                  "resetTime": "2026-11-24T19:39:07Z",
+                  "remainingFraction": 0.5834793
+                }
+              ],
+              "displayName": "Gemini Models",
+              "description": "Models within this group: Gemini 4 Neon, Gemini 4 Carbon, Gemini 4 Argon, Gemini 4 Hydrogen, Gemini 3.8 Flash"
+            },
+            {
+              "buckets": [
+                {
+                  "bucketId": "3p-weekly",
+                  "displayName": "Weekly Limit Remaining",
+                  "window": "weekly",
+                  "resetTime": "2026-11-25T03:23:46Z",
+                  "remainingFraction": 0
+                },
+                {
+                  "bucketId": "3p-5h",
+                  "displayName": "Five Hour Limit Remaining",
+                  "window": "5h",
+                  "resetTime": "2026-11-24T23:12:48Z",
+                  "disabled": true,
+                  "remainingFraction": 1
+                }
+              ],
+              "displayName": "Claude and GPT models",
+              "description": "Models within this group: Claude Opus 5.5, Claude Sonnet 5.5, GPT-OSS 120B"
+            }
+          ]
+        }
+        """
+
+        let modelsBody = """
+        {
+          "models": {
+            "gemini-4-carbon-medium": {
+              "displayName": "Gemini 4 Carbon (Medium)",
+              "quotaInfo": {
+                "remainingFraction": 0.5834793,
+                "resetTime": "2026-11-24T19:39:07Z"
+              }
+            },
+            "claude-opus-5-5-medium": {
+              "displayName": "Claude Opus 5.5 (Medium)",
+              "quotaInfo": {
+                "resetTime": "2026-11-25T03:23:46Z"
+              }
+            }
+          }
+        }
+        """
+
+        let result = GeminiUsageAPI.usageResult(
+            from: Data(liveProQuotaBody.utf8),
+            modelsData: Data(modelsBody.utf8),
+            httpStatus: 200,
+            email: "alan@example.com",
+            planName: "Google AI Pro",
+            timeZone: eastern
+        )
+
+        XCTAssertEqual(result["success"] as? Bool, true)
+        XCTAssertEqual(result["percentage"] as? Int, 42)
+        XCTAssertEqual(result["resetTime"] as? String, "Resets Nov 24, 2026 2:39 PM")
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 15)
+        XCTAssertEqual(result["weeklyResetTime"] as? String, "Resets Nov 30, 2026 4:23 PM")
+        XCTAssertNil(result["designDailyPercentage"] as? Int)
+        XCTAssertNil(result["designDailyResetTime"] as? String)
+        XCTAssertEqual(result["designDailyLabel"] as? String, "Session (Claude / GPT)")
+        XCTAssertEqual(result["sonnetWeeklyPercentage"] as? Int, 100)
+        XCTAssertEqual(result["sonnetWeeklyLabel"] as? String, "Weekly (Claude / GPT)")
+        XCTAssertEqual(result["sonnetWeeklyResetTime"] as? String, "Resets Nov 24, 2026 10:24 PM")
+        XCTAssertNil(result["designWeeklyPercentage"] as? Int)
+        XCTAssertEqual(GeminiExtraRow.list(from: result["geminiExtraRows"]), [])
+        XCTAssertEqual(result["email"] as? String, "alan@example.com")
+        XCTAssertEqual(result["planName"] as? String, "Google AI Pro")
+    }
+
+    func testUsageResultCreatesOwnBarsWhenModelHasDedicatedQuotaGroupOrStandaloneModelPool() {
+        let dedicatedGroupBody = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "description": "Models within this group: Gemini 4 Hydrogen, Gemini 3.8 Flash",
+              "buckets": [
+                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-24T19:39:07Z", "remainingFraction": 0.90},
+                {"bucketId": "gemini-weekly", "window": "weekly", "resetTime": "2026-11-30T21:23:00Z", "remainingFraction": 0.80}
+              ]
+            },
+            {
+              "displayName": "Gemini 4 Carbon",
+              "description": "Models within this group: Gemini 4 Carbon",
+              "buckets": [
+                {"bucketId": "carbon-5h", "window": "5h", "resetTime": "2026-11-24T20:00:00Z", "remainingFraction": 0.75},
+                {"bucketId": "carbon-weekly", "window": "weekly", "resetTime": "2026-11-29T10:00:00Z", "remainingFraction": 0.65}
+              ]
+            }
+          ]
+        }
+        """
+        let standaloneModelBody = """
+        {
+          "models": {
+            "gemini-4-oxygen-medium": {
+              "displayName": "Gemini 4 Oxygen (Medium)",
+              "quotaInfo": {
+                "remainingFraction": 0.60,
+                "resetTime": "2026-11-28T15:00:00Z"
+              }
+            }
+          }
+        }
+        """
+
+        let result = GeminiUsageAPI.usageResult(
+            from: Data(dedicatedGroupBody.utf8),
+            modelsData: Data(standaloneModelBody.utf8),
+            httpStatus: 200,
+            email: "alan@example.com",
+            planName: "Google AI Ultra",
+            timeZone: eastern
+        )
+
+        let extraRows = GeminiExtraRow.list(from: result["geminiExtraRows"])
+        XCTAssertEqual(extraRows.map(\.label), [
+            "Session (Carbon)",
+            "Weekly (Carbon)",
+            "Weekly (Oxygen)"
+        ])
+        XCTAssertEqual(extraRows.map(\.percentage), [25, 35, 40])
+    }
+
+    func testUsageResultMapsPrimaryWeeklyExtraGroupAndThirdPartyBuckets() {
         let result = GeminiUsageAPI.usageResult(
             from: Data(quotaBody.utf8),
             httpStatus: 200,
@@ -144,43 +294,28 @@ final class GeminiUsageAPITests: XCTestCase {
         XCTAssertEqual(result["resetTime"] as? String, "Resets Nov 5, 2026 11:08 PM")
         XCTAssertEqual(result["weeklyPercentage"] as? Int, 2)
         XCTAssertEqual(result["weeklyResetTime"] as? String, "Resets Nov 11, 2026 3:23 PM")
-        XCTAssertEqual(result["sonnetWeeklyPercentage"] as? Int, 55)
-        XCTAssertEqual(result["sonnetWeeklyLabel"] as? String, "Weekly (Argon)")
-        XCTAssertEqual(result["sonnetWeeklyResetTime"] as? String, "Resets Nov 12, 2026 1:23 PM")
+        XCTAssertEqual(result["sonnetWeeklyPercentage"] as? Int, 0)
+        XCTAssertEqual(result["sonnetWeeklyLabel"] as? String, "Weekly (Claude / GPT)")
+        XCTAssertEqual(result["sonnetWeeklyResetTime"] as? String, "Resets Nov 12, 2026 9:28 PM")
         XCTAssertEqual(result["designDailyPercentage"] as? Int, 0)
         XCTAssertEqual(result["designDailyLabel"] as? String, "Session (Claude / GPT)")
         XCTAssertEqual(result["designDailyResetTime"] as? String, "Resets Nov 6, 2026 2:28 AM")
-        XCTAssertEqual(result["designWeeklyPercentage"] as? Int, 0)
-        XCTAssertEqual(result["designWeeklyLabel"] as? String, "Weekly (Claude / GPT)")
-        XCTAssertEqual(result["designWeeklyResetTime"] as? String, "Resets Nov 12, 2026 9:28 PM")
-        XCTAssertEqual(result["carbonWeeklyPercentage"] as? Int, 0)
-        XCTAssertEqual(result["carbonWeeklyLabel"] as? String, "Weekly (Carbon)")
-        XCTAssertNil(result["carbonWeeklyResetTime"] as? String)
-        XCTAssertEqual(result["isCarbonAvailable"] as? Bool, false)
+        XCTAssertEqual(result["designWeeklyPercentage"] as? Int, 55)
+        XCTAssertEqual(result["designWeeklyLabel"] as? String, "Weekly (Argon)")
+        XCTAssertEqual(result["designWeeklyResetTime"] as? String, "Resets Nov 12, 2026 1:23 PM")
         XCTAssertEqual(result["email"] as? String, "alan@example.com")
         XCTAssertEqual(result["planName"] as? String, "Google AI Pro")
     }
 
-    func testUsageResultWithCarbonAvailableMapsCarbonCorrectly() {
+    func testUsageResultClearsDisabledPrimarySessionPercentageAndResetTime() {
         let body = """
         {
           "groups": [
             {
               "displayName": "Gemini Models",
               "buckets": [
-                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-06T04:08:12Z", "remainingFraction": 0.8}
-              ]
-            },
-            {
-              "displayName": "Gemini 4 Carbon",
-              "buckets": [
-                {
-                  "bucketId": "gemini-carbon-wtu-weekly",
-                  "displayName": "Gemini 4 Carbon Weekly Limit",
-                  "window": "weekly",
-                  "resetTime": "2026-11-13T10:00:00Z",
-                  "remainingFraction": 0.65
-                }
+                {"bucketId": "gemini-weekly", "window": "weekly", "resetTime": "2026-11-30T21:23:29Z", "remainingFraction": 0},
+                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-24T23:12:48Z", "disabled": true, "remainingFraction": 1}
               ]
             }
           ]
@@ -190,425 +325,16 @@ final class GeminiUsageAPITests: XCTestCase {
         let result = GeminiUsageAPI.usageResult(
             from: Data(body.utf8),
             httpStatus: 200,
-            email: "alan@example.com",
-            planName: "Google AI Ultra",
-            timeZone: eastern
-        )
-
-        XCTAssertEqual(result["success"] as? Bool, true)
-        XCTAssertEqual(result["isCarbonAvailable"] as? Bool, true)
-        XCTAssertEqual(result["carbonWeeklyPercentage"] as? Int, 35)
-        XCTAssertEqual(result["carbonWeeklyLabel"] as? String, "Weekly (Carbon)")
-        XCTAssertEqual(result["carbonWeeklyResetTime"] as? String, "Resets Nov 13, 2026 5:00 AM")
-    }
-
-    func testUsageResultWithCarbonFromFetchAvailableModelsMapsWeeklyCorrectly() {
-        let quotaBody = """
-        {
-          "groups": [
-            {
-              "displayName": "Gemini Models",
-              "buckets": [
-                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-13T20:30:18Z", "remainingFraction": 1.0},
-                {"bucketId": "gemini-weekly", "window": "weekly", "resetTime": "2026-11-14T00:53:15Z"}
-              ]
-            }
-          ]
-        }
-        """
-        let modelsBody = """
-        {
-          "models": {
-            "gemini-4-carbon-medium": {
-              "displayName": "Gemini 4 Carbon (Medium)",
-              "quotaInfo": {
-                "remainingFraction": 0.65,
-                "resetTime": "2026-11-13T10:00:00Z"
-              }
-            }
-          }
-        }
-        """
-
-        let result = GeminiUsageAPI.usageResult(
-            from: Data(quotaBody.utf8),
-            modelsData: Data(modelsBody.utf8),
-            httpStatus: 200,
-            email: "alan@example.com",
-            planName: "Google AI Pro",
-            timeZone: eastern
-        )
-
-        XCTAssertEqual(result["success"] as? Bool, true)
-        XCTAssertEqual(result["isCarbonAvailable"] as? Bool, true)
-        XCTAssertEqual(result["carbonWeeklyPercentage"] as? Int, 35)
-        XCTAssertEqual(result["carbonWeeklyLabel"] as? String, "Weekly (Carbon)")
-        XCTAssertEqual(result["carbonWeeklyResetTime"] as? String, "Resets Nov 13, 2026 5:00 AM")
-    }
-
-    func testUsageResultWithCarbonDisabledInModelsDataMarksUnavailable() {
-        let quotaBody = """
-        {
-          "groups": [
-            {
-              "displayName": "Gemini Models",
-              "buckets": [
-                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-13T20:30:18Z", "remainingFraction": 1.0}
-              ]
-            }
-          ]
-        }
-        """
-        let modelsBody = """
-        {
-          "models": {
-            "gemini-4-carbon-medium": {
-              "displayName": "Gemini 4 Carbon (Medium)",
-              "disabled": true,
-              "quotaInfo": {
-                "remainingFraction": 0.65,
-                "resetTime": "2026-11-13T10:00:00Z"
-              }
-            }
-          }
-        }
-        """
-
-        let result = GeminiUsageAPI.usageResult(
-            from: Data(quotaBody.utf8),
-            modelsData: Data(modelsBody.utf8),
-            httpStatus: 200,
-            email: "alan@example.com",
-            planName: "Google AI Pro",
-            timeZone: eastern
-        )
-
-        XCTAssertEqual(result["isCarbonAvailable"] as? Bool, false)
-        XCTAssertEqual(result["carbonWeeklyPercentage"] as? Int, 0)
-        XCTAssertEqual(result["carbonWeeklyLabel"] as? String, "Weekly (Carbon)")
-        XCTAssertNil(result["carbonWeeklyResetTime"] as? String)
-    }
-
-    func testUsageResultDoesNotMirrorFlashSessionIntoCarbonWhenSharingResetTime() {
-        let quotaBody = """
-        {
-          "groups": [
-            {
-              "displayName": "Gemini Models",
-              "buckets": [
-                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-24T19:39:07Z", "remainingFraction": 0.80},
-                {"bucketId": "gemini-weekly", "window": "weekly", "resetTime": "2026-11-30T21:23:00Z", "remainingFraction": 0.90}
-              ]
-            }
-          ]
-        }
-        """
-        let modelsBody = """
-        {
-          "models": {
-            "gemini-4-carbon-medium": {
-              "displayName": "Gemini 4 Carbon (Medium)",
-              "quotaInfo": {
-                "remainingFraction": 0.80,
-                "resetTime": "2026-11-24T19:39:07Z"
-              }
-            }
-          }
-        }
-        """
-
-        let result = GeminiUsageAPI.usageResult(
-            from: Data(quotaBody.utf8),
-            modelsData: Data(modelsBody.utf8),
-            httpStatus: 200,
-            email: "alan@example.com",
-            planName: "Google AI Pro",
-            timeZone: eastern
-        )
-
-        XCTAssertEqual(result["percentage"] as? Int, 20)
-        XCTAssertEqual(result["weeklyPercentage"] as? Int, 10)
-        XCTAssertEqual(result["isCarbonAvailable"] as? Bool, true)
-        // Carbon weekly usage must stay 0% and not mirror Flash session usage:
-        XCTAssertEqual(result["carbonWeeklyPercentage"] as? Int, 0)
-        XCTAssertNil(result["carbonWeeklyResetTime"] as? String)
-    }
-
-    func testUsageResultWithHydrogenFromFetchAvailableModelsMapsWeeklyCorrectly() {
-        let quotaBody = """
-        {
-          "groups": [
-            {
-              "displayName": "Gemini Models",
-              "buckets": [
-                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-13T20:30:18Z", "remainingFraction": 1.0},
-                {"bucketId": "gemini-weekly", "window": "weekly", "resetTime": "2026-11-14T00:53:15Z"}
-              ]
-            }
-          ]
-        }
-        """
-        let modelsBody = """
-        {
-          "models": {
-            "gemini-4-hydrogen-medium": {
-              "displayName": "Gemini 4 Hydrogen (Medium)",
-              "quotaInfo": {
-                "resetTime": "2026-11-14T00:53:15Z"
-              }
-            }
-          }
-        }
-        """
-
-        let result = GeminiUsageAPI.usageResult(
-            from: Data(quotaBody.utf8),
-            modelsData: Data(modelsBody.utf8),
-            httpStatus: 200,
-            email: "alan@example.com",
-            planName: "Google AI Pro",
-            timeZone: eastern
-        )
-
-        XCTAssertEqual(result["success"] as? Bool, true)
-        XCTAssertEqual(result["isHydrogenAvailable"] as? Bool, true)
-        XCTAssertNil(result["hydrogenDailyPercentage"] as? Int)
-        XCTAssertEqual(result["hydrogenWeeklyPercentage"] as? Int, 100)
-        XCTAssertEqual(result["hydrogenWeeklyLabel"] as? String, "Weekly (Hydrogen)")
-        XCTAssertEqual(result["hydrogenWeeklyResetTime"] as? String, "Resets Nov 13, 2026 7:53 PM")
-    }
-
-    func testUsageResultWithHydrogenGroupInQuotaSummaryMapsSessionAndWeekly() {
-        let quotaBody = """
-        {
-          "groups": [
-            {
-              "displayName": "Gemini 4 Hydrogen",
-              "buckets": [
-                {"bucketId": "gemini-hydrogen-5h", "window": "5h", "resetTime": "2026-11-13T20:30:18Z", "remainingFraction": 0.75},
-                {"bucketId": "gemini-hydrogen-weekly", "window": "weekly", "resetTime": "2026-11-14T00:53:15Z", "remainingFraction": 0.4}
-              ]
-            }
-          ]
-        }
-        """
-
-        let result = GeminiUsageAPI.usageResult(
-            from: Data(quotaBody.utf8),
-            httpStatus: 200,
-            email: "alan@example.com",
-            planName: "Google AI Pro",
-            timeZone: eastern
-        )
-
-        XCTAssertEqual(result["success"] as? Bool, true)
-        XCTAssertEqual(result["isHydrogenAvailable"] as? Bool, true)
-        XCTAssertEqual(result["hydrogenDailyPercentage"] as? Int, 25)
-        XCTAssertEqual(result["hydrogenDailyLabel"] as? String, "Session (Hydrogen)")
-        XCTAssertEqual(result["hydrogenWeeklyPercentage"] as? Int, 60)
-        XCTAssertEqual(result["hydrogenWeeklyLabel"] as? String, "Weekly (Hydrogen)")
-    }
-
-    func testUsageResultWithHydrogenDisabledInModelsDataMarksUnavailable() {
-        let quotaBody = """
-        {
-          "groups": [
-            {
-              "displayName": "Gemini Models",
-              "buckets": [
-                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-13T20:30:18Z", "remainingFraction": 0.8}
-              ]
-            }
-          ]
-        }
-        """
-        let modelsBody = """
-        {
-          "models": {
-            "gemini-4-hydrogen-disabled": {
-              "displayName": "Gemini 4 Hydrogen",
-              "disabled": true
-            }
-          }
-        }
-        """
-
-        let result = GeminiUsageAPI.usageResult(
-            from: Data(quotaBody.utf8),
-            modelsData: Data(modelsBody.utf8),
-            httpStatus: 200,
-            email: "alan@example.com",
-            planName: "Google AI Pro",
-            timeZone: eastern
-        )
-
-        XCTAssertEqual(result["isHydrogenAvailable"] as? Bool, false)
-        XCTAssertEqual(result["hydrogenWeeklyPercentage"] as? Int, 0)
-        XCTAssertEqual(result["hydrogenWeeklyLabel"] as? String, "Weekly (Hydrogen)")
-        XCTAssertNil(result["hydrogenWeeklyResetTime"] as? String)
-    }
-
-    func testUsageResultWithNeonFromFetchAvailableModelsMapsWeeklyCorrectly() {
-        let quotaBody = """
-        {
-          "groups": [
-            {
-              "displayName": "Gemini Models",
-              "buckets": [
-                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-19T20:30:18Z", "remainingFraction": 1.0},
-                {"bucketId": "gemini-weekly", "window": "weekly", "resetTime": "2026-11-20T00:53:15Z"}
-              ]
-            }
-          ]
-        }
-        """
-        let modelsBody = """
-        {
-          "models": {
-            "gemini-4-neon-medium": {
-              "displayName": "Gemini 4 Neon (Medium)",
-              "quotaInfo": {
-                "remainingFraction": 0.65,
-                "resetTime": "2026-11-20T00:53:15Z"
-              }
-            }
-          }
-        }
-        """
-
-        let result = GeminiUsageAPI.usageResult(
-            from: Data(quotaBody.utf8),
-            modelsData: Data(modelsBody.utf8),
-            httpStatus: 200,
-            email: "alan@example.com",
-            planName: "Google AI Pro",
-            timeZone: eastern
-        )
-
-        XCTAssertEqual(result["success"] as? Bool, true)
-        XCTAssertEqual(result["isNeonAvailable"] as? Bool, true)
-        XCTAssertNil(result["neonDailyPercentage"] as? Int)
-        XCTAssertEqual(result["neonWeeklyPercentage"] as? Int, 35)
-        XCTAssertEqual(result["neonWeeklyLabel"] as? String, "Weekly (Neon)")
-        XCTAssertEqual(result["neonWeeklyResetTime"] as? String, "Resets Nov 19, 2026 7:53 PM")
-    }
-
-    func testUsageResultWithNeonGroupInQuotaSummaryMapsSessionAndWeekly() {
-        let quotaBody = """
-        {
-          "groups": [
-            {
-              "displayName": "Gemini 4 Neon",
-              "buckets": [
-                {"bucketId": "gemini-neon-5h", "window": "5h", "resetTime": "2026-11-19T20:30:18Z", "remainingFraction": 0.75},
-                {"bucketId": "gemini-neon-weekly", "window": "weekly", "resetTime": "2026-11-20T00:53:15Z", "remainingFraction": 0.4}
-              ]
-            }
-          ]
-        }
-        """
-
-        let result = GeminiUsageAPI.usageResult(
-            from: Data(quotaBody.utf8),
-            httpStatus: 200,
-            email: "alan@example.com",
-            planName: "Google AI Pro",
-            timeZone: eastern
-        )
-
-        XCTAssertEqual(result["success"] as? Bool, true)
-        XCTAssertEqual(result["isNeonAvailable"] as? Bool, true)
-        XCTAssertEqual(result["neonDailyPercentage"] as? Int, 25)
-        XCTAssertEqual(result["neonDailyLabel"] as? String, "Session (Neon)")
-        XCTAssertEqual(result["neonWeeklyPercentage"] as? Int, 60)
-        XCTAssertEqual(result["neonWeeklyLabel"] as? String, "Weekly (Neon)")
-    }
-
-    func testUsageResultWithNeonDisabledInModelsDataMarksUnavailable() {
-        let quotaBody = """
-        {
-          "groups": [
-            {
-              "displayName": "Gemini Models",
-              "buckets": [
-                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-19T20:30:18Z", "remainingFraction": 0.8}
-              ]
-            }
-          ]
-        }
-        """
-        let modelsBody = """
-        {
-          "models": {
-            "gemini-4-neon-disabled": {
-              "displayName": "Gemini 4 Neon",
-              "disabled": true
-            }
-          }
-        }
-        """
-
-        let result = GeminiUsageAPI.usageResult(
-            from: Data(quotaBody.utf8),
-            modelsData: Data(modelsBody.utf8),
-            httpStatus: 200,
-            email: "alan@example.com",
-            planName: "Google AI Pro",
-            timeZone: eastern
-        )
-
-        XCTAssertEqual(result["isNeonAvailable"] as? Bool, false)
-        XCTAssertEqual(result["neonWeeklyPercentage"] as? Int, 0)
-        XCTAssertEqual(result["neonWeeklyLabel"] as? String, "Weekly (Neon)")
-        XCTAssertNil(result["neonWeeklyResetTime"] as? String)
-    }
-
-    func testUsageResultCombinesHydrogenAndNeonWhenTheyShareQuota() {
-        let quotaPayload = """
-        {
-          "groups": [
-            {
-              "displayName": "Gemini Models",
-              "description": "Models within this group: Gemini 4 Neon, Gemini 4 Hydrogen, Gemini 3.8 Flash",
-              "buckets": [
-                {"bucketId": "gemini-weekly", "window": "weekly", "resetTime": "2026-11-25T00:16:18Z", "remainingFraction": 0.16544697},
-                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-20T23:27:08Z", "remainingFraction": 0.89066327}
-              ]
-            }
-          ]
-        }
-        """
-        let modelsPayload = """
-        {
-          "models": {
-            "gemini-4-hydrogen-medium": {
-              "displayName": "Gemini 4 Hydrogen (Medium)",
-              "quotaInfo": {"remainingFraction": 0.16544697, "resetTime": "2026-11-25T00:16:18Z"}
-            },
-            "gemini-4-neon-medium": {
-              "displayName": "Gemini 4 Neon (Medium)",
-              "quotaInfo": {"remainingFraction": 0.16544697, "resetTime": "2026-11-25T00:16:18Z"}
-            }
-          }
-        }
-        """
-
-        let result = GeminiUsageAPI.usageResult(
-            from: Data(quotaPayload.utf8),
-            modelsData: Data(modelsPayload.utf8),
-            httpStatus: 200,
             email: nil,
-            planName: nil,
-            timeZone: TimeZone(identifier: "America/New_York")!
+            planName: "Google AI Pro",
+            timeZone: eastern
         )
 
-        XCTAssertEqual(result["weeklyPercentage"] as? Int, 83)
-        XCTAssertEqual(result["isHydrogenAvailable"] as? Bool, true)
-        XCTAssertEqual(result["isNeonAvailable"] as? Bool, true)
-        XCTAssertNil(result["hydrogenWeeklyPercentage"] as? Int)
-        XCTAssertNil(result["hydrogenDailyPercentage"] as? Int)
-        XCTAssertNil(result["neonWeeklyPercentage"] as? Int)
-        XCTAssertNil(result["neonDailyPercentage"] as? Int)
+        XCTAssertEqual(result["success"] as? Bool, true)
+        XCTAssertNil(result["percentage"] as? Int)
+        XCTAssertNil(result["resetTime"] as? String)
+        XCTAssertEqual(result["isSessionDisabled"] as? Bool, true)
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 100)
     }
 
     func testUsageResultTreatsOmittedRemainingFractionAsHundredPercentUsed() {
@@ -840,6 +566,10 @@ final class GeminiUsageAPITests: XCTestCase {
                 let body = #"{"paidTier": {"name": "Google AI Pro"}}"#
                 return (response, Data(body.utf8))
             }
+            if request.url == GeminiUsageAPI.availableModelsURL || request.url == GeminiUsageAPI.fallbackAvailableModelsURL {
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (response, Data(#"{"models": {}}"#.utf8))
+            }
             throw URLError(.badURL)
         }
 
@@ -893,6 +623,10 @@ final class GeminiUsageAPITests: XCTestCase {
                 let body = #"{"paidTier": {"name": "Google AI Pro"}}"#
                 return (response, Data(body.utf8))
             }
+            if request.url == GeminiUsageAPI.availableModelsURL || request.url == GeminiUsageAPI.fallbackAvailableModelsURL {
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (response, Data(#"{"models": {}}"#.utf8))
+            }
             throw URLError(.badURL)
         }
 
@@ -929,6 +663,10 @@ final class GeminiUsageAPITests: XCTestCase {
                 let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
                 let body = #"{"paidTier": {"name": "Google AI Pro"}}"#
                 return (response, Data(body.utf8))
+            }
+            if request.url == GeminiUsageAPI.availableModelsURL || request.url == GeminiUsageAPI.fallbackAvailableModelsURL {
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (response, Data(#"{"models": {}}"#.utf8))
             }
             throw URLError(.badURL)
         }
