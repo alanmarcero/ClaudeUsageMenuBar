@@ -861,6 +861,7 @@ enum ModelPriceCatalog {
         ModelPriceEntry(name: "o1-preview", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 15.00, outputPrice: 60.00),
         ModelPriceEntry(name: "GPT-4 Turbo", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 10.00, outputPrice: 30.00),
         ModelPriceEntry(name: "GPT-4o", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.50, outputPrice: 10.00, note: "Flagship omni"),
+        ModelPriceEntry(name: "o3", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.00, outputPrice: 8.00, note: "Flagship reasoning"),
         ModelPriceEntry(name: "o3-mini", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 1.10, outputPrice: 4.40, note: "Fast reasoning"),
         ModelPriceEntry(name: "o1-mini", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 1.10, outputPrice: 4.40),
         ModelPriceEntry(name: "GPT-3.5 Turbo", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 0.50, outputPrice: 1.50),
@@ -872,8 +873,10 @@ enum ModelPriceCatalog {
         ModelPriceEntry(name: "Claude 3.7 Sonnet", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 3.00, outputPrice: 15.00),
         ModelPriceEntry(name: "Claude 3.5 Sonnet", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 3.00, outputPrice: 15.00),
         ModelPriceEntry(name: "GPT-4o", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.50, outputPrice: 10.00),
+        ModelPriceEntry(name: "o3", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 8.00),
         ModelPriceEntry(name: "o3-mini", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 1.10, outputPrice: 4.40),
         ModelPriceEntry(name: "o1-mini", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 1.10, outputPrice: 4.40),
+        ModelPriceEntry(name: "Gemini 2.5 Pro", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 1.25, outputPrice: 10.00),
         ModelPriceEntry(name: "Claude 3.5 Haiku", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.80, outputPrice: 4.00),
         ModelPriceEntry(name: "DeepSeek R1", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.55, outputPrice: 2.19, note: "Reasoning"),
         ModelPriceEntry(name: "DeepSeek V3", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.27, outputPrice: 1.10),
@@ -885,15 +888,16 @@ enum ModelPriceCatalog {
         ModelPriceEntry(name: "Grok 3", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 3.00, outputPrice: 15.00, note: "Flagship"),
         ModelPriceEntry(name: "Grok 2", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 2.00, outputPrice: 10.00),
         ModelPriceEntry(name: "Grok 2 Vision", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 2.00, outputPrice: 10.00),
-        ModelPriceEntry(name: "Grok 3 Mini", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 0.30, outputPrice: 1.50, note: "Fast reasoning"),
+        ModelPriceEntry(name: "Grok 3 Mini", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 0.30, outputPrice: 0.50, note: "Fast reasoning"),
 
         // MARK: - Gemini (Google AI)
-        ModelPriceEntry(name: "Gemini 4 Argon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 3.00, outputPrice: 15.00, note: "Antigravity"),
-        ModelPriceEntry(name: "Gemini 4 Carbon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 2.50, outputPrice: 10.00, note: "Antigravity"),
-        ModelPriceEntry(name: "Gemini 2.5 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.25, outputPrice: 5.00),
+        ModelPriceEntry(name: "Gemini 4 Carbon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 4.00, outputPrice: 20.00, note: "Antigravity"),
+        ModelPriceEntry(name: "Gemini 4 Argon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 4.00, outputPrice: 20.00, note: "Antigravity"),
+        ModelPriceEntry(name: "Gemini 4 Neon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 3.00, outputPrice: 15.00, note: "Antigravity"),
+        ModelPriceEntry(name: "Gemini 2.5 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.25, outputPrice: 10.00),
+        ModelPriceEntry(name: "Gemini 4 Hydrogen", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.50, outputPrice: 7.50, note: "Antigravity"),
         ModelPriceEntry(name: "Gemini 1.5 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.25, outputPrice: 5.00),
-        ModelPriceEntry(name: "Gemini 4 Hydrogen", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.50, outputPrice: 2.00, note: "Antigravity"),
-        ModelPriceEntry(name: "Gemini 4 Neon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.20, outputPrice: 0.80, note: "Antigravity"),
+        ModelPriceEntry(name: "Gemini 2.5 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.30, outputPrice: 2.50),
         ModelPriceEntry(name: "Gemini 2.0 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.10, outputPrice: 0.40),
         ModelPriceEntry(name: "Gemini 1.5 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.075, outputPrice: 0.30),
         ModelPriceEntry(name: "Gemini 2.0 Flash-Lite", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.075, outputPrice: 0.30),
@@ -960,15 +964,15 @@ enum ModelPriceCatalog {
         return platformsOrder.compactMap { pid in
             let platformModels = filtered.filter { $0.platformId == pid }
             guard !platformModels.isEmpty else { return nil }
-            let sort = sortForGroup?(pid) ?? (.outputPrice, false)
+            let sort = sortForGroup?(pid) ?? (.outputPrice, true)
             let sorted = sortModels(platformModels, by: sort.column, ascending: sort.ascending)
             let first = platformModels[0]
             return GroupedPlatform(platformId: pid, platformName: first.platformName, platformGlyph: first.platformGlyph, models: sorted)
         }
     }
 
-    static func groupedByPlatformSortedByOutputDesc(filter: String = "") -> [GroupedPlatform] {
-        groupedByPlatform(filter: filter, sortForGroup: { _ in (.outputPrice, false) })
+    static func groupedByPlatformSortedByOutputAsc(filter: String = "") -> [GroupedPlatform] {
+        groupedByPlatform(filter: filter, sortForGroup: { _ in (.outputPrice, true) })
     }
 }
 
@@ -987,7 +991,7 @@ struct ModelPriceCheatSheetView: View {
     ]
 
     private func currentSort(for platformId: String) -> (column: ModelPriceSortColumn, ascending: Bool) {
-        groupSorts[platformId] ?? (.outputPrice, false)
+        groupSorts[platformId] ?? (.outputPrice, true)
     }
 
     private func toggleSort(for platformId: String, column: ModelPriceSortColumn) {
@@ -995,7 +999,7 @@ struct ModelPriceCheatSheetView: View {
         if current.column == column {
             groupSorts[platformId] = (column, !current.ascending)
         } else {
-            let defaultAscending = (column == .name)
+            let defaultAscending = (column == .name || column == .outputPrice || column == .inputPrice)
             groupSorts[platformId] = (column, defaultAscending)
         }
     }

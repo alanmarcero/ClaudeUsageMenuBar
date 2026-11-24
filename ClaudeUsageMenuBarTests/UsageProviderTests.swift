@@ -949,17 +949,17 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(platformIDs, expectedPlatforms)
     }
 
-    func testModelPriceCatalogIsSortedByOutputDescendingWithinPlatform() {
-        let grouped = ModelPriceCatalog.groupedByPlatformSortedByOutputDesc()
+    func testModelPriceCatalogIsSortedByOutputAscendingWithinPlatformByDefault() {
+        let grouped = ModelPriceCatalog.groupedByPlatformSortedByOutputAsc()
         XCTAssertEqual(grouped.count, 5)
         for group in grouped {
             XCTAssertFalse(group.models.isEmpty, "Platform \(group.platformName) should have models")
-            var lastOutput = Double.infinity
+            var lastOutput = -1.0
             for model in group.models {
-                XCTAssertLessThanOrEqual(
+                XCTAssertGreaterThanOrEqual(
                     model.outputPrice,
                     lastOutput,
-                    "Model \(model.name) output price \(model.outputPrice) should be <= previous \(lastOutput) in \(group.platformName)"
+                    "Model \(model.name) output price \(model.outputPrice) should be >= previous \(lastOutput) in \(group.platformName)"
                 )
                 lastOutput = model.outputPrice
             }
@@ -967,7 +967,7 @@ final class UsageProviderTests: XCTestCase {
     }
 
     func testModelPriceCatalogFiltersBySearchQuery() {
-        let results = ModelPriceCatalog.groupedByPlatformSortedByOutputDesc(filter: "carbon")
+        let results = ModelPriceCatalog.groupedByPlatformSortedByOutputAsc(filter: "carbon")
         XCTAssertFalse(results.isEmpty)
         let geminiGroup = results.first { $0.platformId == "gemini" }
         XCTAssertNotNil(geminiGroup)
@@ -1019,7 +1019,7 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(claudeGroup?.models.first?.name, "Claude 3 Haiku")
 
         let geminiGroup = grouped.first { $0.platformId == "gemini" }
-        XCTAssertEqual(geminiGroup?.models.first?.name, "Gemini 4 Argon") // highest input price ($3.00)
+        XCTAssertEqual(geminiGroup?.models.first?.name, "Gemini 4 Carbon") // highest input price ($4.00)
     }
 
     @MainActor
