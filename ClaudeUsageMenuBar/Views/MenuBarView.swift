@@ -12,11 +12,7 @@ struct MenuBarView: View {
                 VStack(spacing: 0) {
                     ForEach(providers.sectionServices, id: \.provider.id) { service in
                         Divider().padding(.horizontal, 16)
-                        ProviderSection(
-                            service: service,
-                            grokBotService: service.provider.id == UsageProvider.cursor.id && providers.isVisible(UsageProvider.grokBot.id)
-                                ? providers.grokBotService : nil
-                        )
+                        ProviderSection(service: service)
                     }
                 }
             }
@@ -142,6 +138,17 @@ struct MenuBarView: View {
             Button("Copy Debug Info") { ClipboardHelper(text: providers.combinedDebugInfo).copyToClipboard() }
             Button("Clear Cache") { providers.services.forEach { $0.clearCache() } }
             Divider()
+            ForEach(providers.services, id: \.provider.id) { service in
+                Button("Log Out of \(service.provider.displayName)") {
+                    service.logout()
+                }
+                .disabled(!canLogOutFromMenu(service))
+            }
+            Button("Log Out of All Platforms") {
+                providers.logoutAll()
+            }
+            .disabled(!providers.services.contains(where: canLogOutFromMenu))
+            Divider()
             Button("About \(appVersionLabel)") { AboutWindow.show() }
         } label: {
             Image(systemName: "ellipsis.circle")
@@ -155,13 +162,24 @@ struct MenuBarView: View {
     private var appVersionLabel: String {
         "v" + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")
     }
+
+    // Codex and Cursor can clear a web session any time. Claude and Gemini only
+    // expose logout while CLI is not driving the session, or while usage is shown.
+    private func canLogOutFromMenu(_ service: UsageService) -> Bool {
+        guard service.provider.readsClaudeCodeLogin || service.provider.readsGeminiLogin else {
+            return true
+        }
+        if service.isUsingClaudeCodeLogin {
+            return service.usageData.isLoggedIn
+        }
+        return true
+    }
 }
 
 // MARK: - Provider Section
 
 struct ProviderSection: View {
     @ObservedObject var service: UsageService
-    var grokBotService: UsageService? = nil
     @EnvironmentObject var providers: UsageProviders
     @EnvironmentObject var windowManager: WindowManager
 
@@ -207,9 +225,6 @@ struct ProviderSection: View {
                     usageRow(service.usageData.designWeeklyLabel ?? "Weekly (Design)", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
                 }
             }
-            if let grokBotService {
-                GrokBotMetricRow(service: grokBotService)
-            }
             if let resets = service.usageData.availableResets {
                 resetsRow(resets)
                 ForEach(Array(service.usageData.resets.enumerated()), id: \.offset) { _, reset in
@@ -249,7 +264,7 @@ struct ProviderSection: View {
     // metric the menu bar shows.
     private var cursorMenuMetricRow: some View {
         menuMetricRow(
-            options: UsageProviders.cursorMetricOptions.filter { $0.id != "grokbot" || providers.isVisible(UsageProvider.grokBot.id) },
+            options: UsageProviders.cursorMetricOptions,
             selectedID: providers.cursorMenuBarMetricID,
             fallbackLabel: "Other Models",
             help: "Choose which Cursor metric shows in the menu bar",
@@ -537,51 +552,6 @@ struct ProviderSection: View {
     }
 }
 
-// Grok Bot has no section of its own while Cursor is visible: it is one of
-// Cursor's metrics, shown as a row inside the Cursor section.
-struct GrokBotMetricRow: View {
-    @ObservedObject var service: UsageService
-
-    var body: some View {
-        if let percentage = service.usageData.percentage {
-            VStack(spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Grok Bot")
-                        .font(.subheadline)
-                    if let reset = service.dailyResetCountdown {
-                        Text("resets in \(reset)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    if percentage >= AppConfig.shared.redThreshold {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .help("Usage is high")
-                    }
-                    Text("\(percentage)%")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundColor(AppConfig.shared.colorForPercentage(percentage))
-                }
-                UsageProgressBar(percentage: percentage, colors: AppConfig.shared.gradientColors(for: percentage))
-            }
-        } else if let error = service.usageData.errorMessage {
-            HStack(alignment: .top, spacing: 6) {
-                Text("Grok Bot")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                Text(error)
-                    .font(.caption)
-                    .foregroundColor(.orange)
-                    .lineLimit(2)
-                Spacer(minLength: 0)
-            }
-        }
-    }
-}
-
 // MARK: - Reusable Components
 
 struct IconButton: View {
@@ -778,7 +748,7 @@ struct AboutView: View {
                     .foregroundColor(.secondary)
             }
 
-            Text("A macOS menu bar app that shows your Claude, OpenAI Codex, Cursor, Grok Bot and Gemini usage limits, reset countdowns and plan.")
+            Text("A macOS menu bar app that shows your Claude, OpenAI Codex, Cursor, and Gemini usage limits, reset countdowns and plan.")
                 .font(.callout)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

@@ -20,8 +20,7 @@ final class UsageProviders: ObservableObject {
     static let cursorMetricOptions: [(id: String, label: String)] = [
         ("other", "Other Models"),
         ("cursor", "Cursor Models"),
-        ("ondemand", "On-demand"),
-        ("grokbot", "Grok Bot")
+        ("ondemand", "On-demand")
     ]
 
     private static let geminiMetricKey = "geminiMenuBarMetricID"
@@ -70,21 +69,31 @@ final class UsageProviders: ObservableObject {
         self.defaults = defaults
         services = providers.map { UsageService(provider: $0) }
 
+        let validIDs = Set(providers.map(\.id))
         let saved = defaults.string(forKey: Self.selectionKey)
         let validSaved = providers.first { $0.id == saved }?.id
-        selectedMenuBarProviderID = validSaved ?? providers.first?.id ?? ""
+        let initialSelection: String
+        let rewriteSelection = saved == "grokbot" && providers.contains(where: { $0.id == UsageProvider.cursor.id })
+        if rewriteSelection {
+            initialSelection = UsageProvider.cursor.id
+        } else {
+            initialSelection = validSaved ?? providers.first?.id ?? ""
+        }
 
-        let validIDs = Set(providers.map(\.id))
+        let hadGrokBotHidden = defaults.stringArray(forKey: Self.hiddenKey)?.contains("grokbot") == true
         var hidden = Set(defaults.stringArray(forKey: Self.hiddenKey) ?? []).intersection(validIDs)
+        hidden.remove("grokbot")
         if !providers.isEmpty && hidden.count >= providers.count {
             hidden.remove(providers[0].id)  // never launch with every provider hidden
         }
-        hiddenProviderIDs = hidden
 
-        // A saved "included" pick predates its removal and lands here too.
         let savedMetric = defaults.string(forKey: Self.cursorMetricKey)
-        cursorMenuBarMetricID = Self.cursorMetricOptions.contains { $0.id == savedMetric }
-            ? (savedMetric ?? "other") : "other"
+        let migratedMetric: String? = switch savedMetric {
+        case "included", "grokbot": "other"
+        default: savedMetric
+        }
+        let initialCursorMetric = Self.cursorMetricOptions.contains { $0.id == migratedMetric }
+            ? (migratedMetric ?? "other") : "other"
 
         let savedGeminiMetric = defaults.string(forKey: Self.geminiMetricKey)
         let migratedGeminiMetric: String? = switch savedGeminiMetric {
@@ -93,17 +102,25 @@ final class UsageProviders: ObservableObject {
         case "opus": "claudeGPTSession"
         default: savedGeminiMetric
         }
-        geminiMenuBarMetricID = Self.geminiMetricOptions.contains { $0.id == migratedGeminiMetric }
+        let initialGeminiMetric = Self.geminiMetricOptions.contains { $0.id == migratedGeminiMetric }
             ? (migratedGeminiMetric ?? "session") : "session"
 
-        services.forEach { $0.isRefreshPaused = hidden.contains($0.provider.id) }
-        // Grok Bot is combined into Cursor overall: it is no longer a top-level
-        // menu-bar selection, so a saved Grok Bot selection becomes Cursor.
-        if selectedMenuBarProviderID == UsageProvider.grokBot.id,
-           providers.contains(where: { $0.id == UsageProvider.cursor.id }) {
-            selectedMenuBarProviderID = UsageProvider.cursor.id
-            defaults.set(selectedMenuBarProviderID, forKey: Self.selectionKey)
+        selectedMenuBarProviderID = initialSelection
+        hiddenProviderIDs = hidden
+        cursorMenuBarMetricID = initialCursorMetric
+        geminiMenuBarMetricID = initialGeminiMetric
+
+        if rewriteSelection {
+            defaults.set(initialSelection, forKey: Self.selectionKey)
         }
+        if hadGrokBotHidden {
+            persistHidden()
+        }
+        if migratedMetric != savedMetric {
+            defaults.set(initialCursorMetric, forKey: Self.cursorMetricKey)
+        }
+
+        services.forEach { $0.isRefreshPaused = hidden.contains($0.provider.id) }
         if hidden.contains(selectedMenuBarProviderID),
            let firstVisible = services.first(where: { !hidden.contains($0.provider.id) }) {
             selectedMenuBarProviderID = firstVisible.provider.id
@@ -121,23 +138,12 @@ final class UsageProviders: ObservableObject {
         services.filter { !hiddenProviderIDs.contains($0.provider.id) }
     }
 
-    // Top-of-menu selector chips. Grok Bot has no chip: it is part of Cursor.
     var selectorServices: [UsageService] {
-        visibleServices.filter { $0.provider.id != UsageProvider.grokBot.id }
+        visibleServices
     }
 
-    // Sections the popover renders. While Cursor is visible, Grok Bot folds
-    // into its section instead of getting its own; if Cursor is hidden, the
-    // Grok Bot section stands alone so its data stays reachable.
     var sectionServices: [UsageService] {
-        let grokFoldedIntoCursor = isVisible(UsageProvider.cursor.id)
-        return visibleServices.filter {
-            !($0.provider.id == UsageProvider.grokBot.id && grokFoldedIntoCursor)
-        }
-    }
-
-    var grokBotService: UsageService? {
-        services.first { $0.provider.id == UsageProvider.grokBot.id }
+        visibleServices
     }
 
     func isVisible(_ providerID: String) -> Bool {
@@ -160,10 +166,6 @@ final class UsageProviders: ObservableObject {
         hiddenProviderIDs.insert(providerID)
         persistHidden()
         service.isRefreshPaused = true
-        if providerID == UsageProvider.grokBot.id && cursorMenuBarMetricID == "grokbot" {
-            cursorMenuBarMetricID = "other"
-            defaults.set(cursorMenuBarMetricID, forKey: Self.cursorMetricKey)
-        }
         if selectedMenuBarProviderID == providerID {
             selectedMenuBarProviderID = visibleServices.first?.provider.id ?? providerID
         }
@@ -242,7 +244,7 @@ final class UsageProviders: ObservableObject {
                 }
                 return row.percentage.map { "\($0)%" } ?? "--"
             }
-            guard let session = data.dailyPercentage else { return "--" }
+            guard let session = data.percentage else { return "--" }
             return "\(session)%"
         }
     }
@@ -255,13 +257,7 @@ final class UsageProviders: ObservableObject {
             return data.sonnetWeeklyPercentage.map { "\($0)%" } ?? "--"
         case "ondemand":
             return data.onDemandUsedDollars.map(OnDemandUsage.format) ?? "--"
-        case "grokbot":
-            guard isVisible(UsageProvider.grokBot.id),
-                  let grok = grokBotService?.usageData.percentage else {
-                return data.weeklyPercentage.map { "\($0)%" } ?? "--"
-            }
-            return "\(grok)%"
-        default: // "other"
+        default:
             return data.weeklyPercentage.map { "\($0)%" } ?? "--"
         }
     }
@@ -272,6 +268,14 @@ final class UsageProviders: ObservableObject {
 
     var selectedService: UsageService? {
         visibleServices.first { $0.provider.id == selectedMenuBarProviderID } ?? visibleServices.first ?? services.first
+    }
+
+    func logout(providerID: String) {
+        services.first { $0.provider.id == providerID }?.logout()
+    }
+
+    func logoutAll() {
+        services.forEach { $0.logout() }
     }
 
     func refreshAll() {

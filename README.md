@@ -1,6 +1,6 @@
 # Claude Usage Menu Bar
 
-A macOS menu bar app that shows your **Claude** (claude.ai), **OpenAI Codex** (chatgpt.com), **Cursor** (cursor.com), **Grok Bot** and **Gemini** usage limits.
+A macOS menu bar app that shows your **Claude** (claude.ai), **OpenAI Codex** (chatgpt.com), **Cursor** (cursor.com), and **Gemini** usage limits.
 
 ## What it shows
 
@@ -27,11 +27,9 @@ Otherwise, click the menu bar icon, then click the person icon next to Claude, C
 
 For Cursor it shows the Other Models and Cursor Models pools, when the cycle resets, and your on-demand spend past the included pools. Cursor has no reset credits to redeem — its pools refill on the cycle date.
 
-Grok Bot shows its weekly included usage and when it resets. Grok Bot is metered on your Cursor account, so it shares the Cursor login: sign in to Cursor and Grok Bot is signed in too.
-
 Click a provider button at the top of the dropdown to show that provider's percentage in the menu bar.
 
-At the top of the Cursor section, right under the Cursor header, the **Menu bar** row chooses which Cursor metric (Other Models, Cursor Models, On-demand, or Grok Bot) the menu bar shows; picking one also switches the menu bar to Cursor. Grok Bot is part of Cursor overall: its weekly usage is a row in the Cursor section, and it has no separate button at the top.
+At the top of the Cursor section, right under the Cursor header, the **Menu bar** row chooses which Cursor metric (Other Models, Cursor Models, or On-demand) the menu bar shows; picking one also switches the menu bar to Cursor.
 
 For Gemini it shows limits for all three Antigravity model families: Flash (`Session (Flash)` and `Weekly (Flash)`), Argon (`Weekly (Argon)`), and Claude & GPT (`Session (Claude & GPT)` and `Weekly (Claude & GPT)`). At the top of the Gemini section, the **Menu bar** row chooses whether the menu bar shows Argon, Opus (Claude & GPT), or Flash; picking one also switches the menu bar to Gemini. The menu bar displays session usage; weekly usage is not displayed on the menu bar.
 

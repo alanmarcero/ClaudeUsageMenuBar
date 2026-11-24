@@ -77,7 +77,6 @@ final class UsageDataTests: XCTestCase {
         XCTAssertTrue(data.isPrimarySessionUnavailable(for: .codex))
         XCTAssertTrue(data.isPrimarySessionUnavailable(for: .gemini))
         XCTAssertFalse(data.isPrimarySessionUnavailable(for: .cursor))
-        XCTAssertFalse(data.isPrimarySessionUnavailable(for: .grokBot))
 
         data.weeklyPercentage = 99
         XCTAssertFalse(data.isPrimarySessionUnavailable(for: .gemini))
