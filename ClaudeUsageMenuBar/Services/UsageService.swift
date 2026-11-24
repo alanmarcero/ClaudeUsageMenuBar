@@ -42,6 +42,11 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     private var isCheckingClaudeResets = false
     private var scrapeGeneration: Int = 0
     private var pendingScrapeWorkItem: DispatchWorkItem?
+    private var pendingVisibleHydrationScrape: DispatchWorkItem?
+    private weak var usageBrowserWebView: WKWebView?
+    // When the login/usage window is open, scrape that web view instead of loading
+    // a second copy of the dashboard in the background (parallel loads can wedge the SPA).
+    private(set) var isUsageBrowserOpen = false
     var refreshStartTime: Date?  // internal for @testable import
     var completedRefreshes = 0  // internal for @testable import
     // Set by UsageProviders while the provider is hidden from the menu: the
@@ -108,12 +113,106 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
     // MARK: - Public Methods
 
+    func setUsageBrowserOpen(_ open: Bool) {
+        isUsageBrowserOpen = open
+        if open {
+            pendingVisibleHydrationScrape?.cancel()
+            pendingVisibleHydrationScrape = nil
+            invalidatePendingScrapes()
+            backgroundWebView?.stopLoading()
+            isRefreshing = false
+            refreshStartTime = nil
+        } else {
+            usageBrowserWebView = nil
+            pendingVisibleHydrationScrape?.cancel()
+            pendingVisibleHydrationScrape = nil
+            if !isRefreshing {
+                triggerRefresh()
+            }
+        }
+    }
+
+    func scheduleVisibleBrowserScrapeAfterHydration(
+        webView: WKWebView,
+        delay: TimeInterval = 2.5
+    ) {
+        guard isUsageBrowserOpen else { return }
+        pendingVisibleHydrationScrape?.cancel()
+        let workItem = DispatchWorkItem { [weak self, weak webView] in
+            guard let self, let webView else { return }
+            self.noteVisibleBrowserReadyToScrape(webView: webView)
+        }
+        pendingVisibleHydrationScrape = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    func registerUsageBrowserWebView(_ webView: WKWebView) {
+        guard isUsageBrowserOpen else { return }
+        usageBrowserWebView = webView
+    }
+
+    func noteVisibleBrowserReadyToScrape(webView: WKWebView) {
+        guard !isRefreshPaused, isUsageBrowserOpen else { return }
+        guard let url = webView.url else { return }
+        let urlString = url.absoluteString.lowercased()
+        guard provider.isUsagePage(urlString) || provider.canScrapeUsageFromURL(url) else { return }
+        guard !webView.isLoading else { return }
+
+        usageBrowserWebView = webView
+
+        if !isRefreshing {
+            invalidatePendingScrapes()
+            isRefreshing = true
+            refreshStartTime = Date()
+            usageData.errorMessage = nil
+        }
+        scheduleScrape(from: webView)
+    }
+
+    private func beginRefreshFromVisibleBrowserIfReady() -> Bool {
+        guard isUsageBrowserOpen,
+              let webView = usageBrowserWebView,
+              let url = webView.url else { return false }
+        let urlString = url.absoluteString.lowercased()
+        guard provider.isUsagePage(urlString) || provider.canScrapeUsageFromURL(url) else { return false }
+        guard !webView.isLoading else { return false }
+
+        scheduleScrape(from: webView)
+        return true
+    }
+
     func triggerRefresh() {
         guard !isRefreshPaused, !isRefreshing else { return }
         invalidatePendingScrapes()
         isRefreshing = true
         refreshStartTime = Date()
         usageData.errorMessage = nil
+
+        if provider.id == UsageProvider.cursor.id {
+            Task {
+                let login = await Task.detached { CursorUsageAPI.readLogin() }.value
+                guard let login else {
+                    if !isUsageBrowserOpen {
+                        loadUsagePage()
+                    } else {
+                        isRefreshing = false
+                        refreshStartTime = nil
+                    }
+                    return
+                }
+                handleScrapingResult(await CursorUsageAPI.fetchResult(login: login), error: nil)
+            }
+            return
+        }
+
+        if !provider.readsGeminiLogin,
+           !provider.readsClaudeCodeLogin,
+           isUsageBrowserOpen {
+            if beginRefreshFromVisibleBrowserIfReady() { return }
+            isRefreshing = false
+            refreshStartTime = nil
+            return
+        }
 
         if provider.readsGeminiLogin {
             Task {
@@ -129,7 +228,12 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         }
 
         guard provider.readsClaudeCodeLogin else {
-            loadUsagePage()
+            if !isUsageBrowserOpen {
+                loadUsagePage()
+            } else {
+                isRefreshing = false
+                refreshStartTime = nil
+            }
             return
         }
         Task {
@@ -355,6 +459,10 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
     private func handleTimerTick() {
         guard !isRefreshPaused else { return }
+        if isUsageBrowserOpen {
+            updateResetCountdowns()
+            return
+        }
         updateResetCountdowns()
 
         if isRefreshing {
@@ -491,15 +599,21 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             return
         }
 
-        if provider.isUsagePage(urlString) {
-            pendingScrapeWorkItem?.cancel()
-            let generation = scrapeGeneration
-            let workItem = DispatchWorkItem { [weak self, weak webView] in
-                guard let self, let webView else { return }
-                self.scrapeUsage(from: webView, generation: generation)
-            }
-            pendingScrapeWorkItem = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + Constants.scrapeDelay, execute: workItem)
+        if provider.isUsagePage(urlString) || provider.canScrapeUsageFromURL(url) {
+            scheduleScrape(from: webView)
+            return
+        }
+
+        if urlString.contains("/callback") {
+            debugInfo = navigationDiagnostic(state: "oauthCallback", url: urlString)
+            scheduleUsagePageReload(from: webView, delay: 1.5)
+            return
+        }
+
+        if provider.isOAuthHandshakeURL(url) {
+            debugInfo = navigationDiagnostic(state: "oauthHandshake", url: urlString)
+            setLoggedOut()
+            setError("Click the person icon next to \(provider.displayName) to log in.")
             return
         }
 
@@ -511,6 +625,29 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         }
 
         debugInfo = navigationDiagnostic(state: "unhandled", url: urlString)
+        setError("Couldn't load \(provider.displayName) usage. Will retry automatically.")
+    }
+
+    private func scheduleScrape(from webView: WKWebView) {
+        pendingScrapeWorkItem?.cancel()
+        let generation = scrapeGeneration
+        let workItem = DispatchWorkItem { [weak self, weak webView] in
+            guard let self, let webView else { return }
+            self.scrapeUsage(from: webView, generation: generation)
+        }
+        pendingScrapeWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + Constants.scrapeDelay, execute: workItem)
+    }
+
+    private func scheduleUsagePageReload(from webView: WKWebView, delay: TimeInterval) {
+        let generation = scrapeGeneration
+        let workItem = DispatchWorkItem { [weak self, weak webView] in
+            guard let self, let webView, webView === self.backgroundWebView, generation == self.scrapeGeneration else { return }
+            webView.load(URLRequest(url: self.provider.usageURL))
+        }
+        pendingScrapeWorkItem?.cancel()
+        pendingScrapeWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     private func navigationDiagnostic(state: String, url: String) -> String {
@@ -527,8 +664,13 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
     // MARK: - Scraping
 
+    private func isScrapeWebView(_ webView: WKWebView) -> Bool {
+        if webView === backgroundWebView { return true }
+        return isUsageBrowserOpen && webView === usageBrowserWebView
+    }
+
     private func scrapeUsage(from webView: WKWebView, generation: Int) {
-        guard webView === backgroundWebView, generation == scrapeGeneration, !webView.isLoading else { return }
+        guard isScrapeWebView(webView), generation == scrapeGeneration, !webView.isLoading else { return }
         let sourceURL = webView.url
         webView.callAsyncJavaScript(
             provider.scrapingScript,
@@ -539,7 +681,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             Task { @MainActor [weak self, weak webView] in
                 guard let self,
                       let webView,
-                      webView === self.backgroundWebView,
+                      self.isScrapeWebView(webView),
                       generation == self.scrapeGeneration else { return }
                 switch result {
                 case .success(let value):

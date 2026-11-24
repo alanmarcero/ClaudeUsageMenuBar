@@ -60,9 +60,32 @@ struct UsageProvider: Identifiable {
         let lowered = urlString.lowercased()
         if lowered.contains(usagePathFragment.lowercased()) { return true }
         if id == "cursor" {
-            return lowered.contains("/dashboard/spending") || lowered.contains("tab=spending")
+            return lowered.contains("/dashboard/spending")
+                || lowered.contains("tab=spending")
+                || lowered.contains("tab=usage")
         }
         return false
+    }
+
+    // Cursor's usage-summary API is same-origin on any signed-in cursor.com page
+    // (not only the usage tab path the SPA may route client-side).
+    func canScrapeUsageFromURL(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        let urlString = url.absoluteString.lowercased()
+        if isLoginPage(urlString) || urlString.contains("/callback") { return false }
+        if id == "cursor" {
+            return host == primaryHost || host.hasSuffix(".\(primaryHost)")
+        }
+        return false
+    }
+
+    func isOAuthHandshakeURL(_ url: URL) -> Bool {
+        let urlString = url.absoluteString.lowercased()
+        if isUsagePage(urlString) || isLoginPage(urlString) || urlString.contains("/callback") {
+            return false
+        }
+        guard let host = url.host?.lowercased() else { return false }
+        return oauthHostSuffixes.contains { host == $0 || host.hasSuffix(".\($0)") }
     }
 
     func isLoginPage(_ urlString: String) -> Bool {
@@ -122,7 +145,7 @@ struct UsageProvider: Identifiable {
         usageURL: URL(string: "https://cursor.com/dashboard/usage")!,
         usagePathFragment: "/dashboard/usage",
         loginPaths: ["/login", "/signin", "/api/auth/login"],
-        oauthHostSuffixes: ["cursor.com", "cursor.sh", "workos.com", "github.com"] + sharedSSOHosts,
+        oauthHostSuffixes: ["cursor.com", "cursor.sh", "workos.com", "workoscdn.com", "github.com"] + sharedSSOHosts,
         dataRecordTokens: ["cursor"],
         scrapingScript: CursorScrapingScript.script,
         readsClaudeCodeLogin: false,

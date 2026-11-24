@@ -15,6 +15,8 @@ struct UsageWebView: View {
             Divider()
             ProviderWebView(provider: provider, service: service, browserState: browserState)
         }
+        .onAppear { service.setUsageBrowserOpen(true) }
+        .onDisappear { service.setUsageBrowserOpen(false) }
     }
 
     private var toolbar: some View {

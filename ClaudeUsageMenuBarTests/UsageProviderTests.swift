@@ -350,6 +350,22 @@ final class UsageProviderTests: XCTestCase {
             UsageProvider.cursor.isUsagePage("https://cursor.com/dashboard/spending"),
             "Legacy spending path should still count as usage"
         )
+        XCTAssertTrue(
+            UsageProvider.cursor.isUsagePage("https://cursor.com/dashboard?tab=usage"),
+            "Usage tab query should count as usage"
+        )
+        XCTAssertTrue(
+            UsageProvider.cursor.canScrapeUsageFromURL(URL(string: "https://cursor.com/dashboard")!),
+            "Signed-in cursor.com pages can call usage-summary"
+        )
+        XCTAssertFalse(
+            UsageProvider.cursor.canScrapeUsageFromURL(URL(string: "https://authenticator.cursor.sh/password")!),
+            "Auth host is not a scrape origin"
+        )
+        XCTAssertTrue(
+            UsageProvider.cursor.isOAuthHandshakeURL(URL(string: "https://authenticator.cursor.sh/password")!),
+            "WorkOS host mid-login is an OAuth handshake"
+        )
         XCTAssertFalse(
             UsageProvider.cursor.isLoginPage("https://cursor.com/api/auth/callback?code=abc"),
             "OAuth callback must not read as a login page"

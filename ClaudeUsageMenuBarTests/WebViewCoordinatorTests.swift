@@ -6,6 +6,7 @@ final class WebViewCoordinatorTests: XCTestCase {
 
     var coordinator: WebViewCoordinator!
     var codexCoordinator: WebViewCoordinator!
+    var cursorCoordinator: WebViewCoordinator!
 
     @MainActor
     override func setUp() {
@@ -14,6 +15,8 @@ final class WebViewCoordinatorTests: XCTestCase {
         coordinator = WebViewCoordinator(usageService: claudeService, provider: .claude)
         let codexService = UsageService(provider: .codex)
         codexCoordinator = WebViewCoordinator(usageService: codexService, provider: .codex)
+        let cursorService = UsageService(provider: .cursor)
+        cursorCoordinator = WebViewCoordinator(usageService: cursorService, provider: .cursor)
     }
 
     override func tearDown() {
@@ -92,6 +95,12 @@ final class WebViewCoordinatorTests: XCTestCase {
 
     func testOpensInBrowserKeepsNonWebSchemes() {
         XCTAssertFalse(coordinator.opensInBrowser(URL(string: "about:blank")!))
+    }
+
+    func testCursorOpensInBrowserKeepsDashboardRedirectsInApp() {
+        XCTAssertFalse(cursorCoordinator.opensInBrowser(URL(string: "https://workos.imgix.net/example")!))
+        XCTAssertFalse(cursorCoordinator.opensInBrowser(URL(string: "https://example.com/")!))
+        XCTAssertTrue(cursorCoordinator.isAllowedHost("authenticator.cursor.sh"))
     }
 
     // MARK: - isAuthPage Tests

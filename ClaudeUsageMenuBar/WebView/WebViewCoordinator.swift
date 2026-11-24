@@ -112,12 +112,14 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         Task { @MainActor in
             browserState?.update(from: webView)
+            usageService.registerUsageBrowserWebView(webView)
         }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Task { @MainActor in
             browserState?.update(from: webView)
+            usageService.registerUsageBrowserWebView(webView)
         }
         guard let url = webView.url else { return }
 
@@ -125,8 +127,20 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
 
         if provider.isUsagePage(urlString) {
             Task { @MainActor in
-                usageService.triggerRefresh()
+                usageService.scheduleVisibleBrowserScrapeAfterHydration(webView: webView)
             }
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        Task { @MainActor in
+            browserState?.update(from: webView)
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        Task { @MainActor in
+            browserState?.update(from: webView)
         }
     }
 
@@ -137,8 +151,14 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     // A page, popup or redirect to a web host outside the provider and SSO list opens
     // in the default browser. Other sites cannot show in the signed-in, provider-titled
     // window. Subframes, such as bot checks, still load.
+    //
+    // Cursor's dashboard bounces through WorkOS, Stripe, OneTrust, imgix, and other
+    // hosts that are easy to miss in a suffix list. Cancelling those top-level navigations
+    // leaves the web view wedged on a loading spinner.
     func opensInBrowser(_ url: URL) -> Bool {
-        ["http", "https"].contains(url.scheme?.lowercased()) && !isAllowedHost(url.host ?? "")
+        guard ["http", "https"].contains(url.scheme?.lowercased()) else { return false }
+        if provider.id == "cursor" { return false }
+        return !isAllowedHost(url.host ?? "")
     }
 
     func isAuthPage(_ urlString: String) -> Bool {
