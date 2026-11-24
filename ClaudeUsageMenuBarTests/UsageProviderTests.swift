@@ -941,6 +941,49 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(result["success"] as? Bool, false)
     }
 
+    // MARK: - Model Price Cheat Sheet
+
+    func testModelPriceCatalogCoversAllAppPlatforms() {
+        let platformIDs = Set(ModelPriceCatalog.entries.map { $0.platformId })
+        let expectedPlatforms: Set<String> = ["claude", "codex", "cursor", "grokbot", "gemini"]
+        XCTAssertEqual(platformIDs, expectedPlatforms)
+    }
+
+    func testModelPriceCatalogIsSortedByOutputDescendingWithinPlatform() {
+        let grouped = ModelPriceCatalog.groupedByPlatformSortedByOutputDesc()
+        XCTAssertEqual(grouped.count, 5)
+        for group in grouped {
+            XCTAssertFalse(group.models.isEmpty, "Platform \(group.platformName) should have models")
+            var lastOutput = Double.infinity
+            for model in group.models {
+                XCTAssertLessThanOrEqual(
+                    model.outputPrice,
+                    lastOutput,
+                    "Model \(model.name) output price \(model.outputPrice) should be <= previous \(lastOutput) in \(group.platformName)"
+                )
+                lastOutput = model.outputPrice
+            }
+        }
+    }
+
+    func testModelPriceCatalogFiltersBySearchQuery() {
+        let results = ModelPriceCatalog.groupedByPlatformSortedByOutputDesc(filter: "carbon")
+        XCTAssertFalse(results.isEmpty)
+        let geminiGroup = results.first { $0.platformId == "gemini" }
+        XCTAssertNotNil(geminiGroup)
+        XCTAssertTrue(geminiGroup?.models.contains { $0.name.contains("Carbon") } == true)
+    }
+
+    func testModelPriceCatalogPriceFormatting() {
+        XCTAssertEqual(ModelPriceCatalog.formatPrice(150.0), "$150.00")
+        XCTAssertEqual(ModelPriceCatalog.formatPrice(15.0), "$15.00")
+        XCTAssertEqual(ModelPriceCatalog.formatPrice(3.0), "$3.00")
+        XCTAssertEqual(ModelPriceCatalog.formatPrice(0.80), "$0.80")
+        XCTAssertEqual(ModelPriceCatalog.formatPrice(0.15), "$0.15")
+        XCTAssertEqual(ModelPriceCatalog.formatPrice(0.075), "$0.075")
+        XCTAssertEqual(ModelPriceCatalog.formatPrice(0.0375), "$0.0375")
+    }
+
     @MainActor
     private func scrapeCodexFixture(_ body: String, beforeScrape: String = "", script: String = CodexScrapingScript.script) async throws -> [String: Any] {
         let webView = WKWebView()

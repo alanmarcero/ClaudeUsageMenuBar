@@ -77,14 +77,18 @@ struct MenuBarView: View {
 
     private var footer: some View {
         HStack(spacing: 4) {
-            IconButton(systemImage: "arrow.clockwise", help: "Refresh all now") {
-                providers.refreshAll()
-            }
-            .disabled(providers.isAnyRefreshing)
-            Text(providers.isAnyRefreshing ? "Refreshing…" : "Refresh in \(providers.nextRefreshCountdown)s")
+            Button(action: { ModelPriceCheatSheetWindow.show() }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "dollarsign.circle")
+                    Text("Model Prices")
+                }
                 .font(.caption)
                 .foregroundColor(.secondary)
-                .monospacedDigit()
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Open Model Price Cheat Sheet")
+
             Spacer()
             platformsMenu
             moreMenu
@@ -128,6 +132,8 @@ struct MenuBarView: View {
 
     private var moreMenu: some View {
         Menu {
+            Button("Model Price Cheat Sheet…") { ModelPriceCheatSheetWindow.show() }
+            Divider()
             Button("Settings…") { SettingsWindow.show() }
             Button("Check for Updates…") { updateService.checkForUpdates() }
                 .disabled(!updateService.canCheckForUpdates)
@@ -798,5 +804,395 @@ enum AboutWindow {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         self.window = window
+    }
+}
+
+// MARK: - Model Price Cheat Sheet
+
+struct ModelPriceEntry: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let platformId: String
+    let platformName: String
+    let platformGlyph: String
+    let inputPrice: Double
+    let outputPrice: Double
+    let note: String?
+
+    init(
+        id: String? = nil,
+        name: String,
+        platformId: String,
+        platformName: String,
+        platformGlyph: String,
+        inputPrice: Double,
+        outputPrice: Double,
+        note: String? = nil
+    ) {
+        self.id = id ?? "\(platformId)-\(name)"
+        self.name = name
+        self.platformId = platformId
+        self.platformName = platformName
+        self.platformGlyph = platformGlyph
+        self.inputPrice = inputPrice
+        self.outputPrice = outputPrice
+        self.note = note
+    }
+}
+
+enum ModelPriceCatalog {
+    static let entries: [ModelPriceEntry] = [
+        // MARK: - Claude (Anthropic)
+        ModelPriceEntry(name: "Claude 3 Opus", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 15.00, outputPrice: 75.00),
+        ModelPriceEntry(name: "Claude 3.7 Sonnet", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 3.00, outputPrice: 15.00, note: "Hybrid reasoning"),
+        ModelPriceEntry(name: "Claude 3.5 Sonnet", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 3.00, outputPrice: 15.00),
+        ModelPriceEntry(name: "Claude 3.5 Haiku", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 0.80, outputPrice: 4.00),
+        ModelPriceEntry(name: "Claude 3 Haiku", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 0.25, outputPrice: 1.25),
+
+        // MARK: - Codex (OpenAI)
+        ModelPriceEntry(name: "GPT-4.5", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 75.00, outputPrice: 150.00, note: "Research preview"),
+        ModelPriceEntry(name: "o1", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 15.00, outputPrice: 60.00, note: "Full reasoning"),
+        ModelPriceEntry(name: "o1-preview", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 15.00, outputPrice: 60.00),
+        ModelPriceEntry(name: "GPT-4 Turbo", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 10.00, outputPrice: 30.00),
+        ModelPriceEntry(name: "GPT-4o", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.50, outputPrice: 10.00, note: "Flagship omni"),
+        ModelPriceEntry(name: "o3-mini", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 1.10, outputPrice: 4.40, note: "Fast reasoning"),
+        ModelPriceEntry(name: "o1-mini", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 1.10, outputPrice: 4.40),
+        ModelPriceEntry(name: "GPT-3.5 Turbo", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 0.50, outputPrice: 1.50),
+        ModelPriceEntry(name: "GPT-4o mini", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 0.15, outputPrice: 0.60, note: "Fast efficient"),
+
+        // MARK: - Cursor
+        ModelPriceEntry(name: "Claude 3 Opus", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 15.00, outputPrice: 75.00),
+        ModelPriceEntry(name: "o1", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 15.00, outputPrice: 60.00),
+        ModelPriceEntry(name: "Claude 3.7 Sonnet", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 3.00, outputPrice: 15.00),
+        ModelPriceEntry(name: "Claude 3.5 Sonnet", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 3.00, outputPrice: 15.00),
+        ModelPriceEntry(name: "GPT-4o", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.50, outputPrice: 10.00),
+        ModelPriceEntry(name: "o3-mini", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 1.10, outputPrice: 4.40),
+        ModelPriceEntry(name: "o1-mini", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 1.10, outputPrice: 4.40),
+        ModelPriceEntry(name: "Claude 3.5 Haiku", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.80, outputPrice: 4.00),
+        ModelPriceEntry(name: "DeepSeek R1", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.55, outputPrice: 2.19, note: "Reasoning"),
+        ModelPriceEntry(name: "DeepSeek V3", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.27, outputPrice: 1.10),
+        ModelPriceEntry(name: "GPT-4o mini", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.15, outputPrice: 0.60),
+        ModelPriceEntry(name: "Cursor Small", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.10, outputPrice: 0.40, note: "Included"),
+
+        // MARK: - Grok Bot (xAI)
+        ModelPriceEntry(name: "Grok Beta", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 5.00, outputPrice: 15.00),
+        ModelPriceEntry(name: "Grok 3", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 3.00, outputPrice: 15.00, note: "Flagship"),
+        ModelPriceEntry(name: "Grok 2", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 2.00, outputPrice: 10.00),
+        ModelPriceEntry(name: "Grok 2 Vision", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 2.00, outputPrice: 10.00),
+        ModelPriceEntry(name: "Grok 3 Mini", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 0.30, outputPrice: 1.50, note: "Fast reasoning"),
+
+        // MARK: - Gemini (Google AI)
+        ModelPriceEntry(name: "Gemini 4 Argon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 3.00, outputPrice: 15.00, note: "Antigravity"),
+        ModelPriceEntry(name: "Gemini 4 Carbon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 2.50, outputPrice: 10.00, note: "Antigravity"),
+        ModelPriceEntry(name: "Gemini 2.5 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.25, outputPrice: 5.00),
+        ModelPriceEntry(name: "Gemini 1.5 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.25, outputPrice: 5.00),
+        ModelPriceEntry(name: "Gemini 4 Hydrogen", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.50, outputPrice: 2.00, note: "Antigravity"),
+        ModelPriceEntry(name: "Gemini 4 Neon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.20, outputPrice: 0.80, note: "Antigravity"),
+        ModelPriceEntry(name: "Gemini 2.0 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.10, outputPrice: 0.40),
+        ModelPriceEntry(name: "Gemini 1.5 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.075, outputPrice: 0.30),
+        ModelPriceEntry(name: "Gemini 2.0 Flash-Lite", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.075, outputPrice: 0.30),
+        ModelPriceEntry(name: "Gemini 1.5 Flash-8B", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.0375, outputPrice: 0.15)
+    ]
+
+    static func formatPrice(_ price: Double) -> String {
+        if price >= 1.0 || price.truncatingRemainder(dividingBy: 0.01) == 0 {
+            return String(format: "$%.2f", price)
+        }
+        let str = String(format: "$%.4f", price)
+        var trimmed = str
+        while trimmed.hasSuffix("0") && trimmed.contains(".") && trimmed.components(separatedBy: ".")[1].count > 2 {
+            trimmed.removeLast()
+        }
+        return trimmed
+    }
+
+    struct GroupedPlatform: Identifiable {
+        var id: String { platformId }
+        let platformId: String
+        let platformName: String
+        let platformGlyph: String
+        let models: [ModelPriceEntry]
+    }
+
+    static func groupedByPlatformSortedByOutputDesc(filter: String = "") -> [GroupedPlatform] {
+        let platformsOrder = ["claude", "codex", "cursor", "grokbot", "gemini"]
+        let query = filter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        let filtered = query.isEmpty ? entries : entries.filter {
+            $0.name.lowercased().contains(query) ||
+            $0.platformName.lowercased().contains(query) ||
+            ($0.note?.lowercased().contains(query) ?? false)
+        }
+
+        return platformsOrder.compactMap { pid in
+            let platformModels = filtered.filter { $0.platformId == pid }
+            guard !platformModels.isEmpty else { return nil }
+            let sorted = platformModels.sorted { lhs, rhs in
+                if lhs.outputPrice != rhs.outputPrice {
+                    return lhs.outputPrice > rhs.outputPrice
+                }
+                if lhs.inputPrice != rhs.inputPrice {
+                    return lhs.inputPrice > rhs.inputPrice
+                }
+                return lhs.name < rhs.name
+            }
+            let first = platformModels[0]
+            return GroupedPlatform(platformId: pid, platformName: first.platformName, platformGlyph: first.platformGlyph, models: sorted)
+        }
+    }
+}
+
+struct ModelPriceCheatSheetView: View {
+    @State private var searchText: String = ""
+    @State private var selectedPlatform: String = "all"
+
+    private let platformFilters: [(id: String, label: String)] = [
+        ("all", "All"),
+        ("claude", "Claude"),
+        ("codex", "Codex"),
+        ("cursor", "Cursor"),
+        ("grokbot", "Grok Bot"),
+        ("gemini", "Gemini")
+    ]
+
+    private var groups: [ModelPriceCatalog.GroupedPlatform] {
+        let all = ModelPriceCatalog.groupedByPlatformSortedByOutputDesc(filter: searchText)
+        if selectedPlatform == "all" {
+            return all
+        }
+        return all.filter { $0.platformId == selectedPlatform }
+    }
+
+    private var totalModelCount: Int {
+        groups.reduce(0) { $0 + $1.models.count }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header Bar
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center) {
+                    Label("Model Price Cheat Sheet", systemImage: "dollarsign.circle.fill")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Text("Prices per 1M tokens")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.primary.opacity(0.06))
+                        .cornerRadius(6)
+                }
+
+                HStack(spacing: 12) {
+                    // Search bar
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.secondary)
+                        TextField("Search models or platforms…", text: $searchText)
+                            .textFieldStyle(.plain)
+                        if !searchText.isEmpty {
+                            Button(action: { searchText = "" }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                    )
+                    .cornerRadius(6)
+                    .frame(maxWidth: 240)
+
+                    // Platform Filter Chips
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(platformFilters, id: \.id) { filter in
+                                let isSelected = selectedPlatform == filter.id
+                                Button(action: { selectedPlatform = filter.id }) {
+                                    Text(filter.label)
+                                        .font(.caption)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(isSelected ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.06))
+                                        .foregroundColor(isSelected ? .accentColor : .primary)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1)
+                                        )
+                                        .cornerRadius(6)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
+            // Models list grouped by platform
+            if groups.isEmpty {
+                VStack(spacing: 12) {
+                    Spacer()
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 36))
+                        .foregroundColor(.secondary)
+                    Text("No models matching \"\(searchText)\"")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 18) {
+                        ForEach(groups) { group in
+                            VStack(alignment: .leading, spacing: 6) {
+                                // Platform Section Header
+                                HStack(spacing: 6) {
+                                    Image(systemName: group.platformGlyph)
+                                        .font(.headline)
+                                        .foregroundColor(.accentColor)
+                                    Text(group.platformName)
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                    Text("\(group.models.count) models")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.primary.opacity(0.06))
+                                        .cornerRadius(4)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 4)
+
+                                // Table Content
+                                VStack(spacing: 0) {
+                                    // Column Header Row
+                                    HStack(spacing: 12) {
+                                        Text("MODEL")
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                        Text("INPUT / 1M")
+                                            .frame(width: 95, alignment: .trailing)
+                                        Text("OUTPUT / 1M")
+                                            .frame(width: 105, alignment: .trailing)
+                                    }
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.primary.opacity(0.04))
+
+                                    Divider()
+
+                                    // Model Rows
+                                    ForEach(Array(group.models.enumerated()), id: \.element.id) { index, model in
+                                        HStack(spacing: 12) {
+                                            HStack(spacing: 6) {
+                                                Text(model.name)
+                                                    .font(.system(size: 13, weight: .medium))
+                                                if let note = model.note {
+                                                    Text(note)
+                                                        .font(.system(size: 10))
+                                                        .foregroundColor(.secondary)
+                                                        .padding(.horizontal, 5)
+                                                        .padding(.vertical, 1)
+                                                        .background(Color.primary.opacity(0.06))
+                                                        .cornerRadius(4)
+                                                }
+                                            }
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                                            Text(ModelPriceCatalog.formatPrice(model.inputPrice))
+                                                .font(.system(size: 13, design: .monospaced))
+                                                .foregroundColor(.secondary)
+                                                .frame(width: 95, alignment: .trailing)
+
+                                            Text(ModelPriceCatalog.formatPrice(model.outputPrice))
+                                                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                                .foregroundColor(.primary)
+                                                .frame(width: 105, alignment: .trailing)
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 7)
+                                        .background(index % 2 == 1 ? Color.primary.opacity(0.02) : Color.clear)
+
+                                        if index < group.models.count - 1 {
+                                            Divider()
+                                                .opacity(0.4)
+                                        }
+                                    }
+                                }
+                                .background(Color(NSColor.controlBackgroundColor))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                                )
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
+                    .padding(16)
+                }
+            }
+
+            Divider()
+
+            // Footer info
+            HStack {
+                Text("\(totalModelCount) models across \(groups.count) platform\(groups.count == 1 ? "" : "s") · Sorted by output desc")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button("Done") {
+                    NSApp.keyWindow?.close()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(NSColor.windowBackgroundColor))
+        }
+        .frame(minWidth: 540, minHeight: 450)
+    }
+}
+
+@MainActor
+enum ModelPriceCheatSheetWindow {
+    private static var window: NSWindow?
+
+    static func show() {
+        if let existing = window, existing.isVisible || existing.isMiniaturized {
+            if existing.isMiniaturized {
+                existing.deminiaturize(nil)
+            }
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let newWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 560),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        newWindow.title = "Model Price Cheat Sheet"
+        newWindow.minSize = NSSize(width: 520, height: 420)
+        newWindow.contentView = NSHostingView(rootView: ModelPriceCheatSheetView())
+        newWindow.center()
+        newWindow.isReleasedWhenClosed = false
+        newWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        window = newWindow
     }
 }
