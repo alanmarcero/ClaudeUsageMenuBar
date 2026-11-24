@@ -840,6 +840,12 @@ struct ModelPriceEntry: Identifiable, Equatable {
     }
 }
 
+enum ModelPriceSortColumn: String, CaseIterable, Equatable {
+    case name
+    case inputPrice
+    case outputPrice
+}
+
 enum ModelPriceCatalog {
     static let entries: [ModelPriceEntry] = [
         // MARK: - Claude (Anthropic)
@@ -914,7 +920,34 @@ enum ModelPriceCatalog {
         let models: [ModelPriceEntry]
     }
 
-    static func groupedByPlatformSortedByOutputDesc(filter: String = "") -> [GroupedPlatform] {
+    static func sortModels(_ models: [ModelPriceEntry], by column: ModelPriceSortColumn, ascending: Bool) -> [ModelPriceEntry] {
+        models.sorted { lhs, rhs in
+            switch column {
+            case .name:
+                let lName = lhs.name.lowercased()
+                let rName = rhs.name.lowercased()
+                if lName != rName {
+                    return ascending ? lName < rName : lName > rName
+                }
+                return lhs.outputPrice > rhs.outputPrice
+            case .inputPrice:
+                if lhs.inputPrice != rhs.inputPrice {
+                    return ascending ? lhs.inputPrice < rhs.inputPrice : lhs.inputPrice > rhs.inputPrice
+                }
+                return lhs.outputPrice > rhs.outputPrice
+            case .outputPrice:
+                if lhs.outputPrice != rhs.outputPrice {
+                    return ascending ? lhs.outputPrice < rhs.outputPrice : lhs.outputPrice > rhs.outputPrice
+                }
+                return lhs.inputPrice > rhs.inputPrice
+            }
+        }
+    }
+
+    static func groupedByPlatform(
+        filter: String = "",
+        sortForGroup: ((String) -> (column: ModelPriceSortColumn, ascending: Bool))? = nil
+    ) -> [GroupedPlatform] {
         let platformsOrder = ["claude", "codex", "cursor", "grokbot", "gemini"]
         let query = filter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
@@ -927,24 +960,22 @@ enum ModelPriceCatalog {
         return platformsOrder.compactMap { pid in
             let platformModels = filtered.filter { $0.platformId == pid }
             guard !platformModels.isEmpty else { return nil }
-            let sorted = platformModels.sorted { lhs, rhs in
-                if lhs.outputPrice != rhs.outputPrice {
-                    return lhs.outputPrice > rhs.outputPrice
-                }
-                if lhs.inputPrice != rhs.inputPrice {
-                    return lhs.inputPrice > rhs.inputPrice
-                }
-                return lhs.name < rhs.name
-            }
+            let sort = sortForGroup?(pid) ?? (.outputPrice, false)
+            let sorted = sortModels(platformModels, by: sort.column, ascending: sort.ascending)
             let first = platformModels[0]
             return GroupedPlatform(platformId: pid, platformName: first.platformName, platformGlyph: first.platformGlyph, models: sorted)
         }
+    }
+
+    static func groupedByPlatformSortedByOutputDesc(filter: String = "") -> [GroupedPlatform] {
+        groupedByPlatform(filter: filter, sortForGroup: { _ in (.outputPrice, false) })
     }
 }
 
 struct ModelPriceCheatSheetView: View {
     @State private var searchText: String = ""
     @State private var selectedPlatform: String = "all"
+    @State private var groupSorts: [String: (column: ModelPriceSortColumn, ascending: Bool)] = [:]
 
     private let platformFilters: [(id: String, label: String)] = [
         ("all", "All"),
@@ -955,8 +986,24 @@ struct ModelPriceCheatSheetView: View {
         ("gemini", "Gemini")
     ]
 
+    private func currentSort(for platformId: String) -> (column: ModelPriceSortColumn, ascending: Bool) {
+        groupSorts[platformId] ?? (.outputPrice, false)
+    }
+
+    private func toggleSort(for platformId: String, column: ModelPriceSortColumn) {
+        let current = currentSort(for: platformId)
+        if current.column == column {
+            groupSorts[platformId] = (column, !current.ascending)
+        } else {
+            let defaultAscending = (column == .name)
+            groupSorts[platformId] = (column, defaultAscending)
+        }
+    }
+
     private var groups: [ModelPriceCatalog.GroupedPlatform] {
-        let all = ModelPriceCatalog.groupedByPlatformSortedByOutputDesc(filter: searchText)
+        let all = ModelPriceCatalog.groupedByPlatform(filter: searchText) { pid in
+            currentSort(for: pid)
+        }
         if selectedPlatform == "all" {
             return all
         }
@@ -1055,6 +1102,7 @@ struct ModelPriceCheatSheetView: View {
                 ScrollView {
                     LazyVStack(spacing: 18) {
                         ForEach(groups) { group in
+                            let sort = currentSort(for: group.platformId)
                             VStack(alignment: .leading, spacing: 6) {
                                 // Platform Section Header
                                 HStack(spacing: 6) {
@@ -1077,17 +1125,54 @@ struct ModelPriceCheatSheetView: View {
 
                                 // Table Content
                                 VStack(spacing: 0) {
-                                    // Column Header Row
+                                    // Column Header Row with Interactive Sort
                                     HStack(spacing: 12) {
-                                        Text("MODEL")
+                                        Button(action: { toggleSort(for: group.platformId, column: .name) }) {
+                                            HStack(spacing: 4) {
+                                                Text("MODEL")
+                                                if sort.column == .name {
+                                                    Image(systemName: sort.ascending ? "chevron.up" : "chevron.down")
+                                                        .font(.system(size: 8, weight: .bold))
+                                                }
+                                            }
                                             .frame(maxWidth: .infinity, alignment: .leading)
-                                        Text("INPUT / 1M")
+                                            .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundColor(sort.column == .name ? .accentColor : .secondary)
+                                        .help("Sort \(group.platformName) models by name (\(sort.column == .name && sort.ascending ? "Z-A" : "A-Z"))")
+
+                                        Button(action: { toggleSort(for: group.platformId, column: .inputPrice) }) {
+                                            HStack(spacing: 4) {
+                                                if sort.column == .inputPrice {
+                                                    Image(systemName: sort.ascending ? "chevron.up" : "chevron.down")
+                                                        .font(.system(size: 8, weight: .bold))
+                                                }
+                                                Text("INPUT / 1M")
+                                            }
                                             .frame(width: 95, alignment: .trailing)
-                                        Text("OUTPUT / 1M")
+                                            .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundColor(sort.column == .inputPrice ? .accentColor : .secondary)
+                                        .help("Sort \(group.platformName) models by input price (\(sort.column == .inputPrice && !sort.ascending ? "lowest first" : "highest first"))")
+
+                                        Button(action: { toggleSort(for: group.platformId, column: .outputPrice) }) {
+                                            HStack(spacing: 4) {
+                                                if sort.column == .outputPrice {
+                                                    Image(systemName: sort.ascending ? "chevron.up" : "chevron.down")
+                                                        .font(.system(size: 8, weight: .bold))
+                                                }
+                                                Text("OUTPUT / 1M")
+                                            }
                                             .frame(width: 105, alignment: .trailing)
+                                            .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundColor(sort.column == .outputPrice ? .accentColor : .secondary)
+                                        .help("Sort \(group.platformName) models by output price (\(sort.column == .outputPrice && !sort.ascending ? "lowest first" : "highest first"))")
                                     }
                                     .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(.secondary)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
                                     .background(Color.primary.opacity(0.04))
@@ -1149,7 +1234,7 @@ struct ModelPriceCheatSheetView: View {
 
             // Footer info
             HStack {
-                Text("\(totalModelCount) models across \(groups.count) platform\(groups.count == 1 ? "" : "s") · Sorted by output desc")
+                Text("\(totalModelCount) models across \(groups.count) platform\(groups.count == 1 ? "" : "s") · Click column titles to sort")
                     .font(.caption2)
                     .foregroundColor(.secondary)
                 Spacer()

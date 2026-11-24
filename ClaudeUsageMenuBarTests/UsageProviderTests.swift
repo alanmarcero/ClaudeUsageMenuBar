@@ -984,6 +984,44 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(ModelPriceCatalog.formatPrice(0.0375), "$0.0375")
     }
 
+    func testModelPriceCatalogSortsByName() {
+        let claudeModels = ModelPriceCatalog.entries.filter { $0.platformId == "claude" }
+        let sortedAsc = ModelPriceCatalog.sortModels(claudeModels, by: .name, ascending: true)
+        let sortedDesc = ModelPriceCatalog.sortModels(claudeModels, by: .name, ascending: false)
+
+        XCTAssertEqual(sortedAsc.first?.name, "Claude 3 Haiku")
+        XCTAssertEqual(sortedAsc.last?.name, "Claude 3.7 Sonnet")
+        XCTAssertEqual(sortedDesc.first?.name, "Claude 3.7 Sonnet")
+        XCTAssertEqual(sortedDesc.last?.name, "Claude 3 Haiku")
+    }
+
+    func testModelPriceCatalogSortsByInputPrice() {
+        let codexModels = ModelPriceCatalog.entries.filter { $0.platformId == "codex" }
+        let sortedDesc = ModelPriceCatalog.sortModels(codexModels, by: .inputPrice, ascending: false)
+        let sortedAsc = ModelPriceCatalog.sortModels(codexModels, by: .inputPrice, ascending: true)
+
+        XCTAssertEqual(sortedDesc.first?.name, "GPT-4.5") // $75 input
+        XCTAssertEqual(sortedAsc.first?.name, "GPT-4o mini") // $0.15 input
+    }
+
+    func testModelPriceCatalogCustomSortPerGroup() {
+        let grouped = ModelPriceCatalog.groupedByPlatform { pid in
+            if pid == "claude" {
+                return (column: .name, ascending: true)
+            } else if pid == "gemini" {
+                return (column: .inputPrice, ascending: false)
+            } else {
+                return (column: .outputPrice, ascending: false)
+            }
+        }
+
+        let claudeGroup = grouped.first { $0.platformId == "claude" }
+        XCTAssertEqual(claudeGroup?.models.first?.name, "Claude 3 Haiku")
+
+        let geminiGroup = grouped.first { $0.platformId == "gemini" }
+        XCTAssertEqual(geminiGroup?.models.first?.name, "Gemini 4 Argon") // highest input price ($3.00)
+    }
+
     @MainActor
     private func scrapeCodexFixture(_ body: String, beforeScrape: String = "", script: String = CodexScrapingScript.script) async throws -> [String: Any] {
         let webView = WKWebView()
