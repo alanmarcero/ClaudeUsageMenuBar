@@ -1011,6 +1011,19 @@ enum ModelPriceCatalog {
     static func groupedByPlatformSortedByOutputAsc(filter: String = "") -> [GroupedPlatform] {
         groupedByPlatform(filter: filter, sortForGroup: { _ in (.outputPrice, true) })
     }
+
+    static func isCursorNativeModel(_ entry: ModelPriceEntry) -> Bool {
+        entry.platformId == "cursor" && entry.note == "Cursor model"
+    }
+
+    static func cursorPriceSubgroups(from models: [ModelPriceEntry]) -> [(title: String, models: [ModelPriceEntry])] {
+        let cursorModels = models.filter { isCursorNativeModel($0) }
+        let otherModels = models.filter { !isCursorNativeModel($0) }
+        return [
+            ("Cursor Models", cursorModels),
+            ("Other Models", otherModels)
+        ].filter { !$0.models.isEmpty }
+    }
 }
 
 struct ModelPriceCheatSheetView: View {
@@ -1048,6 +1061,108 @@ struct ModelPriceCheatSheetView: View {
 
     private var totalModelCount: Int {
         groups.reduce(0) { $0 + $1.models.count }
+    }
+
+    @ViewBuilder
+    private func modelPriceTable(platformId: String, platformName: String, models: [ModelPriceEntry]) -> some View {
+        let sort = currentSort(for: platformId)
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button(action: { toggleSort(for: platformId, column: .name) }) {
+                    HStack(spacing: 4) {
+                        Text("MODEL")
+                        if sort.column == .name {
+                            Image(systemName: sort.ascending ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 8, weight: .bold))
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(sort.column == .name ? .accentColor : .secondary)
+                .help("Sort \(platformName) models by name (\(sort.column == .name && sort.ascending ? "Z-A" : "A-Z"))")
+
+                Button(action: { toggleSort(for: platformId, column: .inputPrice) }) {
+                    HStack(spacing: 4) {
+                        if sort.column == .inputPrice {
+                            Image(systemName: sort.ascending ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 8, weight: .bold))
+                        }
+                        Text("INPUT / 1M")
+                    }
+                    .frame(width: 95, alignment: .trailing)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(sort.column == .inputPrice ? .accentColor : .secondary)
+                .help("Sort \(platformName) models by input price (\(sort.column == .inputPrice && !sort.ascending ? "lowest first" : "highest first"))")
+
+                Button(action: { toggleSort(for: platformId, column: .outputPrice) }) {
+                    HStack(spacing: 4) {
+                        if sort.column == .outputPrice {
+                            Image(systemName: sort.ascending ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 8, weight: .bold))
+                        }
+                        Text("OUTPUT / 1M")
+                    }
+                    .frame(width: 105, alignment: .trailing)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(sort.column == .outputPrice ? .accentColor : .secondary)
+                .help("Sort \(platformName) models by output price (\(sort.column == .outputPrice && !sort.ascending ? "lowest first" : "highest first"))")
+            }
+            .font(.system(size: 10, weight: .bold))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.primary.opacity(0.04))
+
+            Divider()
+
+            ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
+                HStack(spacing: 12) {
+                    HStack(spacing: 6) {
+                        Text(model.name)
+                            .font(.system(size: 13, weight: .medium))
+                        if let note = model.note, note != "Cursor model" {
+                            Text(note)
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Color.primary.opacity(0.06))
+                                .cornerRadius(4)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Text(ModelPriceCatalog.formatPrice(model.inputPrice))
+                        .font(.system(size: 13, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .frame(width: 95, alignment: .trailing)
+
+                    Text(ModelPriceCatalog.formatPrice(model.outputPrice))
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.primary)
+                        .frame(width: 105, alignment: .trailing)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(index % 2 == 1 ? Color.primary.opacity(0.02) : Color.clear)
+
+                if index < models.count - 1 {
+                    Divider()
+                        .opacity(0.4)
+                }
+            }
+        }
+        .background(Color(NSColor.controlBackgroundColor))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .cornerRadius(8)
     }
 
     var body: some View {
@@ -1138,9 +1253,7 @@ struct ModelPriceCheatSheetView: View {
                 ScrollView {
                     LazyVStack(spacing: 18) {
                         ForEach(groups) { group in
-                            let sort = currentSort(for: group.platformId)
                             VStack(alignment: .leading, spacing: 6) {
-                                // Platform Section Header
                                 HStack(spacing: 6) {
                                     Image(systemName: group.platformGlyph)
                                         .font(.headline)
@@ -1159,106 +1272,28 @@ struct ModelPriceCheatSheetView: View {
                                 }
                                 .padding(.horizontal, 4)
 
-                                // Table Content
-                                VStack(spacing: 0) {
-                                    // Column Header Row with Interactive Sort
-                                    HStack(spacing: 12) {
-                                        Button(action: { toggleSort(for: group.platformId, column: .name) }) {
-                                            HStack(spacing: 4) {
-                                                Text("MODEL")
-                                                if sort.column == .name {
-                                                    Image(systemName: sort.ascending ? "chevron.up" : "chevron.down")
-                                                        .font(.system(size: 8, weight: .bold))
-                                                }
-                                            }
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .contentShape(Rectangle())
-                                        }
-                                        .buttonStyle(.plain)
-                                        .foregroundColor(sort.column == .name ? .accentColor : .secondary)
-                                        .help("Sort \(group.platformName) models by name (\(sort.column == .name && sort.ascending ? "Z-A" : "A-Z"))")
-
-                                        Button(action: { toggleSort(for: group.platformId, column: .inputPrice) }) {
-                                            HStack(spacing: 4) {
-                                                if sort.column == .inputPrice {
-                                                    Image(systemName: sort.ascending ? "chevron.up" : "chevron.down")
-                                                        .font(.system(size: 8, weight: .bold))
-                                                }
-                                                Text("INPUT / 1M")
-                                            }
-                                            .frame(width: 95, alignment: .trailing)
-                                            .contentShape(Rectangle())
-                                        }
-                                        .buttonStyle(.plain)
-                                        .foregroundColor(sort.column == .inputPrice ? .accentColor : .secondary)
-                                        .help("Sort \(group.platformName) models by input price (\(sort.column == .inputPrice && !sort.ascending ? "lowest first" : "highest first"))")
-
-                                        Button(action: { toggleSort(for: group.platformId, column: .outputPrice) }) {
-                                            HStack(spacing: 4) {
-                                                if sort.column == .outputPrice {
-                                                    Image(systemName: sort.ascending ? "chevron.up" : "chevron.down")
-                                                        .font(.system(size: 8, weight: .bold))
-                                                }
-                                                Text("OUTPUT / 1M")
-                                            }
-                                            .frame(width: 105, alignment: .trailing)
-                                            .contentShape(Rectangle())
-                                        }
-                                        .buttonStyle(.plain)
-                                        .foregroundColor(sort.column == .outputPrice ? .accentColor : .secondary)
-                                        .help("Sort \(group.platformName) models by output price (\(sort.column == .outputPrice && !sort.ascending ? "lowest first" : "highest first"))")
-                                    }
-                                    .font(.system(size: 10, weight: .bold))
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color.primary.opacity(0.04))
-
-                                    Divider()
-
-                                    // Model Rows
-                                    ForEach(Array(group.models.enumerated()), id: \.element.id) { index, model in
-                                        HStack(spacing: 12) {
-                                            HStack(spacing: 6) {
-                                                Text(model.name)
-                                                    .font(.system(size: 13, weight: .medium))
-                                                if let note = model.note {
-                                                    Text(note)
-                                                        .font(.system(size: 10))
-                                                        .foregroundColor(.secondary)
-                                                        .padding(.horizontal, 5)
-                                                        .padding(.vertical, 1)
-                                                        .background(Color.primary.opacity(0.06))
-                                                        .cornerRadius(4)
-                                                }
-                                            }
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                                            Text(ModelPriceCatalog.formatPrice(model.inputPrice))
-                                                .font(.system(size: 13, design: .monospaced))
+                                if group.platformId == "cursor" {
+                                    ForEach(Array(ModelPriceCatalog.cursorPriceSubgroups(from: group.models).enumerated()), id: \.offset) { _, subgroup in
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(subgroup.title)
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
                                                 .foregroundColor(.secondary)
-                                                .frame(width: 95, alignment: .trailing)
-
-                                            Text(ModelPriceCatalog.formatPrice(model.outputPrice))
-                                                .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                                                .foregroundColor(.primary)
-                                                .frame(width: 105, alignment: .trailing)
-                                        }
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 7)
-                                        .background(index % 2 == 1 ? Color.primary.opacity(0.02) : Color.clear)
-
-                                        if index < group.models.count - 1 {
-                                            Divider()
-                                                .opacity(0.4)
+                                                .padding(.horizontal, 4)
+                                            modelPriceTable(
+                                                platformId: group.platformId,
+                                                platformName: group.platformName,
+                                                models: subgroup.models
+                                            )
                                         }
                                     }
+                                } else {
+                                    modelPriceTable(
+                                        platformId: group.platformId,
+                                        platformName: group.platformName,
+                                        models: group.models
+                                    )
                                 }
-                                .background(Color(NSColor.controlBackgroundColor))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                                )
-                                .cornerRadius(8)
                             }
                         }
                     }

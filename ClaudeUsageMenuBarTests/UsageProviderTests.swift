@@ -364,6 +364,29 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertTrue(hosts.contains("apple.com"))
     }
 
+    func testCursorUsageURLUsesDashboardUsageEntryPoint() {
+        XCTAssertEqual(
+            UsageProvider.cursor.usageURL.absoluteString,
+            "https://cursor.com/dashboard/usage"
+        )
+        XCTAssertTrue(
+            UsageProvider.cursor.isUsagePage("https://cursor.com/dashboard/usage"),
+            "Primary usage page should match"
+        )
+        XCTAssertTrue(
+            UsageProvider.cursor.isUsagePage("https://cursor.com/dashboard/spending"),
+            "Legacy spending path should still count as usage"
+        )
+        XCTAssertFalse(
+            UsageProvider.cursor.isLoginPage("https://cursor.com/api/auth/callback?code=abc"),
+            "OAuth callback must not read as a login page"
+        )
+        XCTAssertTrue(
+            UsageProvider.cursor.isLoginPage("https://cursor.com/api/auth/login?redirect_uri=..."),
+            "Login endpoint should read as login"
+        )
+    }
+
     func testCursorOAuthHostsIncludeCursorAuthAndSharedSSO() {
         let hosts = UsageProvider.cursor.oauthHostSuffixes
         XCTAssertTrue(hosts.contains("cursor.com"))
@@ -975,6 +998,18 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(geminiModels["Gemini 3.1 Pro"]?.outputPrice, 12.00)
         XCTAssertNil(geminiModels["Gemini 1.5 Pro"])
         XCTAssertNil(geminiModels["Gemini 2.0 Flash"])
+    }
+
+    func testModelPriceCatalogCursorSplitsCursorAndOtherModels() {
+        let cursorEntries = ModelPriceCatalog.entries.filter { $0.platformId == "cursor" }
+        let subgroups = ModelPriceCatalog.cursorPriceSubgroups(from: cursorEntries)
+        XCTAssertEqual(subgroups.map(\.title), ["Cursor Models", "Other Models"])
+        let cursorPool = subgroups[0].models
+        let otherPool = subgroups[1].models
+        XCTAssertTrue(cursorPool.allSatisfy { ModelPriceCatalog.isCursorNativeModel($0) })
+        XCTAssertFalse(otherPool.contains { ModelPriceCatalog.isCursorNativeModel($0) })
+        XCTAssertTrue(cursorPool.contains { $0.name == "Composer 2.5" })
+        XCTAssertTrue(otherPool.contains { $0.name == "Claude Opus 5.5" })
     }
 
     func testModelPriceCatalogCursorContainsCurrentModels() {
