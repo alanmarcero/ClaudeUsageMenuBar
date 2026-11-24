@@ -1004,10 +1004,25 @@ enum ModelPriceCatalog {
     }
 }
 
+final class ModelPriceCheatSheetPreferences: ObservableObject {
+    static let showLegacyKey = "modelPriceCheatSheetShowLegacy"
+
+    @Published var showLegacy: Bool {
+        didSet { defaults.set(showLegacy, forKey: Self.showLegacyKey) }
+    }
+
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        showLegacy = defaults.object(forKey: Self.showLegacyKey) as? Bool ?? true
+    }
+}
+
 struct ModelPriceCheatSheetView: View {
+    @StateObject private var preferences = ModelPriceCheatSheetPreferences()
     @State private var searchText: String = ""
     @State private var selectedPlatform: String = "all"
-    @State private var showLegacy: Bool = true
     @State private var groupSorts: [String: (column: ModelPriceSortColumn, ascending: Bool)] = [:]
 
     private var platformFilters: [(id: String, label: String)] {
@@ -1029,7 +1044,7 @@ struct ModelPriceCheatSheetView: View {
     }
 
     private var groups: [ModelPriceCatalog.GroupedPlatform] {
-        let all = ModelPriceCatalog.groupedByPlatform(filter: searchText, includeLegacy: showLegacy) { pid in
+        let all = ModelPriceCatalog.groupedByPlatform(filter: searchText, includeLegacy: preferences.showLegacy) { pid in
             currentSort(for: pid)
         }
         if selectedPlatform == "all" {
@@ -1210,21 +1225,21 @@ struct ModelPriceCheatSheetView: View {
                         }
                     }
 
-                    Button(action: { showLegacy.toggle() }) {
-                        Text(showLegacy ? "Hide legacy" : "Show legacy")
+                    Button(action: { preferences.showLegacy.toggle() }) {
+                        Text(preferences.showLegacy ? "Hide legacy" : "Show legacy")
                             .font(.caption)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
-                            .background(showLegacy ? Color.primary.opacity(0.06) : Color.accentColor.opacity(0.25))
-                            .foregroundColor(showLegacy ? .primary : .accentColor)
+                            .background(preferences.showLegacy ? Color.primary.opacity(0.06) : Color.accentColor.opacity(0.25))
+                            .foregroundColor(preferences.showLegacy ? .primary : .accentColor)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .stroke(showLegacy ? Color.clear : Color.accentColor, lineWidth: 1)
+                                    .stroke(preferences.showLegacy ? Color.clear : Color.accentColor, lineWidth: 1)
                             )
                             .cornerRadius(6)
                     }
                     .buttonStyle(.plain)
-                    .help(showLegacy ? "Hide models marked Legacy" : "Show models marked Legacy")
+                    .help(preferences.showLegacy ? "Hide models marked Legacy" : "Show models marked Legacy")
                 }
             }
             .padding(16)

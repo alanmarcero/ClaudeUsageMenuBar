@@ -1058,6 +1058,21 @@ final class UsageProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testCheatSheetShowLegacyRemembersChoiceAcrossNewViews() {
+        let (defaults, suite) = makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let first = ModelPriceCheatSheetPreferences(defaults: defaults)
+        XCTAssertTrue(first.showLegacy)
+
+        first.showLegacy = false
+        XCTAssertFalse(ModelPriceCheatSheetPreferences(defaults: defaults).showLegacy)
+
+        ModelPriceCheatSheetPreferences(defaults: defaults).showLegacy = true
+        XCTAssertTrue(ModelPriceCheatSheetPreferences(defaults: defaults).showLegacy)
+    }
+
+    @MainActor
     private func scrapeCodexFixture(_ body: String, beforeScrape: String = "", script: String = CodexScrapingScript.script) async throws -> [String: Any] {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
