@@ -467,6 +467,26 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         isUsingClaudeCodeLogin ? Constants.claudeCodeRefreshInterval : Constants.refreshInterval
     }
 
+    var geminiClaudeGPTWeeklyResetCountdown: String? {
+        if let label = usageData.designWeeklyLabel, label.lowercased().contains("claude") || label.lowercased().contains("gpt") || label.lowercased().contains("3p") {
+            return designWeeklyResetCountdown
+        }
+        if let label = usageData.sonnetWeeklyLabel, label.lowercased().contains("claude") || label.lowercased().contains("gpt") || label.lowercased().contains("3p") {
+            return sonnetWeeklyResetCountdown
+        }
+        return designWeeklyResetCountdown ?? sonnetWeeklyResetCountdown
+    }
+
+    var geminiArgonWeeklyResetCountdown: String? {
+        if let label = usageData.sonnetWeeklyLabel, label.lowercased().contains("argon") {
+            return sonnetWeeklyResetCountdown
+        }
+        if let label = usageData.designWeeklyLabel, label.lowercased().contains("argon") {
+            return designWeeklyResetCountdown
+        }
+        return nil
+    }
+
     private func updateResetCountdowns() {
         dailyResetCountdown = DailyCountdownCalculator.calculate(from: rawDailyResetTime)
         weeklyResetCountdown = WeeklyCountdownCalculator.calculate(from: rawWeeklyResetTime)

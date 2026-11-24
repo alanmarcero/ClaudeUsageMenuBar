@@ -532,7 +532,14 @@ enum GeminiUsageAPI {
         let thirdPartyBuckets = thirdPartyGroup?["buckets"] as? [[String: Any]] ?? []
         let thirdPartySession = thirdPartyBuckets.first {
             ($0["bucketId"] as? String)?.contains("5h") == true || ($0["window"] as? String) == "5h"
+        } ?? allBuckets.first {
+            let id = ($0["bucketId"] as? String ?? "").lowercased()
+            let name = ($0["displayName"] as? String ?? "").lowercased()
+            return (id.contains("3p") || id.contains("claude") || id.contains("gpt") || name.contains("claude") || name.contains("gpt"))
+                && (id.contains("5h") || ($0["window"] as? String) == "5h")
         }
+
+        let primarySessionResetTime = resetTime(for: session, timeZone: timeZone)
 
         // Find Carbon, Hydrogen, and Neon buckets in retrieveUserQuotaSummary, or fall back to fetchAvailableModels
         let carbon = parseScopedModelPoolUsage(
@@ -541,7 +548,8 @@ enum GeminiUsageAPI {
             groups: groups,
             allBuckets: allBuckets,
             modelsData: modelsData,
-            timeZone: timeZone
+            timeZone: timeZone,
+            primarySessionResetTime: primarySessionResetTime
         )
         let hydrogen = parseScopedModelPoolUsage(
             keyword: "hydrogen",
@@ -549,7 +557,8 @@ enum GeminiUsageAPI {
             groups: groups,
             allBuckets: allBuckets,
             modelsData: modelsData,
-            timeZone: timeZone
+            timeZone: timeZone,
+            primarySessionResetTime: primarySessionResetTime
         )
         let neon = parseScopedModelPoolUsage(
             keyword: "neon",
@@ -557,7 +566,8 @@ enum GeminiUsageAPI {
             groups: groups,
             allBuckets: allBuckets,
             modelsData: modelsData,
-            timeZone: timeZone
+            timeZone: timeZone,
+            primarySessionResetTime: primarySessionResetTime
         )
 
         let geminiGroupDescription = (geminiGroup?["description"] as? String ?? "").lowercased()
@@ -594,7 +604,41 @@ enum GeminiUsageAPI {
             ? "Weekly (Hydrogen & Neon)"
             : hydrogen.weeklyLabel
 
-        let hasUsage = session != nil || weekly != nil || firstScoped != nil || carbon.isAvailable || hydrogen.isAvailable || neon.isAvailable
+        var sonnetWeeklyPercentage = usedPercentage(for: firstScoped?.bucket)
+        var sonnetWeeklyResetTime = resetTime(for: firstScoped?.bucket, timeZone: timeZone)
+        var sonnetWeeklyLabel = firstScoped?.label
+
+        var designWeeklyPercentage = usedPercentage(for: secondScoped?.bucket)
+        var designWeeklyResetTime = resetTime(for: secondScoped?.bucket, timeZone: timeZone)
+        var designWeeklyLabel = secondScoped?.label
+
+        // If no Claude / GPT weekly was found in groups, check modelsData as fallback
+        let hasClaudeGPTWeekly = [sonnetWeeklyLabel, designWeeklyLabel].compactMap { $0 }.contains {
+            $0.lowercased().contains("claude") || $0.lowercased().contains("gpt") || $0.lowercased().contains("3p")
+        }
+        if !hasClaudeGPTWeekly, let modelsData {
+            let claudeModelUsage = parseScopedModelPoolUsage(
+                keyword: "claude",
+                displayName: "Claude / GPT",
+                groups: groups,
+                allBuckets: allBuckets,
+                modelsData: modelsData,
+                timeZone: timeZone
+            )
+            if claudeModelUsage.isAvailable {
+                if sonnetWeeklyPercentage == nil {
+                    sonnetWeeklyPercentage = claudeModelUsage.weeklyPercentage
+                    sonnetWeeklyResetTime = claudeModelUsage.weeklyResetTime
+                    sonnetWeeklyLabel = claudeModelUsage.weeklyLabel
+                } else if designWeeklyPercentage == nil {
+                    designWeeklyPercentage = claudeModelUsage.weeklyPercentage
+                    designWeeklyResetTime = claudeModelUsage.weeklyResetTime
+                    designWeeklyLabel = claudeModelUsage.weeklyLabel
+                }
+            }
+        }
+
+        let hasUsage = session != nil || weekly != nil || firstScoped != nil || carbon.isAvailable || hydrogen.isAvailable || neon.isAvailable || sonnetWeeklyPercentage != nil
 
         let fields: [String: Any] = [
             "success": hasUsage,
@@ -603,15 +647,15 @@ enum GeminiUsageAPI {
             "resetTime": resetTime(for: session, timeZone: timeZone) as Any,
             "weeklyPercentage": primaryWeeklyPercentage as Any,
             "weeklyResetTime": primaryWeeklyResetTime as Any,
-            "sonnetWeeklyPercentage": usedPercentage(for: firstScoped?.bucket) as Any,
-            "sonnetWeeklyResetTime": resetTime(for: firstScoped?.bucket, timeZone: timeZone) as Any,
-            "sonnetWeeklyLabel": firstScoped?.label as Any,
+            "sonnetWeeklyPercentage": sonnetWeeklyPercentage as Any,
+            "sonnetWeeklyResetTime": sonnetWeeklyResetTime as Any,
+            "sonnetWeeklyLabel": sonnetWeeklyLabel as Any,
             "designDailyPercentage": usedPercentage(for: thirdPartySession) as Any,
             "designDailyResetTime": resetTime(for: thirdPartySession, timeZone: timeZone) as Any,
-            "designDailyLabel": (thirdPartySession != nil ? "Session (Claude & GPT)" : nil) as Any,
-            "designWeeklyPercentage": usedPercentage(for: secondScoped?.bucket) as Any,
-            "designWeeklyResetTime": resetTime(for: secondScoped?.bucket, timeZone: timeZone) as Any,
-            "designWeeklyLabel": secondScoped?.label as Any,
+            "designDailyLabel": (thirdPartySession != nil ? "Session (Claude / GPT)" : nil) as Any,
+            "designWeeklyPercentage": designWeeklyPercentage as Any,
+            "designWeeklyResetTime": designWeeklyResetTime as Any,
+            "designWeeklyLabel": designWeeklyLabel as Any,
             "carbonWeeklyPercentage": carbon.weeklyPercentage as Any,
             "carbonWeeklyResetTime": carbon.weeklyResetTime as Any,
             "carbonWeeklyLabel": carbon.weeklyLabel as Any,
@@ -697,7 +741,8 @@ enum GeminiUsageAPI {
         groups: [[String: Any]],
         allBuckets: [[String: Any]],
         modelsData: Data?,
-        timeZone: TimeZone
+        timeZone: TimeZone,
+        primarySessionResetTime: String? = nil
     ) -> ScopedModelPoolUsage {
         let matchingGroup = groups.first {
             let name = ($0["displayName"] as? String ?? "").lowercased()
@@ -743,12 +788,19 @@ enum GeminiUsageAPI {
             let preferred = matchingEntries.first { $0.key.lowercased().contains("medium") }
                 ?? matchingEntries.first { $0.info["quotaInfo"] is [String: Any] }
             if let quotaInfo = preferred?.info["quotaInfo"] as? [String: Any] {
+                let quotaReset = resetTime(for: quotaInfo, timeZone: timeZone)
+                let quotaPct = usedPercentage(for: quotaInfo) ?? 0
+
+                // If quotaInfo shares the exact same reset time as the primary 5-hour session,
+                // it is reflecting the generic shared session limit, NOT a dedicated weekly pool for this model!
+                // Report weekly usage as 0% (unused) so using Flash doesn't make Carbon's weekly usage climb.
+                let isMirroringPrimarySession = (primarySessionResetTime != nil && quotaReset == primarySessionResetTime)
                 return ScopedModelPoolUsage(
                     dailyPercentage: nil,
                     dailyResetTime: nil,
                     dailyLabel: nil,
-                    weeklyPercentage: usedPercentage(for: quotaInfo) ?? 0,
-                    weeklyResetTime: resetTime(for: quotaInfo, timeZone: timeZone),
+                    weeklyPercentage: isMirroringPrimarySession ? 0 : quotaPct,
+                    weeklyResetTime: isMirroringPrimarySession ? nil : quotaReset,
                     weeklyLabel: "Weekly (\(displayName))",
                     isAvailable: true
                 )
@@ -810,7 +862,7 @@ enum GeminiUsageAPI {
         if lower.contains("carbon") { return "Weekly (Carbon)" }
         if lower.contains("hydrogen") { return "Weekly (Hydrogen)" }
         if lower.contains("neon") { return "Weekly (Neon)" }
-        if lower.contains("claude") && lower.contains("gpt") { return "Weekly (Claude & GPT)" }
+        if lower.contains("claude") || lower.contains("gpt") || lower.contains("3p") { return "Weekly (Claude / GPT)" }
         return "Weekly (\(name))"
     }
 

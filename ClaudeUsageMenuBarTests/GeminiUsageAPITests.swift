@@ -148,10 +148,10 @@ final class GeminiUsageAPITests: XCTestCase {
         XCTAssertEqual(result["sonnetWeeklyLabel"] as? String, "Weekly (Argon)")
         XCTAssertEqual(result["sonnetWeeklyResetTime"] as? String, "Resets Nov 12, 2026 1:23 PM")
         XCTAssertEqual(result["designDailyPercentage"] as? Int, 0)
-        XCTAssertEqual(result["designDailyLabel"] as? String, "Session (Claude & GPT)")
+        XCTAssertEqual(result["designDailyLabel"] as? String, "Session (Claude / GPT)")
         XCTAssertEqual(result["designDailyResetTime"] as? String, "Resets Nov 6, 2026 2:28 AM")
         XCTAssertEqual(result["designWeeklyPercentage"] as? Int, 0)
-        XCTAssertEqual(result["designWeeklyLabel"] as? String, "Weekly (Claude & GPT)")
+        XCTAssertEqual(result["designWeeklyLabel"] as? String, "Weekly (Claude / GPT)")
         XCTAssertEqual(result["designWeeklyResetTime"] as? String, "Resets Nov 12, 2026 9:28 PM")
         XCTAssertEqual(result["carbonWeeklyPercentage"] as? Int, 0)
         XCTAssertEqual(result["carbonWeeklyLabel"] as? String, "Weekly (Carbon)")
@@ -286,6 +286,51 @@ final class GeminiUsageAPITests: XCTestCase {
         XCTAssertEqual(result["isCarbonAvailable"] as? Bool, false)
         XCTAssertEqual(result["carbonWeeklyPercentage"] as? Int, 0)
         XCTAssertEqual(result["carbonWeeklyLabel"] as? String, "Weekly (Carbon)")
+        XCTAssertNil(result["carbonWeeklyResetTime"] as? String)
+    }
+
+    func testUsageResultDoesNotMirrorFlashSessionIntoCarbonWhenSharingResetTime() {
+        let quotaBody = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "buckets": [
+                {"bucketId": "gemini-5h", "window": "5h", "resetTime": "2026-11-24T19:39:07Z", "remainingFraction": 0.80},
+                {"bucketId": "gemini-weekly", "window": "weekly", "resetTime": "2026-11-30T21:23:00Z", "remainingFraction": 0.90}
+              ]
+            }
+          ]
+        }
+        """
+        let modelsBody = """
+        {
+          "models": {
+            "gemini-4-carbon-medium": {
+              "displayName": "Gemini 4 Carbon (Medium)",
+              "quotaInfo": {
+                "remainingFraction": 0.80,
+                "resetTime": "2026-11-24T19:39:07Z"
+              }
+            }
+          }
+        }
+        """
+
+        let result = GeminiUsageAPI.usageResult(
+            from: Data(quotaBody.utf8),
+            modelsData: Data(modelsBody.utf8),
+            httpStatus: 200,
+            email: "alan@example.com",
+            planName: "Google AI Pro",
+            timeZone: eastern
+        )
+
+        XCTAssertEqual(result["percentage"] as? Int, 20)
+        XCTAssertEqual(result["weeklyPercentage"] as? Int, 10)
+        XCTAssertEqual(result["isCarbonAvailable"] as? Bool, true)
+        // Carbon weekly usage must stay 0% and not mirror Flash session usage:
+        XCTAssertEqual(result["carbonWeeklyPercentage"] as? Int, 0)
         XCTAssertNil(result["carbonWeeklyResetTime"] as? String)
     }
 

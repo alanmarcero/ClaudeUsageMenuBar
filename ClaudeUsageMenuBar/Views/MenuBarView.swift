@@ -174,79 +174,81 @@ struct ProviderSection: View {
             }
             if service.provider.id == UsageProvider.gemini.id {
                 geminiMenuMetricRow
-            }
-            // Cursor has no primary bar: its Included total is just the two
-            // pools below combined, so only those pools get rows.
-            if service.provider.id != UsageProvider.cursor.id,
-               service.provider.id != UsageProvider.codex.id || service.usageData.hasDailyLimit {
-                let isUnavailable = service.usageData.isPrimarySessionUnavailable(for: service.provider)
-                usageRow(
-                    service.provider.primaryLabel,
-                    service.usageData.percentage,
-                    service.dailyResetCountdown,
-                    isUnavailable: isUnavailable
-                )
-            }
-            if let secondaryLabel = service.provider.secondaryLabel {
-                usageRow(secondaryLabel, service.usageData.weeklyPercentage, service.weeklyResetCountdown)
-            }
-            if service.usageData.sonnetWeeklyPercentage != nil {
-                usageRow(service.usageData.sonnetWeeklyLabel ?? "Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
-            }
-            if service.usageData.carbonWeeklyPercentage != nil {
-                usageRow(
-                    service.usageData.carbonWeeklyLabel ?? "Weekly (Carbon)",
-                    service.usageData.carbonWeeklyPercentage,
-                    service.carbonWeeklyResetCountdown,
-                    isUnavailable: service.usageData.isCarbonUnavailable,
-                    unavailableHelp: service.usageData.isCarbonAvailable ? nil : "Not available on this account"
-                )
-            }
-            if service.usageData.hydrogenDailyPercentage != nil {
-                usageRow(
-                    service.usageData.hydrogenDailyLabel ?? "Session (Hydrogen)",
-                    service.usageData.hydrogenDailyPercentage,
-                    service.hydrogenDailyResetCountdown,
-                    isUnavailable: service.usageData.isHydrogenSessionUnavailable
-                )
-            }
-            if service.usageData.hydrogenWeeklyPercentage != nil {
-                usageRow(
-                    service.usageData.hydrogenWeeklyLabel ?? "Weekly (Hydrogen)",
-                    service.usageData.hydrogenWeeklyPercentage,
-                    service.hydrogenWeeklyResetCountdown,
-                    isUnavailable: service.usageData.isHydrogenUnavailable,
-                    unavailableHelp: service.usageData.isHydrogenAvailable ? nil : "Not available on this account"
-                )
-            }
-            if service.usageData.neonDailyPercentage != nil {
-                usageRow(
-                    service.usageData.neonDailyLabel ?? "Session (Neon)",
-                    service.usageData.neonDailyPercentage,
-                    service.neonDailyResetCountdown,
-                    isUnavailable: service.usageData.isNeonSessionUnavailable
-                )
-            }
-            if service.usageData.neonWeeklyPercentage != nil {
-                usageRow(
-                    service.usageData.neonWeeklyLabel ?? "Weekly (Neon)",
-                    service.usageData.neonWeeklyPercentage,
-                    service.neonWeeklyResetCountdown,
-                    isUnavailable: service.usageData.isNeonUnavailable,
-                    unavailableHelp: service.usageData.isNeonAvailable ? nil : "Not available on this account"
-                )
-            }
-            if service.usageData.designDailyPercentage != nil {
-                let isUnavailable = service.usageData.isDesignSessionUnavailable
-                usageRow(
-                    service.usageData.designDailyLabel ?? "Session (Claude & GPT)",
-                    service.usageData.designDailyPercentage,
-                    service.designDailyResetCountdown,
-                    isUnavailable: isUnavailable
-                )
-            }
-            if service.usageData.designWeeklyPercentage != nil {
-                usageRow(service.usageData.designWeeklyLabel ?? "Weekly (Design)", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
+                geminiUsageRows(service: service)
+            } else {
+                // Cursor has no primary bar: its Included total is just the two
+                // pools below combined, so only those pools get rows.
+                if service.provider.id != UsageProvider.cursor.id,
+                   service.provider.id != UsageProvider.codex.id || service.usageData.hasDailyLimit {
+                    let isUnavailable = service.usageData.isPrimarySessionUnavailable(for: service.provider)
+                    usageRow(
+                        service.provider.primaryLabel,
+                        service.usageData.percentage,
+                        service.dailyResetCountdown,
+                        isUnavailable: isUnavailable
+                    )
+                }
+                if let secondaryLabel = service.provider.secondaryLabel {
+                    usageRow(secondaryLabel, service.usageData.weeklyPercentage, service.weeklyResetCountdown)
+                }
+                if service.usageData.sonnetWeeklyPercentage != nil {
+                    usageRow(service.usageData.sonnetWeeklyLabel ?? "Weekly (Sonnet)", service.usageData.sonnetWeeklyPercentage, service.sonnetWeeklyResetCountdown)
+                }
+                if service.usageData.carbonWeeklyPercentage != nil {
+                    usageRow(
+                        service.usageData.carbonWeeklyLabel ?? "Weekly (Carbon)",
+                        service.usageData.carbonWeeklyPercentage,
+                        service.carbonWeeklyResetCountdown,
+                        isUnavailable: service.usageData.isCarbonUnavailable,
+                        unavailableHelp: service.usageData.isCarbonAvailable ? nil : "Not available on this account"
+                    )
+                }
+                if service.usageData.hydrogenDailyPercentage != nil {
+                    usageRow(
+                        service.usageData.hydrogenDailyLabel ?? "Session (Hydrogen)",
+                        service.usageData.hydrogenDailyPercentage,
+                        service.hydrogenDailyResetCountdown,
+                        isUnavailable: service.usageData.isHydrogenSessionUnavailable
+                    )
+                }
+                if service.usageData.hydrogenWeeklyPercentage != nil {
+                    usageRow(
+                        service.usageData.hydrogenWeeklyLabel ?? "Weekly (Hydrogen)",
+                        service.usageData.hydrogenWeeklyPercentage,
+                        service.hydrogenWeeklyResetCountdown,
+                        isUnavailable: service.usageData.isHydrogenUnavailable,
+                        unavailableHelp: service.usageData.isHydrogenAvailable ? nil : "Not available on this account"
+                    )
+                }
+                if service.usageData.neonDailyPercentage != nil {
+                    usageRow(
+                        service.usageData.neonDailyLabel ?? "Session (Neon)",
+                        service.usageData.neonDailyPercentage,
+                        service.neonDailyResetCountdown,
+                        isUnavailable: service.usageData.isNeonSessionUnavailable
+                    )
+                }
+                if service.usageData.neonWeeklyPercentage != nil {
+                    usageRow(
+                        service.usageData.neonWeeklyLabel ?? "Weekly (Neon)",
+                        service.usageData.neonWeeklyPercentage,
+                        service.neonWeeklyResetCountdown,
+                        isUnavailable: service.usageData.isNeonUnavailable,
+                        unavailableHelp: service.usageData.isNeonAvailable ? nil : "Not available on this account"
+                    )
+                }
+                if service.usageData.designDailyPercentage != nil {
+                    let isUnavailable = service.usageData.isDesignSessionUnavailable
+                    usageRow(
+                        service.usageData.designDailyLabel ?? "Session (Claude / GPT)",
+                        service.usageData.designDailyPercentage,
+                        service.designDailyResetCountdown,
+                        isUnavailable: isUnavailable
+                    )
+                }
+                if service.usageData.designWeeklyPercentage != nil {
+                    usageRow(service.usageData.designWeeklyLabel ?? "Weekly (Design)", service.usageData.designWeeklyPercentage, service.designWeeklyResetCountdown)
+                }
             }
             if let grokBotService {
                 GrokBotMetricRow(service: grokBotService)
@@ -307,6 +309,95 @@ struct ProviderSection: View {
             help: "Choose which Gemini usage shows in the menu bar",
             select: providers.setGeminiMenuBarMetric
         )
+    }
+
+    @ViewBuilder
+    private func geminiUsageRows(service: UsageService) -> some View {
+        // 1. Session
+        usageRow(
+            service.provider.primaryLabel,
+            service.usageData.percentage,
+            service.dailyResetCountdown,
+            isUnavailable: service.usageData.isPrimarySessionUnavailable(for: service.provider)
+        )
+
+        // 2. Weekly
+        if let secondaryLabel = service.provider.secondaryLabel {
+            usageRow(secondaryLabel, service.usageData.weeklyPercentage, service.weeklyResetCountdown)
+        }
+
+        // 3. Weekly (Carbon)
+        if service.usageData.carbonWeeklyPercentage != nil {
+            usageRow(
+                service.usageData.carbonWeeklyLabel ?? "Weekly (Carbon)",
+                service.usageData.carbonWeeklyPercentage,
+                service.carbonWeeklyResetCountdown,
+                isUnavailable: service.usageData.isCarbonUnavailable,
+                unavailableHelp: service.usageData.isCarbonAvailable ? nil : "Not available on this account"
+            )
+        }
+
+        // 4. Session (Claude / GPT)
+        if service.usageData.designDailyPercentage != nil {
+            usageRow(
+                service.usageData.designDailyLabel ?? "Session (Claude / GPT)",
+                service.usageData.designDailyPercentage,
+                service.designDailyResetCountdown,
+                isUnavailable: service.usageData.isDesignSessionUnavailable
+            )
+        }
+
+        // 5. Weekly (Claude / GPT)
+        if let claudeGPTWeeklyPct = service.usageData.geminiClaudeGPTWeeklyPercentage {
+            usageRow(
+                service.usageData.geminiClaudeGPTWeeklyLabel,
+                claudeGPTWeeklyPct,
+                service.geminiClaudeGPTWeeklyResetCountdown
+            )
+        }
+
+        // Additional scoped pools if present on other tiers (Argon, Hydrogen, Neon)
+        if let argonPct = service.usageData.geminiArgonWeeklyPercentage {
+            usageRow(
+                service.usageData.geminiArgonWeeklyLabel ?? "Weekly (Argon)",
+                argonPct,
+                service.geminiArgonWeeklyResetCountdown
+            )
+        }
+        if service.usageData.hydrogenDailyPercentage != nil {
+            usageRow(
+                service.usageData.hydrogenDailyLabel ?? "Session (Hydrogen)",
+                service.usageData.hydrogenDailyPercentage,
+                service.hydrogenDailyResetCountdown,
+                isUnavailable: service.usageData.isHydrogenSessionUnavailable
+            )
+        }
+        if service.usageData.hydrogenWeeklyPercentage != nil {
+            usageRow(
+                service.usageData.hydrogenWeeklyLabel ?? "Weekly (Hydrogen)",
+                service.usageData.hydrogenWeeklyPercentage,
+                service.hydrogenWeeklyResetCountdown,
+                isUnavailable: service.usageData.isHydrogenUnavailable,
+                unavailableHelp: service.usageData.isHydrogenAvailable ? nil : "Not available on this account"
+            )
+        }
+        if service.usageData.neonDailyPercentage != nil {
+            usageRow(
+                service.usageData.neonDailyLabel ?? "Session (Neon)",
+                service.usageData.neonDailyPercentage,
+                service.neonDailyResetCountdown,
+                isUnavailable: service.usageData.isNeonSessionUnavailable
+            )
+        }
+        if service.usageData.neonWeeklyPercentage != nil {
+            usageRow(
+                service.usageData.neonWeeklyLabel ?? "Weekly (Neon)",
+                service.usageData.neonWeeklyPercentage,
+                service.neonWeeklyResetCountdown,
+                isUnavailable: service.usageData.isNeonUnavailable,
+                unavailableHelp: service.usageData.isNeonAvailable ? nil : "Not available on this account"
+            )
+        }
     }
 
     // A labeled row with a bordered button showing the current pick, so it
@@ -856,16 +947,16 @@ enum ModelPriceCatalog {
         ModelPriceEntry(name: "Claude 3 Haiku", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 0.25, outputPrice: 1.25),
 
         // MARK: - Codex (OpenAI)
-        ModelPriceEntry(name: "GPT-4.5", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 75.00, outputPrice: 150.00, note: "Research preview"),
-        ModelPriceEntry(name: "o1", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 15.00, outputPrice: 60.00, note: "Full reasoning"),
-        ModelPriceEntry(name: "o1-preview", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 15.00, outputPrice: 60.00),
-        ModelPriceEntry(name: "GPT-4 Turbo", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 10.00, outputPrice: 30.00),
-        ModelPriceEntry(name: "GPT-4o", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.50, outputPrice: 10.00, note: "Flagship omni"),
-        ModelPriceEntry(name: "o3", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.00, outputPrice: 8.00, note: "Flagship reasoning"),
-        ModelPriceEntry(name: "o3-mini", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 1.10, outputPrice: 4.40, note: "Fast reasoning"),
-        ModelPriceEntry(name: "o1-mini", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 1.10, outputPrice: 4.40),
-        ModelPriceEntry(name: "GPT-3.5 Turbo", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 0.50, outputPrice: 1.50),
-        ModelPriceEntry(name: "GPT-4o mini", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 0.15, outputPrice: 0.60, note: "Fast efficient"),
+        ModelPriceEntry(name: "GPT-6.2-Sol", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.00, outputPrice: 10.00, note: "Fast, go-to model for coding and everyday work"),
+        ModelPriceEntry(name: "GPT-6.2-Astra", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 8.00, outputPrice: 40.00, note: "Our most capable model for complex coding and professional work"),
+        ModelPriceEntry(name: "GPT-6.1 Terra", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 1.00, outputPrice: 5.00, note: "Efficient model that excels at visual understanding and computer use"),
+        ModelPriceEntry(name: "GPT-6.1-Sol", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.00, outputPrice: 10.00, note: "Previous generation model for coding and everyday work"),
+        ModelPriceEntry(name: "GPT-6-Astra", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 10.00, outputPrice: 50.00, note: "Previous generation model for complex coding and professional work"),
+        ModelPriceEntry(name: "GPT-6-Sol", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.00, outputPrice: 10.00, note: "Legacy model for coding and everyday work"),
+        ModelPriceEntry(name: "GPT-6-Luna", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 0.10, outputPrice: 0.50, note: "Fast and affordable model for easier tasks"),
+        ModelPriceEntry(name: "GPT-5.6-Sol", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 4.00, outputPrice: 20.00),
+        ModelPriceEntry(name: "GPT-5.6-Terra", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.00, outputPrice: 12.00, note: "Legacy balanced model for agentic coding"),
+        ModelPriceEntry(name: "GPT-5.6-Luna", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 0.20, outputPrice: 1.20, note: "Legacy fast model for simpler tasks"),
 
         // MARK: - Cursor
         ModelPriceEntry(name: "Claude 3 Opus", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 15.00, outputPrice: 75.00),
@@ -882,13 +973,6 @@ enum ModelPriceCatalog {
         ModelPriceEntry(name: "DeepSeek V3", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.27, outputPrice: 1.10),
         ModelPriceEntry(name: "GPT-4o mini", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.15, outputPrice: 0.60),
         ModelPriceEntry(name: "Cursor Small", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.10, outputPrice: 0.40, note: "Included"),
-
-        // MARK: - Grok Bot (xAI)
-        ModelPriceEntry(name: "Grok Beta", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 5.00, outputPrice: 15.00),
-        ModelPriceEntry(name: "Grok 3", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 3.00, outputPrice: 15.00, note: "Flagship"),
-        ModelPriceEntry(name: "Grok 2", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 2.00, outputPrice: 10.00),
-        ModelPriceEntry(name: "Grok 2 Vision", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 2.00, outputPrice: 10.00),
-        ModelPriceEntry(name: "Grok 3 Mini", platformId: "grokbot", platformName: "Grok Bot", platformGlyph: "sparkles", inputPrice: 0.30, outputPrice: 0.50, note: "Fast reasoning"),
 
         // MARK: - Gemini (Google AI)
         ModelPriceEntry(name: "Gemini 4 Carbon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 4.00, outputPrice: 20.00, note: "Antigravity"),

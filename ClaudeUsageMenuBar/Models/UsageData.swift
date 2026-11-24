@@ -89,9 +89,62 @@ struct UsageData {
         return isWeeklyLimitReached
     }
 
-    /// Whether the secondary/scoped session (e.g. Session (Claude & GPT)) is unavailable because its linked weekly limit reached 100%.
+    private static func isClaudeGPTLabel(_ label: String?) -> Bool {
+        guard let label else { return false }
+        let lower = label.lowercased()
+        return lower.contains("claude") || lower.contains("gpt") || lower.contains("3p")
+    }
+
+    /// Weekly percentage for Claude / GPT on Gemini (checks both designWeekly and sonnetWeekly for a Claude/GPT label).
+    var geminiClaudeGPTWeeklyPercentage: Int? {
+        if Self.isClaudeGPTLabel(designWeeklyLabel) {
+            return designWeeklyPercentage
+        }
+        if Self.isClaudeGPTLabel(sonnetWeeklyLabel) {
+            return sonnetWeeklyPercentage
+        }
+        return designWeeklyPercentage ?? sonnetWeeklyPercentage
+    }
+
+    var geminiClaudeGPTWeeklyLabel: String {
+        if Self.isClaudeGPTLabel(designWeeklyLabel) {
+            return "Weekly (Claude / GPT)"
+        }
+        if Self.isClaudeGPTLabel(sonnetWeeklyLabel) {
+            return "Weekly (Claude / GPT)"
+        }
+        return "Weekly (Claude / GPT)"
+    }
+
+    var geminiArgonWeeklyPercentage: Int? {
+        if sonnetWeeklyLabel?.lowercased().contains("argon") == true {
+            return sonnetWeeklyPercentage
+        }
+        if designWeeklyLabel?.lowercased().contains("argon") == true {
+            return designWeeklyPercentage
+        }
+        return nil
+    }
+
+    var geminiArgonWeeklyLabel: String? {
+        if sonnetWeeklyLabel?.lowercased().contains("argon") == true {
+            return sonnetWeeklyLabel
+        }
+        if designWeeklyLabel?.lowercased().contains("argon") == true {
+            return designWeeklyLabel
+        }
+        return nil
+    }
+
+    /// Whether the secondary/scoped session (e.g. Session (Claude / GPT)) is unavailable because its linked weekly limit reached 100%.
     var isDesignSessionUnavailable: Bool {
-        isDesignWeeklyLimitReached
+        if Self.isClaudeGPTLabel(designWeeklyLabel) {
+            return (designWeeklyPercentage ?? 0) >= 100
+        }
+        if Self.isClaudeGPTLabel(sonnetWeeklyLabel) {
+            return (sonnetWeeklyPercentage ?? 0) >= 100
+        }
+        return isDesignWeeklyLimitReached
     }
 
     /// Whether Carbon usage is unavailable (not available on this account).

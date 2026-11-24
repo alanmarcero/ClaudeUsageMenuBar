@@ -186,6 +186,7 @@ final class UsageProviderTests: XCTestCase {
     func testCodexMenuBarFallsBackToWeeklyUsageWhenSessionCardIsMissing() {
         let container = UsageProviders(providers: [.codex], defaults: makeSuiteDefaults().defaults)
         let codex = container.services[0]
+        codex.usageData.percentage = nil
         codex.usageData.weeklyPercentage = 90
 
         XCTAssertEqual(container.menuBarDisplay(for: codex), "90%")
@@ -205,9 +206,9 @@ final class UsageProviderTests: XCTestCase {
         gemini.usageData.sonnetWeeklyPercentage = 40
         gemini.usageData.sonnetWeeklyLabel = "Weekly (Argon)"
         gemini.usageData.designDailyPercentage = 25
-        gemini.usageData.designDailyLabel = "Session (Claude & GPT)"
+        gemini.usageData.designDailyLabel = "Session (Claude / GPT)"
         gemini.usageData.designWeeklyPercentage = 80 // weekly is higher than session
-        gemini.usageData.designWeeklyLabel = "Weekly (Claude & GPT)"
+        gemini.usageData.designWeeklyLabel = "Weekly (Claude / GPT)"
 
         XCTAssertEqual(container.geminiMenuBarMetricID, "flash")
         XCTAssertEqual(container.menuBarDisplay(for: gemini), "5%")
@@ -268,9 +269,28 @@ final class UsageProviderTests: XCTestCase {
         // No Argon pool: Claude & GPT shifts into the first scoped slot.
         data.designDailyPercentage = 25
         data.sonnetWeeklyPercentage = 25
-        data.sonnetWeeklyLabel = "Weekly (Claude & GPT)"
+        data.sonnetWeeklyLabel = "Weekly (Claude / GPT)"
         XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "opus"), "25%")
         XCTAssertEqual(UsageProviders.geminiMenuBarDisplay(for: data, metricID: "argon"), "--")
+    }
+
+    func testGeminiClaudeGPTWeeklyResolvesFromEitherSlot() {
+        var dataWithoutArgon = UsageData()
+        dataWithoutArgon.sonnetWeeklyPercentage = 100
+        dataWithoutArgon.sonnetWeeklyLabel = "Weekly (Claude / GPT)"
+        XCTAssertEqual(dataWithoutArgon.geminiClaudeGPTWeeklyPercentage, 100)
+        XCTAssertEqual(dataWithoutArgon.geminiClaudeGPTWeeklyLabel, "Weekly (Claude / GPT)")
+        XCTAssertTrue(dataWithoutArgon.isDesignSessionUnavailable)
+
+        var dataWithArgon = UsageData()
+        dataWithArgon.sonnetWeeklyPercentage = 45
+        dataWithArgon.sonnetWeeklyLabel = "Weekly (Argon)"
+        dataWithArgon.designWeeklyPercentage = 80
+        dataWithArgon.designWeeklyLabel = "Weekly (Claude & GPT)"
+        XCTAssertEqual(dataWithArgon.geminiClaudeGPTWeeklyPercentage, 80)
+        XCTAssertEqual(dataWithArgon.geminiClaudeGPTWeeklyLabel, "Weekly (Claude / GPT)")
+        XCTAssertEqual(dataWithArgon.geminiArgonWeeklyPercentage, 45)
+        XCTAssertFalse(dataWithArgon.isDesignSessionUnavailable)
     }
 
     func testGeminiMenuBarDisplayCarbonReturnsPercentageOrZeroOrDash() {
@@ -945,13 +965,13 @@ final class UsageProviderTests: XCTestCase {
 
     func testModelPriceCatalogCoversAllAppPlatforms() {
         let platformIDs = Set(ModelPriceCatalog.entries.map { $0.platformId })
-        let expectedPlatforms: Set<String> = ["claude", "codex", "cursor", "grokbot", "gemini"]
+        let expectedPlatforms: Set<String> = ["claude", "codex", "cursor", "gemini"]
         XCTAssertEqual(platformIDs, expectedPlatforms)
     }
 
     func testModelPriceCatalogIsSortedByOutputAscendingWithinPlatformByDefault() {
         let grouped = ModelPriceCatalog.groupedByPlatformSortedByOutputAsc()
-        XCTAssertEqual(grouped.count, 5)
+        XCTAssertEqual(grouped.count, 4)
         for group in grouped {
             XCTAssertFalse(group.models.isEmpty, "Platform \(group.platformName) should have models")
             var lastOutput = -1.0
@@ -1000,8 +1020,26 @@ final class UsageProviderTests: XCTestCase {
         let sortedDesc = ModelPriceCatalog.sortModels(codexModels, by: .inputPrice, ascending: false)
         let sortedAsc = ModelPriceCatalog.sortModels(codexModels, by: .inputPrice, ascending: true)
 
-        XCTAssertEqual(sortedDesc.first?.name, "GPT-4.5") // $75 input
-        XCTAssertEqual(sortedAsc.first?.name, "GPT-4o mini") // $0.15 input
+        XCTAssertEqual(sortedDesc.first?.name, "GPT-6-Astra") // $10.00 input
+        XCTAssertEqual(sortedAsc.first?.name, "GPT-6-Luna") // $0.10 input
+    }
+
+    func testModelPriceCatalogCodexContainsOnlyRequestedModels() {
+        let codexNames = ModelPriceCatalog.entries.filter { $0.platformId == "codex" }.map { $0.name }
+        let expectedNames = [
+            "GPT-6.2-Sol",
+            "GPT-6.2-Astra",
+            "GPT-6.1 Terra",
+            "GPT-6.1-Sol",
+            "GPT-6-Astra",
+            "GPT-6-Sol",
+            "GPT-6-Luna",
+            "GPT-5.6-Sol",
+            "GPT-5.6-Terra",
+            "GPT-5.6-Luna"
+        ]
+        XCTAssertEqual(Set(codexNames), Set(expectedNames))
+        XCTAssertEqual(codexNames.count, 10)
     }
 
     func testModelPriceCatalogCustomSortPerGroup() {
