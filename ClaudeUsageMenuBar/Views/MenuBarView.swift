@@ -825,6 +825,10 @@ struct ModelPriceEntry: Identifiable, Equatable {
         self.outputPrice = outputPrice
         self.note = note
     }
+
+    var isLegacy: Bool {
+        note?.hasPrefix("Legacy") == true
+    }
 }
 
 enum ModelPriceSortColumn: String, CaseIterable, Equatable {
@@ -844,21 +848,21 @@ enum ModelPriceCatalog {
 
     static let entries: [ModelPriceEntry] = [
         // MARK: - Claude (Anthropic)
-        ModelPriceEntry(name: "Claude Fable 5.2", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 8.00, outputPrice: 40.00, note: "Frontier reasoning"),
-        ModelPriceEntry(name: "Claude Fable 5.1", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 10.00, outputPrice: 50.00),
-        ModelPriceEntry(name: "Claude Fable 5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 10.00, outputPrice: 50.00),
-        ModelPriceEntry(name: "Claude Opus 5.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 4.00, outputPrice: 20.00, note: "Latest Opus"),
-        ModelPriceEntry(name: "Claude Opus 5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00),
-        ModelPriceEntry(name: "Claude Opus 4.8", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00),
-        ModelPriceEntry(name: "Claude Opus 4.7", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00),
-        ModelPriceEntry(name: "Claude Opus 4.6", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00),
-        ModelPriceEntry(name: "Claude Opus 4.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00),
-        ModelPriceEntry(name: "Claude Sonnet 5.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 2.00, outputPrice: 10.00, note: "Latest Sonnet"),
-        ModelPriceEntry(name: "Claude Sonnet 5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 2.00, outputPrice: 10.00),
-        ModelPriceEntry(name: "Claude Sonnet 4.6", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 3.00, outputPrice: 15.00),
-        ModelPriceEntry(name: "Claude Sonnet 4.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 3.00, outputPrice: 15.00),
-        ModelPriceEntry(name: "Claude Haiku 5.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 0.10, outputPrice: 0.50, note: "≤100K ($0.50/$2.50 >100K)"),
-        ModelPriceEntry(name: "Claude Haiku 4.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 1.00, outputPrice: 5.00),
+        ModelPriceEntry(name: "Claude Fable 5.2", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 8.00, outputPrice: 40.00, note: "Frontier model for demanding reasoning and long-horizon work"),
+        ModelPriceEntry(name: "Claude Fable 5.1", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 10.00, outputPrice: 50.00, note: "Previous generation frontier model"),
+        ModelPriceEntry(name: "Claude Fable 5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 10.00, outputPrice: 50.00, note: "Legacy frontier model"),
+        ModelPriceEntry(name: "Claude Opus 5.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 4.00, outputPrice: 20.00, note: "Latest Opus for agentic coding and knowledge work"),
+        ModelPriceEntry(name: "Claude Opus 5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00, note: "Previous generation Opus for coding and knowledge work"),
+        ModelPriceEntry(name: "Claude Opus 4.8", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00, note: "Legacy Opus for complex work"),
+        ModelPriceEntry(name: "Claude Opus 4.7", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00, note: "Legacy Opus for complex work"),
+        ModelPriceEntry(name: "Claude Opus 4.6", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00, note: "Legacy Opus for complex work"),
+        ModelPriceEntry(name: "Claude Opus 4.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 5.00, outputPrice: 25.00, note: "Legacy Opus, retiring January 22"),
+        ModelPriceEntry(name: "Claude Sonnet 5.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 2.00, outputPrice: 10.00, note: "Latest Sonnet, best mix of speed and intelligence"),
+        ModelPriceEntry(name: "Claude Sonnet 5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 2.00, outputPrice: 10.00, note: "Previous generation balanced model"),
+        ModelPriceEntry(name: "Claude Sonnet 4.6", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 3.00, outputPrice: 15.00, note: "Legacy balanced model"),
+        ModelPriceEntry(name: "Claude Sonnet 4.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 3.00, outputPrice: 15.00, note: "Legacy Sonnet, retiring November 30"),
+        ModelPriceEntry(name: "Claude Haiku 5.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 0.10, outputPrice: 0.50, note: "Fast model for high-volume tasks · ≤100K ($0.50/$2.50 >100K)"),
+        ModelPriceEntry(name: "Claude Haiku 4.5", platformId: "claude", platformName: "Claude", platformGlyph: "cpu.fill", inputPrice: 1.00, outputPrice: 5.00, note: "Previous generation fast model"),
 
         // MARK: - Codex (OpenAI)
         ModelPriceEntry(name: "GPT-6.2-Sol", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.00, outputPrice: 10.00, note: "Fast, go-to model for coding and everyday work"),
@@ -868,47 +872,47 @@ enum ModelPriceCatalog {
         ModelPriceEntry(name: "GPT-6-Astra", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 10.00, outputPrice: 50.00, note: "Previous generation model for complex coding and professional work"),
         ModelPriceEntry(name: "GPT-6-Sol", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.00, outputPrice: 10.00, note: "Legacy model for coding and everyday work"),
         ModelPriceEntry(name: "GPT-6-Luna", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 0.10, outputPrice: 0.50, note: "Fast and affordable model for easier tasks"),
-        ModelPriceEntry(name: "GPT-5.6-Sol", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 4.00, outputPrice: 20.00),
+        ModelPriceEntry(name: "GPT-5.6-Sol", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 4.00, outputPrice: 20.00, note: "Legacy flagship for complex professional work"),
         ModelPriceEntry(name: "GPT-5.6-Terra", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 2.00, outputPrice: 12.00, note: "Legacy balanced model for agentic coding"),
         ModelPriceEntry(name: "GPT-5.6-Luna", platformId: "codex", platformName: "Codex", platformGlyph: "chevron.left.forwardslash.chevron.right", inputPrice: 0.20, outputPrice: 1.20, note: "Legacy fast model for simpler tasks"),
 
         // MARK: - Cursor
-        ModelPriceEntry(name: "Composer 2.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.50, outputPrice: 2.50, note: "Cursor model"),
-        ModelPriceEntry(name: "Composer 2.5 (Fast)", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 3.00, outputPrice: 15.00, note: "Cursor model"),
-        ModelPriceEntry(name: "Grok 4.7", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 6.00, note: "Cursor model"),
-        ModelPriceEntry(name: "Grok 4.7 (Fast)", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 4.00, outputPrice: 12.00, note: "Cursor model"),
-        ModelPriceEntry(name: "Grok 4.6", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 6.00, note: "Cursor model"),
-        ModelPriceEntry(name: "Grok 4.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 6.00, note: "Cursor model"),
-        ModelPriceEntry(name: "Claude Fable 5.2", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 8.00, outputPrice: 40.00),
-        ModelPriceEntry(name: "Claude Opus 5.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 4.00, outputPrice: 20.00),
-        ModelPriceEntry(name: "Claude Sonnet 5.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 10.00),
-        ModelPriceEntry(name: "Claude Haiku 5.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.10, outputPrice: 0.50, note: "≤100K ($0.50/$2.50 >100K)"),
-        ModelPriceEntry(name: "GPT-5.6 Sol", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 4.00, outputPrice: 20.00),
-        ModelPriceEntry(name: "GPT-5.6 Terra", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 12.00),
-        ModelPriceEntry(name: "GPT-5.6 Luna", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.20, outputPrice: 1.20),
-        ModelPriceEntry(name: "Gemini 4 Neon", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 3.00, outputPrice: 15.00),
-        ModelPriceEntry(name: "Gemini 4 Carbon", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 10.00, note: "Intro ($4/$20 Dec 1)"),
-        ModelPriceEntry(name: "Gemini 4 Argon", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 10.00, note: "Intro ($4/$20 Dec 1)"),
-        ModelPriceEntry(name: "Gemini 4 Hydrogen", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 1.50, outputPrice: 7.50),
-        ModelPriceEntry(name: "Gemini 3.1 Pro", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 12.00),
-        ModelPriceEntry(name: "Gemini 3.8 Flash", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.75, outputPrice: 3.75),
-        ModelPriceEntry(name: "Muse Wonder", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 4.00, outputPrice: 20.00, note: "Meta"),
+        ModelPriceEntry(name: "Composer 2.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.50, outputPrice: 2.50, note: "Cursor coding model for agent work"),
+        ModelPriceEntry(name: "Composer 2.5 (Fast)", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 3.00, outputPrice: 15.00, note: "Faster Cursor coding model"),
+        ModelPriceEntry(name: "Grok 4.7", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 6.00, note: "xAI model for coding and general work"),
+        ModelPriceEntry(name: "Grok 4.7 (Fast)", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 4.00, outputPrice: 12.00, note: "Faster xAI model"),
+        ModelPriceEntry(name: "Grok 4.6", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 6.00, note: "Previous generation xAI model"),
+        ModelPriceEntry(name: "Grok 4.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 6.00, note: "Legacy xAI model"),
+        ModelPriceEntry(name: "Claude Fable 5.2", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 8.00, outputPrice: 40.00, note: "Frontier model for demanding reasoning and long-horizon work"),
+        ModelPriceEntry(name: "Claude Opus 5.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 4.00, outputPrice: 20.00, note: "Latest Opus for agentic coding and knowledge work"),
+        ModelPriceEntry(name: "Claude Sonnet 5.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 10.00, note: "Latest Sonnet, best mix of speed and intelligence"),
+        ModelPriceEntry(name: "Claude Haiku 5.5", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.10, outputPrice: 0.50, note: "Fast model for high-volume tasks · ≤100K ($0.50/$2.50 >100K)"),
+        ModelPriceEntry(name: "GPT-5.6 Sol", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 4.00, outputPrice: 20.00, note: "Legacy flagship for complex professional work"),
+        ModelPriceEntry(name: "GPT-5.6 Terra", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 12.00, note: "Legacy balanced model for agentic coding"),
+        ModelPriceEntry(name: "GPT-5.6 Luna", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.20, outputPrice: 1.20, note: "Legacy fast model for simpler tasks"),
+        ModelPriceEntry(name: "Gemini 4 Neon", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 3.00, outputPrice: 15.00, note: "Frontier model for complex engineering and science"),
+        ModelPriceEntry(name: "Gemini 4 Carbon", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 10.00, note: "Strongest reasoning for long-horizon work · Intro ($4/$20 Dec 1)"),
+        ModelPriceEntry(name: "Gemini 4 Argon", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 10.00, note: "Efficient frontier reasoning · Intro ($4/$20 Dec 1)"),
+        ModelPriceEntry(name: "Gemini 4 Hydrogen", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 1.50, outputPrice: 7.50, note: "Fast model for everyday coding and agents"),
+        ModelPriceEntry(name: "Gemini 3.1 Pro", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 2.00, outputPrice: 12.00, note: "Legacy Pro · ≤200K ($4/$18 >200K)"),
+        ModelPriceEntry(name: "Gemini 3.8 Flash", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 0.75, outputPrice: 3.75, note: "Previous generation Flash for coding and agents"),
+        ModelPriceEntry(name: "Muse Wonder", platformId: "cursor", platformName: "Cursor", platformGlyph: "cursorarrow.rays", inputPrice: 4.00, outputPrice: 20.00, note: "Meta model"),
 
         // MARK: - Gemini (Google AI / Antigravity)
-        ModelPriceEntry(name: "Gemini 4 Neon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 3.00, outputPrice: 15.00, note: "Antigravity"),
-        ModelPriceEntry(name: "Gemini 4 Carbon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 2.00, outputPrice: 10.00, note: "Antigravity · $4/$20 Dec 1"),
-        ModelPriceEntry(name: "Gemini 4 Argon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 2.00, outputPrice: 10.00, note: "Antigravity · $4/$20 Dec 1"),
-        ModelPriceEntry(name: "Gemini 4 Hydrogen", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.50, outputPrice: 7.50, note: "Antigravity"),
-        ModelPriceEntry(name: "Gemini 3.8 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.75, outputPrice: 3.75, note: "Antigravity · $1.50/$7.50 Jan 1"),
-        ModelPriceEntry(name: "Gemini 3.7 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.75, outputPrice: 3.75),
-        ModelPriceEntry(name: "Gemini 3.6 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.75, outputPrice: 3.75),
-        ModelPriceEntry(name: "Gemini 3.5 Flash-Lite", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.30, outputPrice: 2.50),
-        ModelPriceEntry(name: "Gemini 3.1 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 2.00, outputPrice: 12.00, note: "≤200K ($4/$18 >200K)"),
-        ModelPriceEntry(name: "Gemini 3.1 Flash-Lite", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.25, outputPrice: 1.50),
-        ModelPriceEntry(name: "Gemini 3 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.50, outputPrice: 3.00),
-        ModelPriceEntry(name: "Gemini 2.5 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.25, outputPrice: 10.00),
-        ModelPriceEntry(name: "Gemini 2.5 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.30, outputPrice: 2.50),
-        ModelPriceEntry(name: "Gemini 2.5 Flash-Lite", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.10, outputPrice: 0.40)
+        ModelPriceEntry(name: "Gemini 4 Neon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 3.00, outputPrice: 15.00, note: "Frontier model for complex engineering and science · Antigravity"),
+        ModelPriceEntry(name: "Gemini 4 Carbon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 2.00, outputPrice: 10.00, note: "Strongest reasoning for long-horizon work · Antigravity · $4/$20 Dec 1"),
+        ModelPriceEntry(name: "Gemini 4 Argon", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 2.00, outputPrice: 10.00, note: "Efficient frontier reasoning · Antigravity · $4/$20 Dec 1"),
+        ModelPriceEntry(name: "Gemini 4 Hydrogen", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.50, outputPrice: 7.50, note: "Fast model for everyday coding and agents · Antigravity"),
+        ModelPriceEntry(name: "Gemini 3.8 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.75, outputPrice: 3.75, note: "Previous generation Flash for coding and agents · Antigravity · $1.50/$7.50 Jan 1"),
+        ModelPriceEntry(name: "Gemini 3.7 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.75, outputPrice: 3.75, note: "Legacy Flash, routes to 3.8"),
+        ModelPriceEntry(name: "Gemini 3.6 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.75, outputPrice: 3.75, note: "Legacy Flash model"),
+        ModelPriceEntry(name: "Gemini 3.5 Flash-Lite", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.30, outputPrice: 2.50, note: "Fastest low-cost model for high-volume tasks"),
+        ModelPriceEntry(name: "Gemini 3.1 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 2.00, outputPrice: 12.00, note: "Legacy Pro · ≤200K ($4/$18 >200K)"),
+        ModelPriceEntry(name: "Gemini 3.1 Flash-Lite", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.25, outputPrice: 1.50, note: "Legacy Flash-Lite, retiring May 2027"),
+        ModelPriceEntry(name: "Gemini 3 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.50, outputPrice: 3.00, note: "Legacy Flash model"),
+        ModelPriceEntry(name: "Gemini 2.5 Pro", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 1.25, outputPrice: 10.00, note: "Legacy Pro, retiring December 1"),
+        ModelPriceEntry(name: "Gemini 2.5 Flash", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.30, outputPrice: 2.50, note: "Legacy Flash, retiring December 1"),
+        ModelPriceEntry(name: "Gemini 2.5 Flash-Lite", platformId: "gemini", platformName: "Gemini", platformGlyph: "sparkle", inputPrice: 0.10, outputPrice: 0.40, note: "Legacy low-cost model"),
     ]
 
     static func formatPrice(_ price: Double) -> String {
@@ -957,15 +961,18 @@ enum ModelPriceCatalog {
 
     static func groupedByPlatform(
         filter: String = "",
+        includeLegacy: Bool = true,
         sortForGroup: ((String) -> (column: ModelPriceSortColumn, ascending: Bool))? = nil
     ) -> [GroupedPlatform] {
         let platformsOrder = ["claude", "codex", "cursor", "gemini"]
         let query = filter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-        let filtered = query.isEmpty ? entries : entries.filter {
-            $0.name.lowercased().contains(query) ||
-            $0.platformName.lowercased().contains(query) ||
-            ($0.note?.lowercased().contains(query) ?? false)
+        let filtered = entries.filter { entry in
+            if !includeLegacy && entry.isLegacy { return false }
+            if query.isEmpty { return true }
+            return entry.name.lowercased().contains(query) ||
+                entry.platformName.lowercased().contains(query) ||
+                (entry.note?.lowercased().contains(query) ?? false)
         }
 
         return platformsOrder.compactMap { pid in
@@ -978,12 +985,13 @@ enum ModelPriceCatalog {
         }
     }
 
-    static func groupedByPlatformSortedByOutputAsc(filter: String = "") -> [GroupedPlatform] {
-        groupedByPlatform(filter: filter, sortForGroup: { _ in (.outputPrice, true) })
+    static func groupedByPlatformSortedByOutputAsc(filter: String = "", includeLegacy: Bool = true) -> [GroupedPlatform] {
+        groupedByPlatform(filter: filter, includeLegacy: includeLegacy, sortForGroup: { _ in (.outputPrice, true) })
     }
 
     static func isCursorNativeModel(_ entry: ModelPriceEntry) -> Bool {
-        entry.platformId == "cursor" && entry.note == "Cursor model"
+        entry.platformId == "cursor" &&
+            (entry.name.hasPrefix("Composer") || entry.name.hasPrefix("Grok"))
     }
 
     static func cursorPriceSubgroups(from models: [ModelPriceEntry]) -> [(title: String, models: [ModelPriceEntry])] {
@@ -999,6 +1007,7 @@ enum ModelPriceCatalog {
 struct ModelPriceCheatSheetView: View {
     @State private var searchText: String = ""
     @State private var selectedPlatform: String = "all"
+    @State private var showLegacy: Bool = true
     @State private var groupSorts: [String: (column: ModelPriceSortColumn, ascending: Bool)] = [:]
 
     private var platformFilters: [(id: String, label: String)] {
@@ -1020,7 +1029,7 @@ struct ModelPriceCheatSheetView: View {
     }
 
     private var groups: [ModelPriceCatalog.GroupedPlatform] {
-        let all = ModelPriceCatalog.groupedByPlatform(filter: searchText) { pid in
+        let all = ModelPriceCatalog.groupedByPlatform(filter: searchText, includeLegacy: showLegacy) { pid in
             currentSort(for: pid)
         }
         if selectedPlatform == "all" {
@@ -1200,6 +1209,22 @@ struct ModelPriceCheatSheetView: View {
                             }
                         }
                     }
+
+                    Button(action: { showLegacy.toggle() }) {
+                        Text(showLegacy ? "Hide legacy" : "Show legacy")
+                            .font(.caption)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(showLegacy ? Color.primary.opacity(0.06) : Color.accentColor.opacity(0.25))
+                            .foregroundColor(showLegacy ? .primary : .accentColor)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(showLegacy ? Color.clear : Color.accentColor, lineWidth: 1)
+                            )
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .help(showLegacy ? "Hide models marked Legacy" : "Show models marked Legacy")
                 }
             }
             .padding(16)

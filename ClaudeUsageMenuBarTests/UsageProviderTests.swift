@@ -1029,6 +1029,34 @@ final class UsageProviderTests: XCTestCase {
         XCTAssertEqual(geminiGroup?.models.first?.name, "Gemini 4 Neon")
     }
 
+    func testModelPriceCatalogNotesEveryModelAndMarksLegacy() {
+        XCTAssertTrue(ModelPriceCatalog.entries.allSatisfy { ($0.note ?? "").isEmpty == false })
+        XCTAssertEqual(
+            ModelPriceCatalog.entries.first { $0.platformId == "codex" && $0.name == "GPT-5.6-Sol" }?.isLegacy,
+            true
+        )
+        XCTAssertEqual(
+            ModelPriceCatalog.entries.first { $0.name == "Claude Opus 5.5" && $0.platformId == "claude" }?.isLegacy,
+            false
+        )
+        XCTAssertEqual(
+            ModelPriceCatalog.entries.first { $0.name == "Claude Opus 4.5" && $0.platformId == "claude" }?.isLegacy,
+            true
+        )
+    }
+
+    func testModelPriceCatalogHidesLegacyModels() {
+        let visible = ModelPriceCatalog.groupedByPlatformSortedByOutputAsc(includeLegacy: false)
+            .flatMap(\.models)
+        XCTAssertFalse(visible.isEmpty)
+        XCTAssertTrue(visible.allSatisfy { !$0.isLegacy })
+        XCTAssertTrue(visible.contains { $0.name == "GPT-6.2-Sol" })
+        XCTAssertTrue(visible.contains { $0.name == "GPT-6.1-Sol" })
+        XCTAssertFalse(visible.contains { $0.name == "GPT-5.6-Sol" || $0.name == "GPT-6-Sol" })
+        XCTAssertTrue(visible.contains { $0.platformId == "claude" && $0.name == "Claude Haiku 4.5" })
+        XCTAssertFalse(visible.contains { $0.platformId == "gemini" && $0.name == "Gemini 2.5 Pro" })
+    }
+
     @MainActor
     private func scrapeCodexFixture(_ body: String, beforeScrape: String = "", script: String = CodexScrapingScript.script) async throws -> [String: Any] {
         let config = WKWebViewConfiguration()
