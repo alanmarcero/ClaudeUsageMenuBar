@@ -99,8 +99,31 @@ final class WebViewCoordinatorTests: XCTestCase {
 
     func testCursorOpensInBrowserKeepsDashboardRedirectsInApp() {
         XCTAssertFalse(cursorCoordinator.opensInBrowser(URL(string: "https://workos.imgix.net/example")!))
-        XCTAssertFalse(cursorCoordinator.opensInBrowser(URL(string: "https://example.com/")!))
+        XCTAssertFalse(cursorCoordinator.opensInBrowser(URL(string: "https://js.stripe.com/v3/")!))
+        XCTAssertTrue(cursorCoordinator.opensInBrowser(URL(string: "https://example.com/")!))
         XCTAssertTrue(cursorCoordinator.isAllowedHost("authenticator.cursor.sh"))
+    }
+
+    @MainActor
+    func testBackgroundNavigationPolicyEnforcesHTTPSAndAllowlist() {
+        let service = UsageService(provider: .claude)
+        XCTAssertTrue(service.isAllowedBackgroundNavigation(URL(string: "https://claude.ai/settings/usage")!))
+        XCTAssertTrue(service.isAllowedBackgroundNavigation(URL(string: "https://accounts.google.com/o/oauth2")!))
+        XCTAssertFalse(service.isAllowedBackgroundNavigation(URL(string: "http://claude.ai/settings/usage")!))
+        XCTAssertFalse(service.isAllowedBackgroundNavigation(URL(string: "https://evilclaude.ai/settings/usage")!))
+        XCTAssertFalse(service.isAllowedBackgroundNavigation(URL(string: "https://example.com/")!))
+    }
+
+    @MainActor
+    func testShouldRunResetsCheckRequiresPrimaryHTTPSHost() {
+        let service = UsageService(provider: .claude)
+        XCTAssertTrue(service.shouldRunResetsCheck(for: URL(string: "https://claude.ai/settings/usage")!))
+        XCTAssertTrue(service.shouldRunResetsCheck(for: URL(string: "https://www.claude.ai/settings/usage")!))
+        XCTAssertFalse(service.shouldRunResetsCheck(for: URL(string: "http://claude.ai/settings/usage")!))
+        XCTAssertFalse(service.shouldRunResetsCheck(for: URL(string: "https://evilclaude.ai/settings/usage")!))
+        XCTAssertFalse(service.shouldRunResetsCheck(for: URL(string: "https://evil.com/settings/usage")!))
+        XCTAssertTrue(UsageProvider.claude.isPrimaryHost("claude.ai"))
+        XCTAssertFalse(UsageProvider.claude.isPrimaryHost("evilclaude.ai"))
     }
 
     // MARK: - isAuthPage Tests

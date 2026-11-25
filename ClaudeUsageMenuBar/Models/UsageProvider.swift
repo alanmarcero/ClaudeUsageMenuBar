@@ -67,14 +67,23 @@ struct UsageProvider: Identifiable {
         return false
     }
 
+    func isAllowedHost(_ host: String?) -> Bool {
+        guard let lowered = host?.lowercased(), !lowered.isEmpty else { return false }
+        return oauthHostSuffixes.contains { lowered == $0 || lowered.hasSuffix(".\($0)") }
+    }
+
+    func isPrimaryHost(_ host: String?) -> Bool {
+        guard let lowered = host?.lowercased(), !lowered.isEmpty else { return false }
+        return lowered == primaryHost || lowered.hasSuffix(".\(primaryHost)")
+    }
+
     // Cursor's usage-summary API is same-origin on any signed-in cursor.com page
     // (not only the usage tab path the SPA may route client-side).
     func canScrapeUsageFromURL(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
         let urlString = url.absoluteString.lowercased()
         if isLoginPage(urlString) || urlString.contains("/callback") { return false }
         if id == "cursor" {
-            return host == primaryHost || host.hasSuffix(".\(primaryHost)")
+            return isPrimaryHost(url.host)
         }
         return false
     }
@@ -145,7 +154,12 @@ struct UsageProvider: Identifiable {
         usageURL: URL(string: "https://cursor.com/dashboard/usage")!,
         usagePathFragment: "/dashboard/usage",
         loginPaths: ["/login", "/signin", "/api/auth/login"],
-        oauthHostSuffixes: ["cursor.com", "cursor.sh", "workos.com", "workoscdn.com", "github.com"] + sharedSSOHosts,
+        oauthHostSuffixes: [
+            "cursor.com", "cursor.sh", "workos.com", "workoscdn.com",
+            "stripe.com", "onetrust.com", "cookielaw.org", "imgix.net",
+            "hcaptcha.com", "challenges.cloudflare.com", "cloudflare.com",
+            "github.com"
+        ] + sharedSSOHosts,
         dataRecordTokens: ["cursor"],
         scrapingScript: CursorScrapingScript.script,
         readsClaudeCodeLogin: false,

@@ -275,9 +275,14 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         usageData.resets = UsageReset.list(from: dict?["resets"])
     }
 
+    func shouldRunResetsCheck(for url: URL) -> Bool {
+        url.scheme?.lowercased() == "https"
+            && provider.isPrimaryHost(url.host)
+            && url.absoluteString.lowercased().contains(provider.usagePathFragment)
+    }
+
     private func handleResetsCheckNavigation(webView: WKWebView, url: URL) {
-        let urlString = url.absoluteString.lowercased()
-        if urlString.contains(provider.usagePathFragment) {
+        if shouldRunResetsCheck(for: url) {
             DispatchQueue.main.asyncAfter(deadline: .now() + Constants.scrapeDelay) {
                 webView.callAsyncJavaScript(ClaudeResetsScript.script, arguments: [:], in: nil, in: .page) { [weak self] result in
                     Task { @MainActor [weak self] in
@@ -554,17 +559,16 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         }
     }
 
+    nonisolated func isAllowedBackgroundNavigation(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == "https" && provider.isAllowedHost(url.host)
+    }
+
     nonisolated func webView(
         _ webView: WKWebView,
         decidePolicyFor navigationAction: WKNavigationAction,
         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
     ) {
-        guard let url = navigationAction.request.url else {
-            decisionHandler(.cancel)
-            return
-        }
-        let scheme = url.scheme?.lowercased() ?? ""
-        guard scheme == "http" || scheme == "https" else {
+        guard let url = navigationAction.request.url, isAllowedBackgroundNavigation(url) else {
             decisionHandler(.cancel)
             return
         }
@@ -617,7 +621,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             return
         }
 
-        if let host = url.host, host.hasSuffix(provider.primaryHost),
+        if provider.isPrimaryHost(url.host),
            !urlString.contains("/oauth"), !urlString.contains("/callback") {
             debugInfo = navigationDiagnostic(state: "redirectingToUsage", url: urlString)
             webView.load(URLRequest(url: provider.usageURL))

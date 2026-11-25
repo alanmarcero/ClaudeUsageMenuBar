@@ -223,19 +223,14 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 
     func isAllowedHost(_ host: String) -> Bool {
-        provider.oauthHostSuffixes.contains { host == $0 || host.hasSuffix(".\($0)") }
+        provider.isAllowedHost(host)
     }
 
     // A page, popup or redirect to a web host outside the provider and SSO list opens
     // in the default browser. Other sites cannot show in the signed-in, provider-titled
     // window. Subframes, such as bot checks, still load.
-    //
-    // Cursor's dashboard bounces through WorkOS, Stripe, OneTrust, imgix, and other
-    // hosts that are easy to miss in a suffix list. Cancelling those top-level navigations
-    // leaves the web view wedged on a loading spinner.
     func opensInBrowser(_ url: URL) -> Bool {
         guard ["http", "https"].contains(url.scheme?.lowercased()) else { return false }
-        if provider.id == "cursor" { return false }
         return !isAllowedHost(url.host ?? "")
     }
 
