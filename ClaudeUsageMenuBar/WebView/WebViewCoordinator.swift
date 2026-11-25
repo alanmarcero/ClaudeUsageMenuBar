@@ -9,33 +9,111 @@ enum SafariUserAgent {
     static let applicationName = "Version/17.6 Safari/605.1.15"
 }
 
-// Supplies WebKit's persistent IndexedDB WebCrypto wrapping key from the app's own
-// sandbox UserDefaults instead of macOS's legacy login keychain. Without this delegate,
-// ad-hoc signed builds get a new CDHash on each rebuild and macOS prompts for
-// "Claude Usage WebCrypto Master Key" every time the app is reinstalled.
+protocol WebCryptoKeychainStore {
+    func readKey() -> Data?
+    @discardableResult
+    func writeKey(_ data: Data) -> Bool
+}
+
+struct SecurityCLIWebCryptoKeychainStore: WebCryptoKeychainStore {
+    let service: String
+    let account: String
+
+    init(
+        service: String = "com.alanmarcero.claudeusagemenubar.webcrypto",
+        account: String = "webcrypto-master-key"
+    ) {
+        self.service = service
+        self.account = account
+    }
+
+    func readKey() -> Data? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = ["find-generic-password", "-s", service, "-a", account, "-w"]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        let encoded = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        return Data(base64Encoded: encoded)
+    }
+
+    func writeKey(_ data: Data) -> Bool {
+        // Use interactive stdin (`security -i`) so the key never appears in process arguments (`ps aux`).
+        let command = "add-generic-password -U -s \(quoted(service)) -a \(quoted(account)) -w \(quoted(data.base64EncodedString()))\n"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = ["-i"]
+        let input = Pipe()
+        process.standardInput = input
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return false }
+        input.fileHandleForWriting.write(Data(command.utf8))
+        input.fileHandleForWriting.closeFile()
+        process.waitUntilExit()
+        return process.terminationStatus == 0
+    }
+
+    private func quoted(_ value: String) -> String {
+        let escaped = value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
+    }
+}
+
+// Supplies WebKit's persistent IndexedDB WebCrypto wrapping key from a dedicated Keychain item
+// managed via `/usr/bin/security` instead of plaintext UserDefaults or a CDHash-locked login
+// keychain ACL that prompts after every ad-hoc rebuild.
 final class WebCryptoMasterKeyDelegate: NSObject {
     static let shared = WebCryptoMasterKeyDelegate()
-    static let defaultsKey = "webKitWebCryptoMasterKey"
+    static let legacyDefaultsKey = "webKitWebCryptoMasterKey"
     static let keyByteCount = 32
 
     private let lock = NSLock()
     private let defaults: UserDefaults
+    private let keychain: WebCryptoKeychainStore
+    private var cachedKey: Data?
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        keychain: WebCryptoKeychainStore = SecurityCLIWebCryptoKeychainStore()
+    ) {
         self.defaults = defaults
+        self.keychain = keychain
         super.init()
     }
 
     func masterKeyData() -> Data {
         lock.lock()
         defer { lock.unlock() }
-        if let existing = defaults.data(forKey: Self.defaultsKey), existing.count == Self.keyByteCount {
-            return existing
+
+        if let cachedKey, cachedKey.count == Self.keyByteCount {
+            return cachedKey
         }
+
+        if let keychainKey = keychain.readKey(), keychainKey.count == Self.keyByteCount {
+            defaults.removeObject(forKey: Self.legacyDefaultsKey)
+            cachedKey = keychainKey
+            return keychainKey
+        }
+
+        if let legacyKey = defaults.data(forKey: Self.legacyDefaultsKey), legacyKey.count == Self.keyByteCount {
+            if keychain.writeKey(legacyKey) {
+                defaults.removeObject(forKey: Self.legacyDefaultsKey)
+            }
+            cachedKey = legacyKey
+            return legacyKey
+        }
+
         var bytes = [UInt8](repeating: 0, count: Self.keyByteCount)
         _ = SecRandomCopyBytes(kSecRandomDefault, Self.keyByteCount, &bytes)
         let generated = Data(bytes)
-        defaults.set(generated, forKey: Self.defaultsKey)
+        _ = keychain.writeKey(generated)
+        cachedKey = generated
         return generated
     }
 

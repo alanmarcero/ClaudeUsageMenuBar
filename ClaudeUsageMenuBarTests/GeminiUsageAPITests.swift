@@ -6,7 +6,6 @@ final class GeminiUsageAPITests: XCTestCase {
     override func setUp() {
         super.setUp()
         GeminiUsageAPI.onRefreshLogin = nil
-        GeminiUsageAPI.onWriteLogin = { _ in true }
     }
 
     private let eastern = TimeZone(identifier: "America/New_York")!
@@ -443,77 +442,7 @@ final class GeminiUsageAPITests: XCTestCase {
         XCTAssertNil(refreshed)
     }
 
-    func testRefreshOAuthTokenDirectHTTPSSuccess() async {
-        let session = makeMockSession()
-        MockURLProtocol.requestHandler = { request in
-            XCTAssertEqual(request.url, GeminiUsageAPI.oauthTokenURL)
-            XCTAssertEqual(request.httpMethod, "POST")
-            let bodyData: Data = {
-                if let data = request.httpBody { return data }
-                if let stream = request.httpBodyStream {
-                    stream.open()
-                    defer { stream.close() }
-                    var buffer = [UInt8](repeating: 0, count: 1024)
-                    var data = Data()
-                    while stream.hasBytesAvailable {
-                        let read = stream.read(&buffer, maxLength: buffer.count)
-                        if read > 0 { data.append(buffer, count: read) } else { break }
-                    }
-                    return data
-                }
-                return Data()
-            }()
-            let body = String(decoding: bodyData, as: UTF8.self)
-            XCTAssertTrue(body.contains("grant_type=refresh_token"))
-            XCTAssertTrue(body.contains("client_id=\(GeminiUsageAPI.oauthClientID)"))
-            XCTAssertTrue(body.contains("refresh_token=fake-rt"))
-
-            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            let responseBody = """
-            {
-              "access_token": "ya29.new-direct-token",
-              "expires_in": 3599,
-              "token_type": "Bearer"
-            }
-            """
-            return (response, Data(responseBody.utf8))
-        }
-
-        let result = await GeminiUsageAPI.refreshOAuthToken(refreshToken: "fake-rt", session: session)
-        XCTAssertNotNil(result)
-        XCTAssertEqual(result?.accessToken, "ya29.new-direct-token")
-        XCTAssertEqual(result?.expiresIn, 3599)
-        XCTAssertNil(result?.newRefreshToken)
-    }
-
-    func testRefreshOAuthTokenReturnsNilOnHTTPError() async {
-        let session = makeMockSession()
-        MockURLProtocol.requestHandler = { request in
-            let response = HTTPURLResponse(url: request.url!, statusCode: 400, httpVersion: nil, headerFields: nil)!
-            return (response, Data(#"{"error": "invalid_grant"}"#.utf8))
-        }
-
-        let result = await GeminiUsageAPI.refreshOAuthToken(refreshToken: "invalid-rt", session: session)
-        XCTAssertNil(result)
-    }
-
-    func testRefreshLoginDirectHTTPSUpdatesLoginState() async {
-        let session = makeMockSession()
-        MockURLProtocol.requestHandler = { request in
-            if request.url == GeminiUsageAPI.oauthTokenURL {
-                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-                let body = """
-                {
-                  "access_token": "ya29.refreshed-direct",
-                  "expires_in": 3600,
-                  "token_type": "Bearer"
-                }
-                """
-                return (response, Data(body.utf8))
-            }
-            throw URLError(.badURL)
-        }
-
+    func testRefreshLoginUsesCLIRefreshWithoutEmbeddedOAuthCredentials() async {
         let initial = GeminiUsageAPI.Login(
             accessToken: "ya29.old",
             refreshToken: "valid-rt",
@@ -522,14 +451,21 @@ final class GeminiUsageAPITests: XCTestCase {
             email: "alan@example.com",
             userTier: "g1-pro-tier"
         )
+        let expected = GeminiUsageAPI.Login(
+            accessToken: "ya29.cli-refreshed",
+            refreshToken: "valid-rt",
+            expiresAt: Date().addingTimeInterval(3600),
+            authMethod: "consumer",
+            email: "alan@example.com",
+            userTier: "g1-pro-tier"
+        )
+        GeminiUsageAPI.onRefreshLogin = { login in
+            XCTAssertEqual(login, initial)
+            return expected
+        }
 
-        let refreshed = await GeminiUsageAPI.refreshLogin(initial, session: session)
-        XCTAssertNotNil(refreshed)
-        XCTAssertEqual(refreshed?.accessToken, "ya29.refreshed-direct")
-        XCTAssertEqual(refreshed?.refreshToken, "valid-rt")
-        XCTAssertEqual(refreshed?.email, "alan@example.com")
-        XCTAssertEqual(refreshed?.userTier, "g1-pro-tier")
-        XCTAssertTrue((refreshed?.expiresAt?.timeIntervalSinceNow ?? 0) > 3000)
+        let refreshed = await GeminiUsageAPI.refreshLogin(initial)
+        XCTAssertEqual(refreshed, expected)
     }
 
     func testFindCLIExecutableReturnsValidURLWhenPresent() {
@@ -739,7 +675,6 @@ final class GeminiUsageAPITests: XCTestCase {
     override func tearDown() {
         MockURLProtocol.requestHandler = nil
         GeminiUsageAPI.onRefreshLogin = nil
-        GeminiUsageAPI.onWriteLogin = nil
         super.tearDown()
     }
 }

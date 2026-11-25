@@ -203,22 +203,77 @@ final class WebViewCoordinatorTests: XCTestCase {
         XCTAssertTrue(userAgent?.contains("Version/") ?? false, "Expected UA to contain 'Version/', got: \(userAgent ?? "nil")")
     }
 
-    func testWebCryptoMasterKeyDelegateGeneratesAndPersists32ByteKeyWithoutKeychainPrompt() {
+    func testWebCryptoMasterKeyDelegateGeneratesAndPersists32ByteKeyInKeychain() {
         let suiteName = "test-webcrypto-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let delegate = WebCryptoMasterKeyDelegate(defaults: defaults)
+        final class InMemoryKeychainStore: WebCryptoKeychainStore {
+            var storedKey: Data?
+            func readKey() -> Data? { storedKey }
+            func writeKey(_ data: Data) -> Bool {
+                storedKey = data
+                return true
+            }
+        }
+
+        let keychain = InMemoryKeychainStore()
+        let delegate = WebCryptoMasterKeyDelegate(defaults: defaults, keychain: keychain)
         var callbackKey: Data?
         delegate.webCryptoMasterKey { data in
             callbackKey = data
         }
 
         XCTAssertEqual(callbackKey?.count, 32)
+        XCTAssertEqual(keychain.storedKey, callbackKey)
+        XCTAssertNil(defaults.data(forKey: WebCryptoMasterKeyDelegate.legacyDefaultsKey))
         XCTAssertEqual(delegate.masterKeyData(), callbackKey)
 
-        let secondInstance = WebCryptoMasterKeyDelegate(defaults: defaults)
+        let secondInstance = WebCryptoMasterKeyDelegate(defaults: defaults, keychain: keychain)
         XCTAssertEqual(secondInstance.masterKeyData(), callbackKey)
+    }
+
+    func testWebCryptoMasterKeyDelegateMigratesLegacyUserDefaultsKeyToKeychain() {
+        let suiteName = "test-webcrypto-migrate-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        final class InMemoryKeychainStore: WebCryptoKeychainStore {
+            var storedKey: Data?
+            func readKey() -> Data? { storedKey }
+            func writeKey(_ data: Data) -> Bool {
+                storedKey = data
+                return true
+            }
+        }
+
+        let legacyKey = Data((0..<32).map { UInt8($0) })
+        defaults.set(legacyKey, forKey: WebCryptoMasterKeyDelegate.legacyDefaultsKey)
+
+        let keychain = InMemoryKeychainStore()
+        let delegate = WebCryptoMasterKeyDelegate(defaults: defaults, keychain: keychain)
+
+        XCTAssertEqual(delegate.masterKeyData(), legacyKey)
+        XCTAssertEqual(keychain.storedKey, legacyKey)
+        XCTAssertNil(defaults.data(forKey: WebCryptoMasterKeyDelegate.legacyDefaultsKey))
+    }
+
+    func testSecurityCLIWebCryptoKeychainStoreRoundTrip() {
+        let service = "com.alanmarcero.claudeusagemenubar.webcrypto.test.\(UUID().uuidString)"
+        let store = SecurityCLIWebCryptoKeychainStore(service: service, account: "test-key")
+        defer {
+            let delete = Process()
+            delete.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+            delete.arguments = ["delete-generic-password", "-s", service, "-a", "test-key"]
+            delete.standardOutput = FileHandle.nullDevice
+            delete.standardError = FileHandle.nullDevice
+            try? delete.run()
+            delete.waitUntilExit()
+        }
+
+        let key = Data((0..<32).map { UInt8(($0 * 7 + 3) & 0xFF) })
+        XCTAssertTrue(store.writeKey(key))
+        XCTAssertEqual(store.readKey(), key)
     }
 
     @MainActor
