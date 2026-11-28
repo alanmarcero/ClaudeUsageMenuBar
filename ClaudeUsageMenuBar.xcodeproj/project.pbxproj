@@ -476,7 +476,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.24;
+				MARKETING_VERSION = 2.2.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alanmarcero.claudeusagemenubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -504,7 +504,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.24;
+				MARKETING_VERSION = 2.2.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alanmarcero.claudeusagemenubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -520,7 +520,7 @@
 				CURRENT_PROJECT_VERSION = 65;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.24;
+				MARKETING_VERSION = 2.2.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.claude.usage.menubar.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -537,7 +537,7 @@
 				CURRENT_PROJECT_VERSION = 65;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.24;
+				MARKETING_VERSION = 2.2.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.claude.usage.menubar.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;

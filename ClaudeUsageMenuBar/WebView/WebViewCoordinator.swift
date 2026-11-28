@@ -15,7 +15,7 @@ protocol WebCryptoKeychainStore {
     func writeKey(_ data: Data) -> Bool
 }
 
-struct SecurityCLIWebCryptoKeychainStore: WebCryptoKeychainStore {
+struct SecItemWebCryptoKeychainStore: WebCryptoKeychainStore {
     let service: String
     let account: String
 
@@ -28,66 +28,78 @@ struct SecurityCLIWebCryptoKeychainStore: WebCryptoKeychainStore {
     }
 
     func readKey() -> Data? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        process.arguments = ["find-generic-password", "-s", service, "-a", account, "-w"]
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return nil }
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        let encoded = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-        return Data(base64Encoded: encoded)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        guard status == errSecSuccess, let rawData = item as? Data else { return nil }
+        if rawData.count == WebCryptoMasterKeyDelegate.keyByteCount {
+            return rawData
+        }
+        let encoded = String(decoding: rawData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let decoded = Data(base64Encoded: encoded),
+              decoded.count == WebCryptoMasterKeyDelegate.keyByteCount else {
+            return nil
+        }
+        return decoded
     }
 
     func writeKey(_ data: Data) -> Bool {
-        // Use interactive stdin (`security -i`) so the key never appears in process arguments (`ps aux`).
-        let command = "add-generic-password -U -s \(quoted(service)) -a \(quoted(account)) -w \(quoted(data.base64EncodedString()))\n"
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        process.arguments = ["-i"]
-        let input = Pipe()
-        process.standardInput = input
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return false }
-        input.fileHandleForWriting.write(Data(command.utf8))
-        input.fileHandleForWriting.closeFile()
-        process.waitUntilExit()
-        return process.terminationStatus == 0
-    }
+        guard data.count == WebCryptoMasterKeyDelegate.keyByteCount else { return false }
+        let deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
 
-    private func quoted(_ value: String) -> String {
-        let escaped = value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
+        let addQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+            kSecValueData as String: data
+        ]
+        return SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess
     }
 }
 
-// Supplies WebKit's persistent IndexedDB WebCrypto wrapping key from a dedicated Keychain item
-// managed via `/usr/bin/security` instead of plaintext UserDefaults or a CDHash-locked login
-// keychain ACL that prompts after every ad-hoc rebuild.
+// Supplies WebKit's persistent IndexedDB WebCrypto wrapping key from a Keychain item
+// owned by the app via Security.framework (never `/usr/bin/security`, which would add
+// the CLI tool to the item's ACL).
 final class WebCryptoMasterKeyDelegate: NSObject {
+    typealias RandomBytesGenerator = (Int, UnsafeMutableRawPointer) -> OSStatus
+
     static let shared = WebCryptoMasterKeyDelegate()
     static let legacyDefaultsKey = "webKitWebCryptoMasterKey"
+    static let aclMigratedDefaultsKey = "webKitWebCryptoKeychainACLMigrated"
     static let keyByteCount = 32
 
     private let lock = NSLock()
     private let defaults: UserDefaults
     private let keychain: WebCryptoKeychainStore
+    private let generateRandomBytes: RandomBytesGenerator
     private var cachedKey: Data?
 
     init(
         defaults: UserDefaults = .standard,
-        keychain: WebCryptoKeychainStore = SecurityCLIWebCryptoKeychainStore()
+        keychain: WebCryptoKeychainStore = SecItemWebCryptoKeychainStore(),
+        generateRandomBytes: @escaping RandomBytesGenerator = { count, buffer in
+            SecRandomCopyBytes(kSecRandomDefault, count, buffer)
+        }
     ) {
         self.defaults = defaults
         self.keychain = keychain
+        self.generateRandomBytes = generateRandomBytes
         super.init()
     }
 
-    func masterKeyData() -> Data {
+    func masterKeyData() -> Data? {
         lock.lock()
         defer { lock.unlock() }
 
@@ -97,6 +109,9 @@ final class WebCryptoMasterKeyDelegate: NSObject {
 
         if let keychainKey = keychain.readKey(), keychainKey.count == Self.keyByteCount {
             defaults.removeObject(forKey: Self.legacyDefaultsKey)
+            if !defaults.bool(forKey: Self.aclMigratedDefaultsKey), keychain.writeKey(keychainKey) {
+                defaults.set(true, forKey: Self.aclMigratedDefaultsKey)
+            }
             cachedKey = keychainKey
             return keychainKey
         }
@@ -104,15 +119,19 @@ final class WebCryptoMasterKeyDelegate: NSObject {
         if let legacyKey = defaults.data(forKey: Self.legacyDefaultsKey), legacyKey.count == Self.keyByteCount {
             if keychain.writeKey(legacyKey) {
                 defaults.removeObject(forKey: Self.legacyDefaultsKey)
+                defaults.set(true, forKey: Self.aclMigratedDefaultsKey)
             }
             cachedKey = legacyKey
             return legacyKey
         }
 
         var bytes = [UInt8](repeating: 0, count: Self.keyByteCount)
-        _ = SecRandomCopyBytes(kSecRandomDefault, Self.keyByteCount, &bytes)
+        let rngStatus = generateRandomBytes(Self.keyByteCount, &bytes)
+        guard rngStatus == errSecSuccess else { return nil }
+
         let generated = Data(bytes)
-        _ = keychain.writeKey(generated)
+        guard keychain.writeKey(generated) else { return nil }
+        defaults.set(true, forKey: Self.aclMigratedDefaultsKey)
         cachedKey = generated
         return generated
     }
@@ -130,17 +149,26 @@ enum ClaudeWebViewFactory {
         _ = dataStore.perform(setter, with: WebCryptoMasterKeyDelegate.shared)
     }
 
-    static func makeConfiguration() -> WKWebViewConfiguration {
-        let dataStore = WKWebsiteDataStore.default()
-        configureDefaultDataStore(dataStore)
+    static func dataStore(for provider: UsageProvider? = nil) -> WKWebsiteDataStore {
+        guard #available(macOS 14.0, *), let provider else {
+            let store = WKWebsiteDataStore.default()
+            configureDefaultDataStore(store)
+            return store
+        }
+        let store = WKWebsiteDataStore(forIdentifier: provider.dataStoreIdentifier)
+        configureDefaultDataStore(store)
+        return store
+    }
+
+    static func makeConfiguration(for provider: UsageProvider? = nil) -> WKWebViewConfiguration {
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = dataStore
+        configuration.websiteDataStore = dataStore(for: provider)
         configuration.applicationNameForUserAgent = SafariUserAgent.applicationName
         return configuration
     }
 
-    static func makeWebView(frame: CGRect = .zero) -> WKWebView {
-        WKWebView(frame: frame, configuration: makeConfiguration())
+    static func makeWebView(frame: CGRect = .zero, for provider: UsageProvider? = nil) -> WKWebView {
+        WKWebView(frame: frame, configuration: makeConfiguration(for: provider))
     }
 }
 
@@ -169,8 +197,15 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
             return
         }
 
+        guard isAllowedVisibleNavigation(url, isTopLevel: isTopLevel) else {
+            decisionHandler(.cancel)
+            return
+        }
+
         if navigationAction.targetFrame == nil {
-            webView.load(navigationAction.request)
+            if isAllowedVisibleTopLevelURL(url) {
+                webView.load(navigationAction.request)
+            }
             decisionHandler(.cancel)
             return
         }
@@ -179,11 +214,14 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let url = navigationAction.request.url, opensInBrowser(url) {
+        guard let url = navigationAction.request.url else { return nil }
+        if opensInBrowser(url) {
             NSWorkspace.shared.open(url)
             return nil
         }
-        webView.load(navigationAction.request)
+        if isAllowedVisibleTopLevelURL(url) {
+            webView.load(navigationAction.request)
+        }
         return nil
     }
 
@@ -201,9 +239,7 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         }
         guard let url = webView.url else { return }
 
-        let urlString = url.absoluteString.lowercased()
-
-        if provider.isUsagePage(urlString) {
+        if provider.isUsagePage(url) {
             Task { @MainActor in
                 usageService.scheduleVisibleBrowserScrapeAfterHydration(webView: webView)
             }
@@ -224,6 +260,18 @@ class WebViewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
 
     func isAllowedHost(_ host: String) -> Bool {
         provider.isAllowedHost(host)
+    }
+
+    func isAllowedVisibleTopLevelURL(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == "https" && isAllowedHost(url.host ?? "")
+    }
+
+    func isAllowedVisibleNavigation(_ url: URL, isTopLevel: Bool) -> Bool {
+        if isTopLevel {
+            return isAllowedVisibleTopLevelURL(url) || url.absoluteString.lowercased() == "about:blank"
+        }
+        return url.scheme?.lowercased() == "https"
+            || ["about:blank", "about:srcdoc"].contains(url.absoluteString.lowercased())
     }
 
     // A page, popup or redirect to a web host outside the provider and SSO list opens

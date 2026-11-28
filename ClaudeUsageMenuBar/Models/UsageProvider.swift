@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 // A provider descriptor fully describes a usage source (URL, glyph, OAuth hosts,
@@ -19,6 +20,19 @@ struct UsageProvider: Identifiable {
     let primaryLabel: String       // row title for the primary (percentage) limit
     let secondaryLabel: String?    // row title for the secondary limit; nil hides that row
     let weeklyBlocksPrimary: Bool  // a spent secondary limit also blocks the primary one
+
+    var dataStoreIdentifier: UUID {
+        let digest = SHA256.hash(data: Data("com.alanmarcero.claudeusagemenubar.datastore.\(id)".utf8))
+        var bytes = Array(digest.prefix(16))
+        bytes[6] = (bytes[6] & 0x0F) | 0x40
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
 
     init(
         id: String,
@@ -56,8 +70,14 @@ struct UsageProvider: Identifiable {
 
     // The spending tab still exists but `/dashboard/usage` is the stable entry
     // point other tools use; legacy spending URLs should still count as usage pages.
-    func isUsagePage(_ urlString: String) -> Bool {
-        let lowered = urlString.lowercased()
+    func isUsagePage(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https", isPrimaryHost(url.host) else {
+            return false
+        }
+        let lowered = url.absoluteString.lowercased()
+        if isLoginPage(lowered) || lowered.contains("/callback") || lowered.contains("/oauth") {
+            return false
+        }
         if lowered.contains(usagePathFragment.lowercased()) { return true }
         if id == "cursor" {
             return lowered.contains("/dashboard/spending")
@@ -65,6 +85,11 @@ struct UsageProvider: Identifiable {
                 || lowered.contains("tab=usage")
         }
         return false
+    }
+
+    func isUsagePage(_ urlString: String) -> Bool {
+        guard let url = URL(string: urlString) else { return false }
+        return isUsagePage(url)
     }
 
     func isAllowedHost(_ host: String?) -> Bool {
@@ -80,21 +105,25 @@ struct UsageProvider: Identifiable {
     // Cursor's usage-summary API is same-origin on any signed-in cursor.com page
     // (not only the usage tab path the SPA may route client-side).
     func canScrapeUsageFromURL(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https", isPrimaryHost(url.host) else {
+            return false
+        }
         let urlString = url.absoluteString.lowercased()
-        if isLoginPage(urlString) || urlString.contains("/callback") { return false }
+        if isLoginPage(urlString) || urlString.contains("/callback") || urlString.contains("/oauth") {
+            return false
+        }
         if id == "cursor" {
-            return isPrimaryHost(url.host)
+            return true
         }
         return false
     }
 
     func isOAuthHandshakeURL(_ url: URL) -> Bool {
         let urlString = url.absoluteString.lowercased()
-        if isUsagePage(urlString) || isLoginPage(urlString) || urlString.contains("/callback") {
+        if isUsagePage(url) || isLoginPage(urlString) || urlString.contains("/callback") {
             return false
         }
-        guard let host = url.host?.lowercased() else { return false }
-        return oauthHostSuffixes.contains { host == $0 || host.hasSuffix(".\($0)") }
+        return isAllowedHost(url.host)
     }
 
     func isLoginPage(_ urlString: String) -> Bool {

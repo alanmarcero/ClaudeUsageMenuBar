@@ -126,6 +126,53 @@ final class WebViewCoordinatorTests: XCTestCase {
         XCTAssertFalse(UsageProvider.claude.isPrimaryHost("evilclaude.ai"))
     }
 
+    func testIsUsagePageRequiresHTTPSAndPrimaryHost() {
+        XCTAssertTrue(UsageProvider.claude.isUsagePage("https://claude.ai/settings/usage"))
+        XCTAssertTrue(UsageProvider.claude.isUsagePage("https://www.claude.ai/settings/usage"))
+        XCTAssertFalse(UsageProvider.claude.isUsagePage("http://claude.ai/settings/usage"))
+        XCTAssertFalse(UsageProvider.claude.isUsagePage("https://accounts.google.com/settings/usage"))
+        XCTAssertFalse(UsageProvider.claude.isUsagePage("https://evil.okta.com/settings/usage"))
+        XCTAssertFalse(UsageProvider.claude.isUsagePage("https://claude.ai/login?redirect=/settings/usage"))
+
+        XCTAssertTrue(UsageProvider.cursor.canScrapeUsageFromURL(URL(string: "https://cursor.com/dashboard")!))
+        XCTAssertFalse(UsageProvider.cursor.canScrapeUsageFromURL(URL(string: "http://cursor.com/dashboard")!))
+    }
+
+    func testVisibleNavigationRejectsHTTPOnAllowedHostsAndNonHTTPSchemes() {
+        XCTAssertTrue(coordinator.isAllowedVisibleTopLevelURL(URL(string: "https://claude.ai/settings/usage")!))
+        XCTAssertFalse(coordinator.isAllowedVisibleTopLevelURL(URL(string: "http://claude.ai/settings/usage")!))
+        XCTAssertFalse(coordinator.isAllowedVisibleTopLevelURL(URL(string: "file:///etc/passwd")!))
+        XCTAssertFalse(coordinator.isAllowedVisibleTopLevelURL(URL(string: "javascript:alert(1)")!))
+        XCTAssertFalse(coordinator.isAllowedVisibleTopLevelURL(URL(string: "about:blank")!))
+
+        XCTAssertTrue(coordinator.isAllowedVisibleNavigation(URL(string: "about:blank")!, isTopLevel: true))
+        XCTAssertFalse(coordinator.isAllowedVisibleNavigation(URL(string: "http://claude.ai/login")!, isTopLevel: true))
+        XCTAssertFalse(coordinator.isAllowedVisibleNavigation(URL(string: "file:///etc/passwd")!, isTopLevel: true))
+        XCTAssertFalse(coordinator.isAllowedVisibleNavigation(URL(string: "http://challenges.cloudflare.com/")!, isTopLevel: false))
+        XCTAssertTrue(coordinator.isAllowedVisibleNavigation(URL(string: "https://challenges.cloudflare.com/")!, isTopLevel: false))
+        XCTAssertTrue(coordinator.isAllowedVisibleNavigation(URL(string: "about:srcdoc")!, isTopLevel: false))
+    }
+
+    @MainActor
+    func testCreateWebViewWithRejectsNonHTTPSchemesAndHTTPAllowedHost() {
+        let webView = ClaudeWebViewFactory.makeWebView(for: .claude)
+        let config = webView.configuration
+
+        final class StubNavigationAction: WKNavigationAction {
+            private let _request: URLRequest
+            init(url: URL) {
+                self._request = URLRequest(url: url)
+                super.init()
+            }
+            override var request: URLRequest { _request }
+        }
+
+        XCTAssertNil(coordinator.webView(webView, createWebViewWith: config, for: StubNavigationAction(url: URL(string: "file:///etc/passwd")!), windowFeatures: WKWindowFeatures()))
+        XCTAssertNil(webView.url)
+        XCTAssertNil(coordinator.webView(webView, createWebViewWith: config, for: StubNavigationAction(url: URL(string: "http://claude.ai/settings/usage")!), windowFeatures: WKWindowFeatures()))
+        XCTAssertNil(webView.url)
+    }
+
     // MARK: - isAuthPage Tests
 
     func testIsAuthPageLogin() {
@@ -281,22 +328,73 @@ final class WebViewCoordinatorTests: XCTestCase {
         XCTAssertNil(defaults.data(forKey: WebCryptoMasterKeyDelegate.legacyDefaultsKey))
     }
 
-    func testSecurityCLIWebCryptoKeychainStoreRoundTrip() {
+    func testWebCryptoMasterKeyDelegateRejectsFailedRNGWithoutWritingAllZeroKey() {
+        let suiteName = "test-webcrypto-rng-fail-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        final class SpyKeychainStore: WebCryptoKeychainStore {
+            var writeCalls = 0
+            func readKey() -> Data? { nil }
+            func writeKey(_ data: Data) -> Bool {
+                writeCalls += 1
+                return true
+            }
+        }
+
+        let keychain = SpyKeychainStore()
+        let delegate = WebCryptoMasterKeyDelegate(
+            defaults: defaults,
+            keychain: keychain,
+            generateRandomBytes: { _, _ in errSecParam }
+        )
+
+        var callbackKey: Data? = Data([1, 2, 3])
+        delegate.webCryptoMasterKey { data in
+            callbackKey = data
+        }
+
+        XCTAssertNil(callbackKey)
+        XCTAssertNil(delegate.masterKeyData())
+        XCTAssertEqual(keychain.writeCalls, 0)
+    }
+
+    func testSecItemWebCryptoKeychainStoreRoundTrip() {
         let service = "com.alanmarcero.claudeusagemenubar.webcrypto.test.\(UUID().uuidString)"
-        let store = SecurityCLIWebCryptoKeychainStore(service: service, account: "test-key")
+        let store = SecItemWebCryptoKeychainStore(service: service, account: "test-key")
         defer {
-            let delete = Process()
-            delete.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-            delete.arguments = ["delete-generic-password", "-s", service, "-a", "test-key"]
-            delete.standardOutput = FileHandle.nullDevice
-            delete.standardError = FileHandle.nullDevice
-            try? delete.run()
-            delete.waitUntilExit()
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: "test-key"
+            ]
+            SecItemDelete(query as CFDictionary)
         }
 
         let key = Data((0..<32).map { UInt8(($0 * 7 + 3) & 0xFF) })
         XCTAssertTrue(store.writeKey(key))
         XCTAssertEqual(store.readKey(), key)
+    }
+
+    @MainActor
+    func testProvidersUseIsolatedWebKitDataStores() {
+        if #available(macOS 14.0, *) {
+            let claudeStore = ClaudeWebViewFactory.dataStore(for: .claude)
+            let codexStore = ClaudeWebViewFactory.dataStore(for: .codex)
+            let cursorStore = ClaudeWebViewFactory.dataStore(for: .cursor)
+            let geminiStore = ClaudeWebViewFactory.dataStore(for: .gemini)
+
+            XCTAssertNotEqual(claudeStore.identifier, codexStore.identifier)
+            XCTAssertNotEqual(codexStore.identifier, cursorStore.identifier)
+            XCTAssertNotEqual(cursorStore.identifier, geminiStore.identifier)
+            XCTAssertEqual(claudeStore.identifier, ClaudeWebViewFactory.dataStore(for: .claude).identifier)
+
+            let getter = NSSelectorFromString("_delegate")
+            for store in [claudeStore, codexStore, cursorStore, geminiStore] {
+                let attached = store.perform(getter)?.takeUnretainedValue() as AnyObject?
+                XCTAssertTrue(attached === WebCryptoMasterKeyDelegate.shared)
+            }
+        }
     }
 
     @MainActor

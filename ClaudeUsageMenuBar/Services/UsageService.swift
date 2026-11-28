@@ -99,13 +99,17 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         updateResetCountdowns()
     }
 
+    private var dataStore: WKWebsiteDataStore {
+        ClaudeWebViewFactory.dataStore(for: provider)
+    }
+
     @discardableResult
     private func ensureBackgroundWebView() -> WKWebView {
         if let existing = backgroundWebView {
             return existing
         }
         let frame = CGRect(origin: .zero, size: Constants.backgroundWebViewSize)
-        let webView = ClaudeWebViewFactory.makeWebView(frame: frame)
+        let webView = ClaudeWebViewFactory.makeWebView(frame: frame, for: provider)
         webView.navigationDelegate = self
         backgroundWebView = webView
         return webView
@@ -154,8 +158,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     func noteVisibleBrowserReadyToScrape(webView: WKWebView) {
         guard !isRefreshPaused, isUsageBrowserOpen else { return }
         guard let url = webView.url else { return }
-        let urlString = url.absoluteString.lowercased()
-        guard provider.isUsagePage(urlString) || provider.canScrapeUsageFromURL(url) else { return }
+        guard provider.isUsagePage(url) || provider.canScrapeUsageFromURL(url) else { return }
         guard !webView.isLoading else { return }
 
         usageBrowserWebView = webView
@@ -173,8 +176,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
         guard isUsageBrowserOpen,
               let webView = usageBrowserWebView,
               let url = webView.url else { return false }
-        let urlString = url.absoluteString.lowercased()
-        guard provider.isUsagePage(urlString) || provider.canScrapeUsageFromURL(url) else { return false }
+        guard provider.isUsagePage(url) || provider.canScrapeUsageFromURL(url) else { return false }
         guard !webView.isLoading else { return false }
 
         scheduleScrape(from: webView)
@@ -283,7 +285,14 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
     private func handleResetsCheckNavigation(webView: WKWebView, url: URL) {
         if shouldRunResetsCheck(for: url) {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Constants.scrapeDelay) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Constants.scrapeDelay) { [weak self, weak webView] in
+                guard let self,
+                      let webView,
+                      let currentURL = webView.url,
+                      self.shouldRunResetsCheck(for: currentURL) else {
+                    self?.finishClaudeResetsCheck(nil)
+                    return
+                }
                 webView.callAsyncJavaScript(ClaudeResetsScript.script, arguments: [:], in: nil, in: .page) { [weak self] result in
                     Task { @MainActor [weak self] in
                         self?.finishClaudeResetsCheck(try? result.get())
@@ -301,15 +310,25 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     func logout() {
-        let dataStore = WKWebsiteDataStore.default()
+        let store = dataStore
         let dataTypes = WKWebsiteDataStore.allWebsiteDataTypes()
 
-        dataStore.fetchDataRecords(ofTypes: dataTypes) { records in
+        if #available(macOS 14.0, *) {
+            store.removeData(ofTypes: dataTypes, modifiedSince: .distantPast) { [weak self] in
+                Task { @MainActor in
+                    self?.resetToLoggedOut()
+                }
+            }
+            return
+        }
+
+        store.fetchDataRecords(ofTypes: dataTypes) { [weak self] records in
+            guard let self else { return }
             let providerRecords = records.filter { record in
                 let name = record.displayName.lowercased()
                 return self.provider.dataRecordTokens.contains { name.contains($0) }
             }
-            dataStore.removeData(ofTypes: dataTypes, for: providerRecords) { [weak self] in
+            store.removeData(ofTypes: dataTypes, for: providerRecords) { [weak self] in
                 Task { @MainActor in
                     self?.resetToLoggedOut()
                 }
@@ -318,11 +337,11 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     func clearCache() {
-        let dataStore = WKWebsiteDataStore.default()
+        let store = dataStore
         let dataTypes = WKWebsiteDataStore.allWebsiteDataTypes()
         let sinceDate = Date.distantPast
 
-        dataStore.removeData(ofTypes: dataTypes, modifiedSince: sinceDate) { [weak self] in
+        store.removeData(ofTypes: dataTypes, modifiedSince: sinceDate) { [weak self] in
             Task { @MainActor in
                 self?.resetToLoggedOut()
                 self?.backgroundWebView = nil
@@ -447,7 +466,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
 
         completedRefreshes += 1
         if CacheMaintenance.shouldPurge(refreshCount: completedRefreshes) {
-            CacheMaintenance.purge()
+            CacheMaintenance.purge(from: dataStore)
         }
     }
 
@@ -603,7 +622,7 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
             return
         }
 
-        if provider.isUsagePage(urlString) || provider.canScrapeUsageFromURL(url) {
+        if provider.isUsagePage(url) || provider.canScrapeUsageFromURL(url) {
             scheduleScrape(from: webView)
             return
         }
@@ -674,8 +693,11 @@ class UsageService: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     private func scrapeUsage(from webView: WKWebView, generation: Int) {
-        guard isScrapeWebView(webView), generation == scrapeGeneration, !webView.isLoading else { return }
-        let sourceURL = webView.url
+        guard isScrapeWebView(webView),
+              generation == scrapeGeneration,
+              !webView.isLoading,
+              let sourceURL = webView.url,
+              provider.isUsagePage(sourceURL) || provider.canScrapeUsageFromURL(sourceURL) else { return }
         webView.callAsyncJavaScript(
             provider.scrapingScript,
             arguments: [:],

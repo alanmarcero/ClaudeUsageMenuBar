@@ -472,7 +472,12 @@ final class GeminiUsageAPITests: XCTestCase {
         let url = GeminiUsageAPI.findCLIExecutable()
         if let url {
             XCTAssertTrue(FileManager.default.isExecutableFile(atPath: url.path))
+            XCTAssertTrue(url.path.hasPrefix("/opt/homebrew/bin/") || url.path.hasPrefix("/usr/local/bin/"))
         }
+        XCTAssertFalse(GeminiUsageAPI.isTrustedCLIPath(
+            GeminiUsageAPI.realUserHomeDirectory.appendingPathComponent(".local/bin/agy").path
+        ))
+        XCTAssertFalse(GeminiUsageAPI.isTrustedCLIPath("/tmp/agy"))
     }
 
     func testFetchResultAutoRefreshesWhenExpiringSoon() async {

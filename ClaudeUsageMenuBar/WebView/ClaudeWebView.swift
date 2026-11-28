@@ -56,7 +56,7 @@ struct ProviderWebView: NSViewRepresentable {
     @ObservedObject var browserState: WebViewBrowserState
 
     func makeNSView(context: Context) -> WKWebView {
-        let webView = ClaudeWebViewFactory.makeWebView()
+        let webView = ClaudeWebViewFactory.makeWebView(for: provider)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true

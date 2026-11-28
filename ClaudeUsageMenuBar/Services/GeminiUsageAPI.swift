@@ -192,7 +192,7 @@ enum GeminiUsageAPI {
         process.arguments = ["-p", "/usage"]
         process.environment = [
             "HOME": realHome.path,
-            "PATH": "\(realHome.path)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+            "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
         ]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -210,40 +210,40 @@ enum GeminiUsageAPI {
         return FileManager.default.homeDirectoryForCurrentUser
     }
 
-    static func findCLIExecutable() -> URL? {
-        let realHome = realUserHomeDirectory
-        let containerHome = FileManager.default.homeDirectoryForCurrentUser
-        let candidates = [
-            realHome.appendingPathComponent(".local/bin/agy").path,
-            realHome.appendingPathComponent(".local/bin/gemini").path,
-            containerHome.appendingPathComponent(".local/bin/agy").path,
-            containerHome.appendingPathComponent(".local/bin/gemini").path,
-            "/usr/local/bin/agy",
-            "/usr/local/bin/gemini",
-            "/opt/homebrew/bin/agy",
-            "/opt/homebrew/bin/gemini"
-        ]
-        for path in candidates {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return URL(fileURLWithPath: path)
-            }
+    static func isTrustedCLIPath(_ path: String) -> Bool {
+        let trustedPrefixes = ["/opt/homebrew/bin/", "/usr/local/bin/"]
+        guard trustedPrefixes.contains(where: { path.hasPrefix($0) }),
+              FileManager.default.isExecutableFile(atPath: path) else {
+            return false
         }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-l", "-c", "which agy 2>/dev/null || which gemini 2>/dev/null"]
-        process.environment = [
-            "HOME": realHome.path,
-            "PATH": "\(realHome.path)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        let realLocalBin = realUserHomeDirectory.appendingPathComponent(".local/").path
+        let containerLocalBin = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/").path
+        guard !resolvedPath.hasPrefix(realLocalBin),
+              !resolvedPath.hasPrefix(containerLocalBin),
+              !resolvedPath.hasPrefix("/tmp/"),
+              !resolvedPath.hasPrefix("/var/tmp/") else {
+            return false
+        }
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: resolvedPath),
+              let perms = (attrs[.posixPermissions] as? NSNumber)?.intValue,
+              (perms & 0o002) == 0 else {
+            return false
+        }
+        return true
+    }
+
+    static func findCLIExecutable() -> URL? {
+        let candidates = [
+            "/opt/homebrew/bin/agy",
+            "/opt/homebrew/bin/gemini",
+            "/usr/local/bin/agy",
+            "/usr/local/bin/gemini"
         ]
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return nil }
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        let resolved = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !resolved.isEmpty, FileManager.default.isExecutableFile(atPath: resolved) else { return nil }
-        return URL(fileURLWithPath: resolved)
+        guard let match = candidates.first(where: isTrustedCLIPath) else {
+            return nil
+        }
+        return URL(fileURLWithPath: match)
     }
 
     static func decodeKeychainPayload(_ data: Data) -> Data? {
